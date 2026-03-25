@@ -1,89 +1,66 @@
-# 🏔️ Trek India: Battalion Booking & Logistics Terminal
+# 🛡️ Hostel Shop Management: Industrial Scale Provisioning 
 
-**Trek India** is a high-performance, logistics-driven Flutter application designed to revolutionize the Himalayan trekking experience. Built with a tactical "Command & Control" design aesthetic, it provides a seamless interface for trekkers, a robust management panel for admins, and specialized terminals for field employees.
-
----
-
-## 🛠️ Tactical Tech-Stack
-The application is engineered for absolute reliability and real-time field intelligence:
-
-- **Frontend Core:** [Flutter](https://flutter.dev) (Dart) - For high-fidelity cross-platform deployment.
-- **Backend Hub:** [Supabase](https://supabase.com) - Leveraging PostgreSQL for mission-critical data, Row-Level Security (RLS) for battalion-grade protection, and Real-time syncing.
-- **Strategic UI:** [Animate Do](https://pub.dev/packages/animate_do) & [Cached Network Image](https://pub.dev/packages/cached_network_image) - For a premium, fluid, and optimized tactical interface.
-- **Field Reporting:** [PDF](https://pub.dev/packages/pdf) & [Printing](https://pub.dev/packages/printing) - Generating on-the-go itineraries and field dossiers.
+**Hostel Shop Management** is a high-fidelity, industrial-grade provisioning platform designed for high-density campus logistics. It streamlines the procurement of essential goods through a premium, performance-optimized interface integrated with real-time Supabase infrastructure.
 
 ---
 
-## 👤 User-Tier Feature Matrix
+## 🚀 Key Mission Features
 
-### 1. 🥾 Trekker Terminal (User)
-*The primary interface for the field hiker, focused on mission discovery and identity.*
+### 📦 Industrial Inventory Fleet (500 Units)
+*   **Massive Scale**: 500 distinct, branded provisions deployed across 10 strategic categories (Chocolates, Electronics, Stationery, Hygiene, Snacks, etc.).
+*   **Authentic Branding**: Real-world brand mapping (Cadbury, Maggi, MI, Parker, Dettol) with high-fidelity Unsplash CDN visuals.
+*   **Adaptive Tagging Hub**: Provisioning is indexed with mission-critical tags like `Exam-Ready`, `Smart Tech`, and `Deep Clean` for precision filtering.
 
-- **Mission Intelligence:** Browse extensive Himalayan trek dossiers with layered itineraries, inclusions, and difficulty ratings.
-- **Gear Armory:** Integrated rental system allowing trekkers to book poles, jackets, and safety gear alongside their mission.
-- **Tactical Dossier (Profile):** Secure document upload for Passport, Aadhar, and Medical Certificates for HQ mission clearance.
-- **Squad Community:** Live blog updates, global leaderboard ranking, and an XP-based progress system.
-- **The Wallet:** Real-time visibility into mission credits, booking history, and tactical refunds.
+### 🧪 Multi-Modal Specification Terminal
+*   **Provision Sustainment (Food)**: Displays a refined **"Nutrition Facts"** card with dynamic **% Daily Value (DV)** calculations for Energy, Sugars, Protein, and Fats.
+*   **Hardware Logistics (Non-Food)**: The UI intelligently pivots to a **"Technical Specifications"** terminal for hardware (Electronics, Pens, Hygiene), projecting metrics like **Battery Capacity (mAh)**, **Ink Technology**, and **pH Balance**.
+*   **Specification Identifier (QR)**: Every product carries a dynamic QR signature based on its name or SKU, ensuring human-readable identity in the procurement loop.
 
-### 2. 🛡️ HQ Command Hub (Admin)
-*A centralized administrative fortress for battalion-wide management.*
+### 🖼️ Premium Visual DNA
+*   **High-Density Grid**: Optimized marketplace cards with zero-clutter rating telemetry and brand metadata integration.
+*   **Translucent Architecture**: Extensive use of **Glassmorphism**, Backdrop Blur (SFX), and smooth micro-animations for an immersive experience.
+*   **Product Detail Screens**: Zero-gap design between identification segments, providing a flush, professional terminal layout.
 
-- **Inventory Command:** Real-time management of Trek nodes and Gear rental stocks.
-- **Personnel Registry:** Comprehensive staff tracking including base compensation, attendance metrics, and task delegation.
-- **Support Hub:** Unified intelligence center for Enquiries and Complaints, featuring automated AI-context and resolution tracking.
-- **Squad Intelligence:** Battalion-level overview of trek groups, participant payment statuses, and staff deployment.
-- **Financial Analytics:** Live reporting on estimated revenue, dues pending, and operational payout logs.
-
-### 3. 🗺️ Battalion Staff Terminal (Employee)
-*Specialized deployment terminal for trek leaders, guides, and ground staff.*
-
-- **Strategic Feed:** Personalized view of assigned treks, participant counts, and mission dates.
-- **Attendance Logistics:** Integrated reporting for "Present", "Leave", and "Off-Duty" status sync with HQ.
-- **Task Deployment:** Direct mission checklists and tasks assigned by HQ Commanders.
-- **Asset Wallet:** Specialized view of salary breakups, tactical allowances, and payout history.
+### ⚡ Technical Capabilities
+*   **Real-Time Data Engine**: Powered by **Supabase PostgreSQL** for real-time stock deductions and review submissions.
+*   **State Coordination**: Managed via **Provider** for global cart persistence and order orchestration.
+*   **Atomic Transactions**: Industrial order placement via PGSQL RPC to ensure stock integrity during checkout.
 
 ---
 
-## 🚀 Mission Deployment (Getting Started)
+## 🛠️ Marketplace Categories
 
-### Battalion Prerequisites
-- Flutter SDK (v3.13+)
-- Dart SDK (v3.0+)
-- Supabase Project URL & Anonymous Key
-
-### Tactical Setup
-1. **Clone the Sector Repository:**
-   ```bash
-   git clone https://github.com/I-am-Manu-Singh/TrekIndiaApp.git
-   cd TrekBookingApp
-   ```
-
-2. **Establish Dependencies:**
-   ```bash
-   flutter pub get
-   ```
-
-3. **Database Synchronization:**
-   Apply the provided SQL migrations (`master_supabase_setup.sql` and `hq_dossier_sync.sql`) to your Supabase SQL Editor to establish the battalion schema.
-
-4. **Launch Application:**
-   ```bash
-   flutter run
-   ```
+1.  **🍫 Chocolates**: High-energy silk-wrapped treats.
+2.  **🖋️ Pens**: Precision writing instruments and exam-ready ink tech.
+3.  **🍿 Snacks**: Savory provisions for mission downtime.
+4.  **🥤 Drinks**: Refreshing hydration and energy fuels.
+5.  **🍜 Instant Meals**: Quick-prep student picked rations.
+6.  **🧼 Hygiene**: Sanitization and pH-balanced provisions.
+7.  **📱 Electronics**: Digital-assets and hardware utilities (Power Banks, Smart Tech).
+8.  **🍪 Biscuits**: Classic tea-time and high-crunch cookies.
+9.  **📓 Stationery**: Academic-grade study materials and drafting tools.
+10. **🪣 Household**: Industrial-strength cleaners and mission-critical maintenance.
 
 ---
 
-## 🛡️ Security Protocols
-The application utilizes **Supabase Row Level Security (RLS)** to enforce sector-based access:
-- **Admin Tier:** Absolute global visibility and mutation rights.
-- **Employee Tier:** Visibility limited to assigned mission deployments and personal financial telemetry.
-- **User Tier:** Vision restricted to self-dossier, public treks, and authorized squad bookings.
+## 🛠️ Installation & Deployment
+
+1.  **Clone the Depot**:
+    ```bash
+    git clone https://github.com/I-am-Manu-Singh/HostelShopManagementApp.git
+    ```
+2.  **Provision Dependencies**:
+    ```bash
+    flutter pub get
+    ```
+3.  **Industrial Fleet Deployment**:
+    *   Initialize the Supabase database.
+    *   Execute `massive_inventory_expansion.sql` to populate the 500-unit provision manifest.
+4.  **Deploy Mission**:
+    ```bash
+    flutter run
+    ```
 
 ---
 
-## 📡 Deployment Logs & v1.4.x Updates
-- **v1.4.5:** Consolidated Enquiries & Complaints into "Support Hub".
-- **v1.4.6:** Standardized Profile Documentation (`medical_certificate_url`).
-- **v1.4.7:** Hardened field logistics with constrained bottom-sheet UI.
-
-**Trek India - Scaling the Himalayas with Technology.**
+*Designed for high-performance campus operations. Delivery a mission-critical, stable architectural twin.*
