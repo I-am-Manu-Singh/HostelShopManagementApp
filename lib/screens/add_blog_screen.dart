@@ -69,14 +69,14 @@ class _AddBlogScreenState extends State<AddBlogScreen> {
       ),
       body: Container(
         decoration: const BoxDecoration(
-          color: Color(0xFF0F172A),
+          color: Color(0xFF08090A),
         ),
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('DISPATCH INTEL', style: GoogleFonts.outfit(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -1)),
+              Text('PUBLISH A POST', style: GoogleFonts.outfit(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -1)),
               const SizedBox(height: 8),
               Text('Share updates with the hostel community.', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 12)),
               const SizedBox(height: 32),
@@ -86,7 +86,7 @@ class _AddBlogScreenState extends State<AddBlogScreen> {
               const SizedBox(height: 16),
               _iconicInput(Icons.timer_outlined, _readTimeCtrl, label: 'Read Duration'),
               const SizedBox(height: 32),
-              Text('INTEL TAGS', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+              Text('TAGS', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
               const SizedBox(height: 16),
               Wrap(
                 spacing: 12,
@@ -118,7 +118,7 @@ class _AddBlogScreenState extends State<AddBlogScreen> {
                 ],
               ),
               const SizedBox(height: 32),
-              Text('INTEL NARRATIVE', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+              Text('DETAILS', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
               const SizedBox(height: 16),
               _largeInput(_contentCtrl),
               const SizedBox(height: 48),
@@ -132,7 +132,7 @@ class _AddBlogScreenState extends State<AddBlogScreen> {
                     style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18))),
                     child: _isSaving 
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : Text('AUTHORIZE DISPATCH', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2)),
+                      : Text('PUBLISH', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2)),
                   ),
                 ),
               ),
@@ -149,12 +149,12 @@ class _AddBlogScreenState extends State<AddBlogScreen> {
       context: context,
       builder: (ctx) => Container(
         padding: const EdgeInsets.all(32),
-        decoration: const BoxDecoration(color: Color(0xFF1E293B), borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+        decoration: const BoxDecoration(color: Color(0xFF16181A), borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('INTEL CLASSIFICATION', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
+            Text('TAGS', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1)),
             const SizedBox(height: 24),
             Wrap(
               spacing: 12,
@@ -178,7 +178,7 @@ class _AddBlogScreenState extends State<AddBlogScreen> {
             const SizedBox(height: 24),
             const Divider(color: Colors.white10),
             const SizedBox(height: 24),
-            Text('PROCTOR TAG', style: GoogleFonts.outfit(color: Colors.white38, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
+            Text('CUSTOM TAG', style: GoogleFonts.outfit(color: Colors.white38, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
             const SizedBox(height: 12),
             Row(
               children: [

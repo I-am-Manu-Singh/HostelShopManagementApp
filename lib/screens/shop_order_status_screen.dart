@@ -25,7 +25,7 @@ class _ShopOrderStatusScreenState extends State<ShopOrderStatusScreen> {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('MY PROVISIONING MISSIONS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        title: Text('MY ORDERS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.close_rounded, color: textColor), onPressed: () => Navigator.pop(context)),
@@ -118,6 +118,14 @@ class _ShopOrderStatusScreenState extends State<ShopOrderStatusScreen> {
                       _detailRow('ADDRESS', o['delivery_address'], textColor),
                     _detailRow('PAYMENT', o['payment_method'] ?? 'Wallet', textColor),
                     _detailRow('P.STATUS', o['payment_status'] ?? 'Pending', textColor),
+                    if (o['is_booking'] == true) ...[
+                      const SizedBox(height: 8),
+                      _detailRow('BOOKING DATE', o['booking_date'] != null ? DateFormat('yyyy-MM-dd').format(DateTime.parse(o['booking_date'])) : 'N/A', Colors.indigoAccent),
+                      _detailRow('ADVANCE PAID', '₹${o['advance_paid'] ?? 0.0}', Colors.green),
+                      _detailRow('USER TYPE', (o['user_type'] ?? 'domestic').toString().toUpperCase(), textColor),
+                      if (o['delivery_location'] != null && o['delivery_location'].toString().isNotEmpty)
+                        _detailRow('LOCATION', o['delivery_location'], textColor),
+                    ],
                     if (o['emergency_contact_name'] != null && o['emergency_contact_name'].toString().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       _detailRow('ALT. RECEIVER', '${o['emergency_contact_name']} (${o['emergency_contact_relation']})', textColor),
@@ -150,15 +158,26 @@ class _ShopOrderStatusScreenState extends State<ShopOrderStatusScreen> {
                     const SizedBox(height: 16),
                     Text('MANIFEST', style: GoogleFonts.outfit(color: textColor.withOpacity(0.2), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
                     const SizedBox(height: 8),
-                    ...items.map((it) => Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(children: [
-                        Text('${it['qty']}x ', style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.w900, fontSize: 12)),
-                        Text(it['name'] ?? 'ITEM', style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 12)),
-                        const Spacer(),
-                        Text('₹${it['price'] ?? ''}', style: TextStyle(color: textColor.withOpacity(0.3), fontSize: 12)),
-                      ]),
-                    )).toList(),
+                    ...items.map((it) {
+                      final qty = (it['qty'] as num).toInt();
+                      final wQty = it['weight_qty'] != null ? (it['weight_qty'] as num).toDouble() : null;
+                      final wUnit = it['weight_unit']?.toString();
+                      
+                      String qtyWeightStr = qty.toString();
+                      if (wQty != null && wQty != 1.0) {
+                        qtyWeightStr = '$qty x ${wQty} ${wUnit ?? 'kg'}';
+                      }
+                      
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4),
+                        child: Row(children: [
+                          Text('$qtyWeightStr ', style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.w900, fontSize: 12)),
+                          Text(it['name'] ?? 'ITEM', style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 12)),
+                          const Spacer(),
+                          Text('₹${it['price'] ?? ''}', style: TextStyle(color: textColor.withOpacity(0.3), fontSize: 12)),
+                        ]),
+                      );
+                    }).toList(),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
@@ -180,11 +199,11 @@ class _ShopOrderStatusScreenState extends State<ShopOrderStatusScreen> {
   }
 
   void _authorizeReceipt(dynamic o) async {
-     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('COMPUTING FISCAL RECEIPT...'), duration: Duration(seconds: 1)));
+     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating receipt...'), duration: Duration(seconds: 1)));
      try {
        await ReceiptService.generateAndShareReceipt(o);
      } catch (e) {
-       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('FISCAL EXPORT FAILED: $e'), backgroundColor: Colors.red));
+       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to export receipt: $e'), backgroundColor: Colors.red));
      }
   }
 

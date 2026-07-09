@@ -5,41 +5,50 @@ class PrivacyPolicyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Privacy Policy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-        backgroundColor: const Color(0xFF2E7B32),
+        title: Text('Privacy Policy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Privacy Policy for Trek India', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            const Text('Last updated: March 20, 2026', style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 24),
-            const Text('Introduction', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Trek India ("we," "our," or "us") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, and share individual information when you use our mobile application.'),
-            const SizedBox(height: 16),
-            const Text('Information Collection', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('We collect information you provide directly to us, such as when you create an account, book a trek, or contact support. This includes your name, email address, phone number, emergency contact details, and medical information necessary for your safety during treks.'),
-            const SizedBox(height: 16),
-            const Text('Usage of Information', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('We use your information to facilitate trek bookings, ensure your safety during expeditions, provide customer support, and improve our services. We may also use your contact information to send you updates and promotional materials related to Trek India.'),
-            const SizedBox(height: 16),
-            const Text('Data Security', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('We implement industry-standard security measures to protect your data from unauthorized access, alteration, or destruction. However, no method of transmission over the internet or electronic storage is 100% secure.'),
-            const SizedBox(height: 16),
-            const Text('Contact Us', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('If you have any questions about this Privacy Policy, please contact us at support@trekindia.com.'),
+            Text('Privacy Policy', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
+            const SizedBox(height: 10),
+            const Text('Last updated: March 2026', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Divider(height: 40, thickness: 1),
+            
+            _buildSection(textColor, '1. Introduction', 'We are committed to protecting your privacy. This policy explains how we collect, use, and store information when you use our Hostel & Mandi Shop Management application.'),
+            _buildSection(textColor, '2. Information We Collect', 'We collect account details (name, email, phone number, and campus role) to authenticate logins and process store purchases. For Mandi operations, delivery address or location coordinates are collected to enable orders dispatch.'),
+            _buildSection(textColor, '3. Data Usage', 'Your information is used strictly to facilitate order bookings, coordinate deliveries, manage hostel rooms, and notify you about relevant campus announcements. We do not sell your personal data.'),
+            _buildSection(textColor, '4. Security', 'We use industry-standard security measures and secure database channels to ensure your personal details, order receipts, and transactions remain protected from unauthorized access.'),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSection(Color color, String heading, String body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(heading, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 8),
+          Text(body, style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.5)),
+        ],
       ),
     );
   }

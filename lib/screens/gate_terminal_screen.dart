@@ -23,7 +23,7 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
   final _db = DatabaseService();
   
   bool _isProcessing = false;
-  String _terminalStatus = 'TERMINAL READY';
+  String _terminalStatus = 'READY';
   Map<String, dynamic>? _lastScannedUser;
   Color _statusColor = Colors.indigoAccent;
   bool _showBarcode = true; // Default to barcode for faster login
@@ -60,7 +60,7 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
     _clearTimer?.cancel();
 
     setState(() {
-      _terminalStatus = 'AUTHENTICATING...';
+      _terminalStatus = 'VERIFYING...';
       _statusColor = Colors.amberAccent;
     });
 
@@ -90,20 +90,20 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
             _statusColor = Colors.greenAccent;
           });
         } else {
-          _handleFailure('SYNC FAILURE');
+          _handleFailure('SYNC ERROR');
         }
       } else {
-        _handleFailure('UNKNOWN IDENTITY');
+        _handleFailure('USER NOT FOUND');
       }
     } catch (e) {
-      _handleFailure('PROTOCOL ERROR');
+      _handleFailure('ERROR');
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
         _clearTimer = Timer(const Duration(seconds: 4), () {
           if (mounted) setState(() {
             _lastScannedUser = null;
-            _terminalStatus = 'TERMINAL READY';
+            _terminalStatus = 'READY';
             _statusColor = Colors.indigoAccent;
           });
         });
@@ -121,7 +121,7 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF020617),
+      backgroundColor: const Color(0xFF08090A),
       body: Column(
         children: [
           // SCANNER PANEL (Top)
@@ -142,7 +142,7 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
             flex: 4,
             child: Container(
               decoration: BoxDecoration(
-                color: const Color(0xFF0F172A).withOpacity(0.8),
+                color: const Color(0xFF08090A).withOpacity(0.8),
                 border: const Border(top: BorderSide(color: Colors.white12, width: 1)),
               ),
               child: ClipRRect(
@@ -258,17 +258,17 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
             child: CircleAvatar(radius: 64, backgroundColor: Colors.white.withOpacity(0.05), backgroundImage: (_lastScannedUser?['avatar_url'] != null) ? NetworkImage(_lastScannedUser!['avatar_url']) : null, child: (_lastScannedUser?['avatar_url'] == null) ? Icon(Icons.person_rounded, size: 60, color: _statusColor) : null),
           ),
           const SizedBox(height: 24),
-          Text(_lastScannedUser?['full_name']?.toString().toUpperCase() ?? 'ALGORITHM DETECTING...', style: GoogleFonts.outfit(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+          Text(_lastScannedUser?['full_name']?.toString().toUpperCase() ?? 'DETECTING...', style: GoogleFonts.outfit(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
           const SizedBox(height: 12),
-          Text(_lastScannedUser?['role']?.toString().toUpperCase().replaceAll('_', ' ') ?? 'IDENTIFYING...', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          Text(_lastScannedUser?['role']?.toString().toUpperCase().replaceAll('_', ' ') ?? 'LOADING...', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 24),
-          _detailRow(Icons.meeting_room_rounded, 'UNIT', _lastScannedUser?['rooms']?['room_number'] ?? 'N/A'),
-          _detailRow(Icons.calendar_today_rounded, 'TIMESTAMP', '${_now.hour}:${_now.minute.toString().padLeft(2, '0')}:${_now.second.toString().padLeft(2, '0')}'),
+          _detailRow(Icons.meeting_room_rounded, 'ROOM', _lastScannedUser?['rooms']?['room_number'] ?? 'N/A'),
+          _detailRow(Icons.calendar_today_rounded, 'TIME', '${_now.hour}:${_now.minute.toString().padLeft(2, '0')}:${_now.second.toString().padLeft(2, '0')}'),
           const SizedBox(height: 24),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.greenAccent.withOpacity(0.1))),
-            child: const Row(children: [Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 14), SizedBox(width: 8), Text('BIOMETRIC HASH VERIFIED', style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1))]),
+            child: const Row(children: [Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 14), SizedBox(width: 8), Text('IDENTITY VERIFIED', style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1))]),
           ),
         ],
       ),
@@ -294,9 +294,9 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
       children: [
         const Icon(Icons.qr_code_2_rounded, color: Colors.indigoAccent, size: 48),
         const SizedBox(height: 16),
-        Text('WAITING FOR PROXIMITY', style: GoogleFonts.outfit(color: Colors.white24, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 2.5)),
+        Text('WAITING FOR SCAN', style: GoogleFonts.outfit(color: Colors.white24, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 2.5)),
         const SizedBox(height: 8),
-        Text('Present ID badge or Profile QR to the sensor array', style: TextStyle(color: Colors.white.withOpacity(0.1), fontSize: 10, fontStyle: FontStyle.italic)),
+        Text('Present ID badge or Profile QR to the scanner', style: TextStyle(color: Colors.white.withOpacity(0.1), fontSize: 10, fontStyle: FontStyle.italic)),
       ],
     );
   }
@@ -308,9 +308,9 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 10)])), const SizedBox(width: 16), Text('LIVE TERMINAL SYNC: $timeStr', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 2))]),
+          Row(children: [Container(width: 8, height: 8, decoration: BoxDecoration(color: Colors.redAccent, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.redAccent.withOpacity(0.5), blurRadius: 10)])), const SizedBox(width: 16), Text('LIVE · $timeStr', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 2))]),
           const SizedBox(height: 8),
-          Text('LOC: SECTOR ALPHA - MAIN ACCESS PORT', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          Text('LOC: MAIN ACCESS GATE', style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
         ],
       ),
     );
@@ -334,7 +334,7 @@ class _GateTerminalScreenState extends State<GateTerminalScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
           _controlBtn(_showBarcode ? Icons.camera_front_rounded : Icons.qr_code_scanner_rounded, _showBarcode ? 'FACE AUTH' : 'SCAN QR', () => setState(() => _showBarcode = !_showBarcode)),
-          _controlBtn(Icons.refresh_rounded, 'REBOOT', () => _initializeCamera()),
+          _controlBtn(Icons.refresh_rounded, 'RESET', () => _initializeCamera()),
           _controlBtn(Icons.close_rounded, 'EXIT', () => Navigator.pop(context)),
         ],
       ),

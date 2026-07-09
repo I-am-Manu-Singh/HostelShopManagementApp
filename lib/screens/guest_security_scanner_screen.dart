@@ -109,7 +109,7 @@ class _GuestSecurityScannerScreenState extends State<GuestSecurityScannerScreen>
       child: Container(
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF0F172A) : Colors.white,
+          color: isDark ? const Color(0xFF08090A) : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(40)),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 40)],
         ),

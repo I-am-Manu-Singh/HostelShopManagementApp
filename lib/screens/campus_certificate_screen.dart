@@ -65,26 +65,26 @@ class _CampusCertificateScreenState extends State<CampusCertificateScreen> {
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(5),
                         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 60)],
-                        border: Border.all(color: const Color(0xFF1E293B), width: 12),
+                        border: Border.all(color: const Color(0xFF16181A), width: 12),
                         image: const DecorationImage(image: NetworkImage('https://www.transparenttextures.com/patterns/natural-paper.png'), opacity: 0.1, repeat: ImageRepeat.repeat),
                       ),
                       child: Column(
                         children: [
-                          Text('CAMPUS MANAGEMENT HQ', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 4, color: const Color(0xFF1E293B))),
+                          Text('CAMPUS MANAGEMENT HQ', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 4, color: const Color(0xFF16181A))),
                           const SizedBox(height: 8),
-                          const Divider(color: Color(0xFF1E293B), thickness: 2, indent: 80, endIndent: 80),
+                          const Divider(color: Color(0xFF16181A), thickness: 2, indent: 80, endIndent: 80),
                           const Spacer(flex: 2),
-                          Text('CERTIFICATE', style: GoogleFonts.cinzel(fontWeight: FontWeight.w900, fontSize: 38, color: const Color(0xFF0F172A), letterSpacing: 6)),
+                          Text('CERTIFICATE', style: GoogleFonts.cinzel(fontWeight: FontWeight.w900, fontSize: 38, color: const Color(0xFF08090A), letterSpacing: 6)),
                           Text('OF RESIDENTIAL CONDUCT', style: GoogleFonts.cinzel(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade800, letterSpacing: 2)),
                           const Spacer(flex: 2),
                           Text('THIS IS TO FORMALLY CERTIFY THAT', style: GoogleFonts.outfit(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 2)),
                           const SizedBox(height: 32),
-                          Text(studentName.toUpperCase(), textAlign: TextAlign.center, style: GoogleFonts.bodoniModa(fontSize: 36, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B))),
+                          Text(studentName.toUpperCase(), textAlign: TextAlign.center, style: GoogleFonts.bodoniModa(fontSize: 36, fontWeight: FontWeight.w900, color: const Color(0xFF16181A))),
                           const SizedBox(height: 32),
                           Text('HAS DEMONSTRATED EXEMPLARY CONDUCT WHILE RESIDING AT', textAlign: TextAlign.center, style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey, letterSpacing: 1.5)),
                           const SizedBox(height: 12),
                           // 🧠 Building mapping
-                          Text('UNIT ${room['room_number']} • ${room['building']?.toUpperCase() ?? 'CAMPUS BLOCK'}', style: GoogleFonts.cinzel(fontSize: 18, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B))),
+                          Text('UNIT ${room['room_number']} • ${room['building']?.toUpperCase() ?? 'CAMPUS BLOCK'}', style: GoogleFonts.cinzel(fontSize: 18, fontWeight: FontWeight.w900, color: const Color(0xFF16181A))),
                           const Spacer(flex: 2),
                           Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                              _metric('DISCIPLINE', '100%', Icons.verified_user_rounded),
@@ -111,7 +111,7 @@ class _CampusCertificateScreenState extends State<CampusCertificateScreen> {
   }
 
   Widget _metric(String label, String val, IconData icon) {
-    return Column(children: [Icon(icon, size: 20, color: Colors.indigo.shade900), const SizedBox(height: 8), Text(label, style: GoogleFonts.outfit(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1.5)), Text(val, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w900, color: const Color(0xFF1E293B)))]);
+    return Column(children: [Icon(icon, size: 20, color: Colors.indigo.shade900), const SizedBox(height: 8), Text(label, style: GoogleFonts.outfit(fontSize: 8, fontWeight: FontWeight.w900, color: Colors.grey, letterSpacing: 1.5)), Text(val, style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w900, color: const Color(0xFF16181A)))]);
   }
 
   Widget _sign(String label, String name) {

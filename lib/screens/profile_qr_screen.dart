@@ -22,7 +22,7 @@ class _ProfileQrScreenState extends State<ProfileQrScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      backgroundColor: isDark ? const Color(0xFF08090A) : Colors.white,
       appBar: AppBar(
         title: Text('SECURE IDENTITY PROTOCOL', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2)),
         backgroundColor: Colors.transparent,

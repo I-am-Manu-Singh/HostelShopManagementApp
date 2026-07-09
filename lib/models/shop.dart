@@ -9,6 +9,11 @@ class ShopItem {
   final int stockQuantity;
   final String? imageUrl;
   final bool isAvailable;
+  
+  // Mandi extensions
+  final String unit; // e.g. kg, piece, dozen
+  final String? rateDate;
+  final bool isMandi;
 
   ShopItem({
     required this.id,
@@ -32,6 +37,9 @@ class ShopItem {
     this.isBestseller = false,
     this.rating = 4.5,
     this.totalReviews = 0,
+    this.unit = 'pcs',
+    this.rateDate,
+    this.isMandi = false,
   });
 
   final String? brand;
@@ -69,6 +77,9 @@ class ShopItem {
       ingredients: json['ingredients'],
       nutritionalInfo: json['nutritional_info'],
       howToUse: json['how_to_use'],
+      unit: json['unit'] ?? 'pcs',
+      rateDate: json['rate_date'],
+      isMandi: json['is_mandi'] ?? false,
     );
   }
 
@@ -96,6 +107,9 @@ class ShopItem {
       'ingredients': ingredients,
       'nutritional_info': nutritionalInfo,
       'how_to_use': howToUse,
+      'unit': unit,
+      'rate_date': rateDate,
+      'is_mandi': isMandi,
     };
   }
 }
@@ -109,6 +123,15 @@ class ShopOrder {
   final String orderStatus;
   final DateTime createdAt;
 
+  // Mandi extensions
+  final bool isBooking;
+  final DateTime? bookingDate;
+  final double advancePaid;
+  final String userType; // domestic, commercial
+  final String? deliveryAddress;
+  final String? deliveryLocation;
+  final String? deliveryPartnerId;
+
   ShopOrder({
     required this.id,
     required this.userId,
@@ -117,6 +140,13 @@ class ShopOrder {
     required this.paymentStatus,
     required this.orderStatus,
     required this.createdAt,
+    this.isBooking = false,
+    this.bookingDate,
+    this.advancePaid = 0.0,
+    this.userType = 'domestic',
+    this.deliveryAddress,
+    this.deliveryLocation,
+    this.deliveryPartnerId,
   });
 
   factory ShopOrder.fromJson(Map<String, dynamic> json) {
@@ -128,6 +158,13 @@ class ShopOrder {
       paymentStatus: json['payment_status'] ?? 'Pending',
       orderStatus: json['order_status'] ?? 'Placed',
       createdAt: DateTime.parse(json['created_at'] ?? DateTime.now().toIso8601String()),
+      isBooking: json['is_booking'] ?? false,
+      bookingDate: json['booking_date'] != null ? DateTime.tryParse(json['booking_date']) : null,
+      advancePaid: (json['advance_paid'] as num?)?.toDouble() ?? 0.0,
+      userType: json['user_type'] ?? 'domestic',
+      deliveryAddress: json['delivery_address'],
+      deliveryLocation: json['delivery_location'],
+      deliveryPartnerId: json['delivery_partner_id'],
     );
   }
 }
@@ -137,8 +174,10 @@ class OrderItem {
   final String name;
   final int qty;
   final double price;
+  final double? weightQty;
+  final String? weightUnit;
 
-  OrderItem({required this.id, required this.name, required this.qty, required this.price});
+  OrderItem({required this.id, required this.name, required this.qty, required this.price, this.weightQty, this.weightUnit});
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
     return OrderItem(
@@ -146,6 +185,8 @@ class OrderItem {
       name: json['name'],
       qty: json['qty'],
       price: (json['price'] as num).toDouble(),
+      weightQty: json['weight_qty'] != null ? (json['weight_qty'] as num).toDouble() : null,
+      weightUnit: json['weight_unit']?.toString(),
     );
   }
 
@@ -154,6 +195,8 @@ class OrderItem {
     'name': name,
     'qty': qty,
     'price': price,
+    'weight_qty': weightQty,
+    'weight_unit': weightUnit,
   };
 }
 

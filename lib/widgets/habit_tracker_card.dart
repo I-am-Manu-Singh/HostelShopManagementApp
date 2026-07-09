@@ -27,7 +27,7 @@ class HabitTrackerCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: isDark ? const Color(0xFF16181A) : Colors.white,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(color: themeColor.withOpacity(isCompleted ? 0.3 : 0.05)),
         boxShadow: isCompleted ? [BoxShadow(color: themeColor.withOpacity(0.05), blurRadius: 20)] : null,

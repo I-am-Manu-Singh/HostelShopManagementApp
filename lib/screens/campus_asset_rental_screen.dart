@@ -58,7 +58,7 @@ class _CampusAssetRentalScreenState extends State<CampusAssetRentalScreen> {
         filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
         child: Container(
           height: MediaQuery.of(context).size.height * 0.7,
-          decoration: const BoxDecoration(color: Color(0xFF1E293B), borderRadius: BorderRadius.vertical(top: Radius.circular(40))),
+          decoration: const BoxDecoration(color: Color(0xFF16181A), borderRadius: BorderRadius.vertical(top: Radius.circular(40))),
           padding: const EdgeInsets.all(32),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,7 +99,7 @@ class _CampusAssetRentalScreenState extends State<CampusAssetRentalScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       appBar: AppBar(
         title: Text('RENTAL TERMINAL', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
         backgroundColor: Colors.transparent,

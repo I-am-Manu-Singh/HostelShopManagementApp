@@ -104,7 +104,7 @@ class _CampusLeaderboardScreenState extends State<CampusLeaderboardScreen> with 
         : RefreshIndicator(
             onRefresh: _fetchLeaderboard,
             color: Colors.indigoAccent,
-            backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+            backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
             child: CustomScrollView(
               slivers: [
                 if (_myRank != -1 && _tabController.index == 0)

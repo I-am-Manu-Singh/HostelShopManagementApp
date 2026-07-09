@@ -34,7 +34,7 @@ class _MessMenuCalendarScreenState extends State<MessMenuCalendarScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       appBar: AppBar(
         title: Text('MENU ARCHIVE & FUTURE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
@@ -93,7 +93,7 @@ class _MessMenuCalendarScreenState extends State<MessMenuCalendarScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('PROVISIONING FOR ${_selectedDay!.day} ${_getMonthName(_selectedDay!.month).toUpperCase()}', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
+          Text('MENU FOR ${_selectedDay!.day} ${_getMonthName(_selectedDay!.month).toUpperCase()}', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
           const SizedBox(height: 16),
           _mealBox('BREAKFAST', menu['B']!, Icons.wb_sunny_outlined, Colors.amberAccent),
           const SizedBox(height: 12),

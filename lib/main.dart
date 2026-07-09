@@ -10,10 +10,12 @@ import 'services/notification_service.dart';
 import 'services/preferences_service.dart';
 import 'screens/room_inventory_screen.dart';
 import 'screens/shop_browse_screen.dart';
-import 'screens/attendance_screen.dart';
-import 'screens/complaint_screen.dart';
+import 'screens/student/attendance_screen.dart';
+import 'screens/user/complaint_screen.dart';
 import 'services/cart_service.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'screens/web_landing_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -70,16 +72,16 @@ class HostelShopMgmtApp extends StatelessWidget {
             ),
             darkTheme: ThemeData(
               brightness: Brightness.dark,
-              scaffoldBackgroundColor: const Color(0xFF0F172A),
+              scaffoldBackgroundColor: const Color(0xFF08090A),
               primaryColor: const Color(0xFF6366F1),
               colorScheme: ColorScheme.fromSeed(
                 brightness: Brightness.dark,
                 seedColor: const Color(0xFF6366F1),
                 secondary: const Color(0xFFA855F7),
-                surface: const Color(0xFF1E293B),
+                surface: const Color(0xFF16181A),
               ),
               appBarTheme: const AppBarTheme(
-                backgroundColor: Color(0xFF0F172A),
+                backgroundColor: Color(0xFF08090A),
                 foregroundColor: Colors.white,
                 elevation: 0,
                 centerTitle: false,
@@ -87,7 +89,7 @@ class HostelShopMgmtApp extends StatelessWidget {
               textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
               useMaterial3: true,
             ),
-            home: const AuthGuard(),
+            home: const _LandingOrAuthGuard(),
             routes: {
               '/rooms': (context) => const RoomInventoryScreen(),
               '/shop': (context) => const ShopBrowseScreen(),
@@ -99,6 +101,18 @@ class HostelShopMgmtApp extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _LandingOrAuthGuard extends StatelessWidget {
+  const _LandingOrAuthGuard();
+
+  @override
+  Widget build(BuildContext context) {
+    if (kIsWeb) {
+      return const WebLandingScreen();
+    }
+    return const AuthGuard();
   }
 }
 

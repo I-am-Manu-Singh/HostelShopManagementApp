@@ -126,7 +126,7 @@ class _FaceEnrollmentScreenState extends State<FaceEnrollmentScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _status = 'ENROLLMENT FAILED: $e');
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('SYNC FAILED: $e'), backgroundColor: Colors.redAccent));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Save failed: $e'), backgroundColor: Colors.redAccent));
       }
     }
   }

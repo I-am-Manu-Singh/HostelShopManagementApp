@@ -51,15 +51,15 @@ class _FiscalReloadingScreenState extends State<FiscalReloadingScreen> {
       
       if (mounted) {
         if (success) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('RELOAD AUTHORIZED: SECURE PROTOCOL SUCCESSFUL'), backgroundColor: Colors.greenAccent));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wallet balance added successfully'), backgroundColor: Colors.greenAccent));
           _amountController.clear();
           _fetchHistory();
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('RELOAD FAILED: COMMUNICATION TIMEOUT'), backgroundColor: Colors.redAccent));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reload failed. Please try again.'), backgroundColor: Colors.redAccent));
         }
       }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('COMMUNICATION ERROR: $e'), backgroundColor: Colors.redAccent));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('An error occurred: $e'), backgroundColor: Colors.redAccent));
     } finally {
       if (mounted) setState(() => _isProcessing = false);
     }

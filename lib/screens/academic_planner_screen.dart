@@ -51,7 +51,7 @@ class _AcademicPlannerScreenState extends State<AcademicPlannerScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final bgColor = isDark ? const Color(0xFF08090A) : const Color(0xFFF8FAFC);
     final textColor = isDark ? Colors.white : Colors.black;
 
     final selectedDayEvents = _deadlines.where((d) => isSameDay(DateTime.parse(d['exam_date']), _selectedDay)).toList();
@@ -199,7 +199,7 @@ class _AcademicPlannerScreenState extends State<AcademicPlannerScreen> {
       backgroundColor: Colors.transparent,
       builder: (c) => StatefulBuilder(builder: (c, setModalState) => Container(
         padding: EdgeInsets.fromLTRB(32, 32, 32, MediaQuery.of(c).viewInsets.bottom + 32),
-        decoration: BoxDecoration(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF1E293B) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(40))),
+        decoration: BoxDecoration(color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF16181A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(40))),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -631,7 +631,7 @@ class _AcademicEntryModalState extends State<_AcademicEntryModal> {
     final textColor = widget.isDark ? Colors.white : Colors.black;
     return Container(
       padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-      decoration: BoxDecoration(color: widget.isDark ? const Color(0xFF1E293B) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+      decoration: BoxDecoration(color: widget.isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
       child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (widget.type == 0) ...[
           Row(children: [
@@ -665,7 +665,7 @@ class _AcademicEntryModalState extends State<_AcademicEntryModal> {
           _dropdownLabel('GOAL FREQUENCY'),
           DropdownButton<String>(
             value: _selectedType,
-            dropdownColor: widget.isDark ? const Color(0xFF0F172A) : Colors.white,
+            dropdownColor: widget.isDark ? const Color(0xFF08090A) : Colors.white,
             isExpanded: true,
             underline: const SizedBox(),
             items: ['weekly', 'monthly', 'semester'].map((e) => DropdownMenuItem(value: e, child: Text(e.toUpperCase(), style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13)))).toList(),
@@ -689,7 +689,7 @@ class _AcademicEntryModalState extends State<_AcademicEntryModal> {
            _dropdownLabel('NOTE CATEGORY'),
            DropdownButton<String>(
             value: _selectedCat,
-            dropdownColor: widget.isDark ? const Color(0xFF0F172A) : Colors.white,
+            dropdownColor: widget.isDark ? const Color(0xFF08090A) : Colors.white,
             isExpanded: true,
             underline: const SizedBox(),
             items: ['trick', 'shortcut', 'important_topic', 'revision_note'].map((e) => DropdownMenuItem(value: e, child: Text(e.replaceAll('_',' ').toUpperCase(), style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13)))).toList(),

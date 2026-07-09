@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
-import 'student_task_hub_screen.dart';
+import 'student/student_task_hub_screen.dart';
 import 'academic_intelligence_hub_screen.dart';
 import 'zen_protocol_screen.dart';
 import 'workout_protocol_screen.dart';
@@ -48,7 +48,7 @@ class _ProductivitySuiteHubState extends State<ProductivitySuiteHub> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
-    final navColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final navColor = isDark ? const Color(0xFF16181A) : Colors.white;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -226,7 +226,7 @@ class _PerformanceDashboardState extends State<_PerformanceDashboard> with Singl
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            color: isDark ? const Color(0xFF16181A) : Colors.white,
             borderRadius: BorderRadius.circular(28),
             border: Border.all(color: Colors.pinkAccent.withOpacity(0.2)),
             boxShadow: [BoxShadow(color: Colors.pinkAccent.withOpacity(0.05), blurRadius: 20)],
@@ -263,7 +263,7 @@ class _PerformanceDashboardState extends State<_PerformanceDashboard> with Singl
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1E293B) : Colors.white,
+            color: isDark ? const Color(0xFF16181A) : Colors.white,
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.indigoAccent.withOpacity(0.1)),
           ),
@@ -569,7 +569,7 @@ class _PerformanceDashboardState extends State<_PerformanceDashboard> with Singl
     return Container(
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: isDark ? const Color(0xFF16181A) : Colors.white,
         borderRadius: BorderRadius.circular(32),
         border: Border.all(color: color.withOpacity(0.1)),
       ),
@@ -640,7 +640,7 @@ class _PerformanceDashboardState extends State<_PerformanceDashboard> with Singl
         builder: (ctx) => StatefulBuilder(
            builder: (context, setModalState) => Container(
               padding: EdgeInsets.fromLTRB(28, 28, 28, MediaQuery.of(context).viewInsets.bottom + 28),
-              decoration: BoxDecoration(color: isDark ? const Color(0xFF1E293B) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(36))),
+              decoration: BoxDecoration(color: isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(36))),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                  Text('DAILY REFLECTION', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 2)),
                  const SizedBox(height: 24),

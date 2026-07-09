@@ -47,7 +47,7 @@ class _achievements_screenState extends State<achievements_screen> {
     ];
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       appBar: AppBar(
         title: Text('RECOGNITION TERMINAL', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 13, color: Colors.white)),
         backgroundColor: Colors.transparent, elevation: 0,
@@ -64,7 +64,7 @@ class _achievements_screenState extends State<achievements_screen> {
                 children: [
                   FadeInDown(child: _buildBanner(level, xp, progress)),
                   const SizedBox(height: 32),
-                  Text('ACHIEVEMENT DOSSIERS', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
+                  Text('ACHIEVEMENTS', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
                   const SizedBox(height: 16),
                   ...achievements.asMap().entries.map((e) {
                     final isUnlocked = xp >= e.value['xp_req'];

@@ -64,7 +64,7 @@ class _LiveSecurityDashboardState extends State<LiveSecurityDashboard> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       body: Stack(
         children: [
           _buildBackgroundAura(),

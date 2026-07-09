@@ -54,7 +54,7 @@ class _DayBookScreenState extends State<DayBookScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       appBar: AppBar(
         title: Text('CAMPUS DAY BOOK', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
@@ -156,7 +156,7 @@ class _DayBookScreenState extends State<DayBookScreen> {
 
     showDialog(context: context, builder: (ctx) => StatefulBuilder(
       builder: (context, setModalState) => BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: AlertDialog(
-        backgroundColor: const Color(0xFF0F172A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        backgroundColor: const Color(0xFF08090A), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
         title: const Text('INGEST TRANSACTION', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900)),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [

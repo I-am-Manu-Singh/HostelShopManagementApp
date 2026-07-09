@@ -3,7 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import '../services/database_service.dart';
 import '../models/hostel.dart';
-import 'room_detail_screen.dart';
+import 'student/room_detail_screen.dart';
 
 class RoomInventoryScreen extends StatefulWidget {
   const RoomInventoryScreen({super.key});

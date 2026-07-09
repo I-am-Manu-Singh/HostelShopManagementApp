@@ -216,7 +216,7 @@ class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E293B) : Colors.white,
+        color: isDark ? const Color(0xFF16181A) : Colors.white,
         borderRadius: BorderRadius.circular(32),
         border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
         boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 40, offset: const Offset(0, 10))],

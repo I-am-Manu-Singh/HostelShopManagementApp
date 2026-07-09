@@ -24,14 +24,14 @@ class _WorkoutProtocolScreenState extends State<WorkoutProtocolScreen> with Tick
   bool _isAodMode = false;
 
   final List<Map<String, dynamic>> _exercises = [
-    {'name': 'PUSH-UPS', 'duration': 60, 'icon': Icons.fitness_center_rounded, 'desc': 'Chest & Triceps Focus'},
-    {'name': 'PLANK', 'duration': 45, 'icon': Icons.timer_rounded, 'desc': 'Core Stability Protocol'},
-    {'name': 'SQUATS', 'duration': 60, 'icon': Icons.accessibility_new_rounded, 'desc': 'Lower Body Power'},
-    {'name': 'MOUNTAIN CLIMBERS', 'duration': 30, 'icon': Icons.run_circle_outlined, 'desc': 'Conditioning Circuit'},
+    {'name': 'PUSH-UPS', 'duration': 60, 'icon': Icons.fitness_center_rounded, 'desc': 'Chest & Triceps'},
+    {'name': 'PLANK', 'duration': 45, 'icon': Icons.timer_rounded, 'desc': 'Core Stability'},
+    {'name': 'SQUATS', 'duration': 60, 'icon': Icons.accessibility_new_rounded, 'desc': 'Lower Body Strength'},
+    {'name': 'MOUNTAIN CLIMBERS', 'duration': 30, 'icon': Icons.run_circle_outlined, 'desc': 'Full Body Cardio'},
     {'name': 'BURPEES', 'duration': 45, 'icon': Icons.bolt_rounded, 'desc': 'Full Body Explosive'},
-    {'name': 'JUMPING JACKS', 'duration': 60, 'icon': Icons.directions_run_rounded, 'desc': 'Cardio Baseline'},
-    {'name': 'LUNGES', 'duration': 45, 'icon': Icons.accessibility_new_rounded, 'desc': 'Leg Power'},
-    {'name': 'DIPS', 'duration': 40, 'icon': Icons.fitness_center_rounded, 'desc': 'Triceps Focus'},
+    {'name': 'JUMPING JACKS', 'duration': 60, 'icon': Icons.directions_run_rounded, 'desc': 'Cardio Warmup'},
+    {'name': 'LUNGES', 'duration': 45, 'icon': Icons.accessibility_new_rounded, 'desc': 'Leg Strength'},
+    {'name': 'DIPS', 'duration': 40, 'icon': Icons.fitness_center_rounded, 'desc': 'Triceps'},
   ];
 
   @override
@@ -93,7 +93,7 @@ class _WorkoutProtocolScreenState extends State<WorkoutProtocolScreen> with Tick
       _tts.speak("${_exercises[_currentExerciseIndex - 1]['name']} completed. Preparing ${_exercises[_currentExerciseIndex]['name']}.");
     } else {
       _isActive = false;
-      _tts.speak("Protocol finalized. Peak performance achieved.");
+      _tts.speak("Workout complete. Well done!");
       _db.incrementPerformanceWithLog(type: 'workout', value: _totalMinsLogged, xp: _totalMinsLogged * 50);
       _db.updateStudyStatus('available');
       _loadLogs();
@@ -108,11 +108,11 @@ class _WorkoutProtocolScreenState extends State<WorkoutProtocolScreen> with Tick
       builder: (c) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-          title: Text('KINETIC_LOGGED', style: GoogleFonts.outfit(color: Colors.orangeAccent, fontWeight: FontWeight.w900, letterSpacing: 2)),
-          content: Text('Physiological data captured. Total active duration: $_totalMinsLogged mins.', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontWeight: FontWeight.bold)),
-          actions: [ElevatedButton(onPressed: () => Navigator.pop(c), style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent), child: const Text('ACKNOWLEDGE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))],
+          title: Text('Workout Complete', style: GoogleFonts.outfit(color: Colors.orangeAccent, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          content: Text('Total active time: $_totalMinsLogged mins.', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontWeight: FontWeight.bold)),
+          actions: [ElevatedButton(onPressed: () => Navigator.pop(c), style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent), child: const Text('DONE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))],
         ),
       ),
     );
@@ -129,7 +129,7 @@ class _WorkoutProtocolScreenState extends State<WorkoutProtocolScreen> with Tick
     return Scaffold(
       backgroundColor: bgColor,
       appBar: _isAodMode ? null : AppBar(
-        title: Text('KINETIC_PROTOCOL', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: textColor)),
+        title: Text('WORKOUT', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: textColor)),
         centerTitle: true,
         backgroundColor: Colors.transparent, elevation: 0, 
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
@@ -196,7 +196,7 @@ class _WorkoutProtocolScreenState extends State<WorkoutProtocolScreen> with Tick
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('PREVIOUS_SESSIONS', style: GoogleFonts.outfit(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          Text('PREVIOUS SESSIONS', style: GoogleFonts.outfit(color: Colors.orangeAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 20),
           if (_logs.isEmpty) 
              Text('NO DATA_LOGGED', style: TextStyle(color: isDark ? Colors.white10 : Colors.black12, fontSize: 10, fontWeight: FontWeight.bold))
@@ -399,7 +399,7 @@ class _WorkoutProtocolScreenState extends State<WorkoutProtocolScreen> with Tick
       backgroundColor: Colors.transparent,
       builder: (c) => Container(
         padding: EdgeInsets.fromLTRB(32, 32, 32, MediaQuery.of(c).viewInsets.bottom + 32),
-        decoration: BoxDecoration(color: isDark ? const Color(0xFF1E293B) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(36))),
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(36))),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -3,15 +3,18 @@ import 'package:animate_do/animate_do.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'legal/legal_content_screen.dart';
+import 'legal/privacy_policy_screen.dart';
+import 'legal/terms_of_service_screen.dart';
+import 'legal/refund_policy_screen.dart';
+import 'legal/safety_protocols_screen.dart';
 
 class AppInfoScreen extends StatelessWidget {
   const AppInfoScreen({super.key});
 
-  final String companyName = "Campus Hub Operations";
+  final String companyName = "Hostel Shop Management";
   final String phoneNumber = "+91 800 123 4567";
-  final String supportEmail = "support@campushub.com";
-  final String website = "https://campushubmanagement.com";
+  final String supportEmail = "support@hostelshop.com";
+  final String website = "https://hostelshopmanagement.com";
   final String version = "1.0.0-Stable";
 
   Future<void> _launchUrl(String url) async {
@@ -73,7 +76,7 @@ class AppInfoScreen extends StatelessWidget {
                   icon: Icons.share_rounded,
                   label: 'Share App',
                   isDark: isDark,
-                  onTap: () => Share.share('Download Campus Hub App at $website'),
+                  onTap: () => Share.share('Download Hostel Shop Management App at $website'),
                 ),
                 const SizedBox(width: 12),
                 _smallActionBtn(
@@ -96,16 +99,16 @@ class AppInfoScreen extends StatelessWidget {
             _buildSectionTitle('LEGAL', Colors.pinkAccent, isDark),
             const SizedBox(height: 16),
             _infoTile(Icons.security_rounded, 'Privacy Policy', 'Data protection rules', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const LegalContentScreen(title: 'Privacy Policy', content: 'Our Privacy Policy ensures your data is protected and handled according to transparency standards. We collect account data, booking history, and mandatory profile details to manage your hostel stay effectively. We do not sell your personal data to third parties.')));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
             }, Colors.pinkAccent, isDark),
             _infoTile(Icons.gavel_rounded, 'Terms of Service', 'Usage agreements', () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const LegalContentScreen(title: 'Terms of Service', content: 'By using this app, you agree to our terms of service and usage protocols. This includes maintaining account security, providing accurate information, and following campus behavioral guidelines. Any misuse of digital services may lead to account suspension.')));
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()));
             }, Colors.pinkAccent, isDark),
             _infoTile(Icons.monetization_on_rounded, 'Refund Policy', 'Payment & returns', () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const LegalContentScreen(title: 'Refund Policy', content: 'Refunds for hostel fees or shop purchases are subject to management review. Rent cancellations before the start of the month may be eligible for a partial refund. Shop orders can be returned within 2 hours of delivery if the seal is intact.')));
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const RefundPolicyScreen()));
             }, Colors.pinkAccent, isDark),
             _infoTile(Icons.health_and_safety_rounded, 'Safety Protocols', 'Hostel guidelines', () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const LegalContentScreen(title: 'Safety Protocols', content: 'Campus Hub prioritizes student safety. Emergency exits are marked in every block. Biometric and face-id systems are in place for secure entry. Residents must report any suspicious activity immediately through the resolve counter.')));
+               Navigator.push(context, MaterialPageRoute(builder: (_) => const SafetyProtocolsScreen()));
             }, Colors.pinkAccent, isDark),
             
             const SizedBox(height: 60),

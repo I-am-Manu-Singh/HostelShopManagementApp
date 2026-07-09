@@ -60,7 +60,7 @@ class _ProvisioningChatScreenState extends State<ProvisioningChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       appBar: AppBar(
         title: Text('LOGISTICS COLLECTIVE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
@@ -94,7 +94,7 @@ class _ProvisioningChatScreenState extends State<ProvisioningChatScreen> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: const Color(0xFF1E293B), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.indigoAccent)),
+      decoration: BoxDecoration(color: const Color(0xFF16181A), borderRadius: BorderRadius.circular(15), border: Border.all(color: Colors.indigoAccent)),
       child: Column(mainAxisSize: MainAxisSize.min, children: _filteredMentions.map((s) => ListTile(dense: true, leading: CircleAvatar(radius: 12, child: Text(s['full_name'][0])), title: Text(s['full_name'], style: const TextStyle(color: Colors.white, fontSize: 12)), onTap: () => _applyMention(s['full_name']))).toList()),
     );
   }

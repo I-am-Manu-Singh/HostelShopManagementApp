@@ -250,7 +250,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
       margin: const EdgeInsets.all(24),
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [const Color(0xFF1E3A8A), const Color(0xFF0F172A)]),
+        gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [const Color(0xFF1E3A8A), const Color(0xFF08090A)]),
         borderRadius: BorderRadius.circular(36),
         boxShadow: [BoxShadow(color: Colors.indigoAccent.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))],
       ),
@@ -288,7 +288,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(builder: (c, setModalState) => Container(
         padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        decoration: BoxDecoration(color: isDark ? const Color(0xFF0F172A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF08090A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: isDark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 24),
@@ -316,7 +316,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(builder: (ctx, setModalState) => Container(
         padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        decoration: BoxDecoration(color: isDark ? const Color(0xFF0F172A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF08090A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: isDark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(2)))),
           const SizedBox(height: 24),

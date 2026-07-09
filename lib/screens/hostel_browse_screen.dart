@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import '../models/hostel.dart';
-import 'room_detail_screen.dart';
+import 'student/room_detail_screen.dart';
 
 class HostelBrowseScreen extends StatefulWidget {
   const HostelBrowseScreen({super.key});

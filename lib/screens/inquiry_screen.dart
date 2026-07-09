@@ -48,7 +48,7 @@ class _CampusInquiryScreenState extends State<CampusInquiryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       appBar: AppBar(
         title: Text('CAMPUS INTELLIGENCE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
@@ -129,7 +129,7 @@ class _CampusInquiryScreenState extends State<CampusInquiryScreen> {
   Widget _buildMessageInput() {
     return Container(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
-      decoration: BoxDecoration(color: const Color(0xFF1E293B), border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05)))),
+      decoration: BoxDecoration(color: const Color(0xFF16181A), border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05)))),
       child: Row(
         children: [
           Expanded(

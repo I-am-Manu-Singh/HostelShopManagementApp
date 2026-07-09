@@ -35,15 +35,24 @@ class ReceiptService {
               pw.SizedBox(height: 30),
               pw.TableHelper.fromTextArray(
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
-                headers: ['ITEM', 'QTY', 'UNIT PRICE', 'TOTAL'],
+                headers: ['ITEM', 'QTY/WEIGHT', 'UNIT PRICE', 'TOTAL'],
                 data: items.map((it) {
                   final price = (it['price'] as num).toDouble();
                   final qty = (it['qty'] as num).toInt();
+                  final wQty = it['weight_qty'] != null ? (it['weight_qty'] as num).toDouble() : null;
+                  final wUnit = it['weight_unit']?.toString();
+                  
+                  String qtyWeightStr = qty.toString();
+                  double totalMultiplier = qty.toDouble();
+                  if (wQty != null && wQty != 1.0) {
+                    qtyWeightStr = '$qty x ${wQty} ${wUnit ?? 'kg'}';
+                    totalMultiplier = qty * wQty;
+                  }
                   return [
                     it['name'],
-                    qty.toString(),
+                    qtyWeightStr,
                     'Rs. ${price.toStringAsFixed(2)}',
-                    'Rs. ${(price * qty).toStringAsFixed(2)}',
+                    'Rs. ${(price * totalMultiplier).toStringAsFixed(2)}',
                   ];
                 }).toList(),
               ),

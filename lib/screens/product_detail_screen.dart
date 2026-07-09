@@ -13,13 +13,14 @@ import '../models/shop.dart';
 import '../services/placeholder_service.dart';
 import 'package:intl/intl.dart';
 import 'shop_order_status_screen.dart';
-import 'admin_edit_product_screen.dart';
+import 'admin/admin_edit_product_screen.dart';
 import 'add_product_review_screen.dart';
 import 'shop_checkout_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final ShopItem product;
-  const ProductDetailScreen({super.key, required this.product});
+  final bool isMandiMode;
+  const ProductDetailScreen({super.key, required this.product, this.isMandiMode = false});
 
   @override
   State<ProductDetailScreen> createState() => _ProductDetailScreenState();
@@ -34,11 +35,16 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   List<dynamic> _reviews = [];
   bool _isLoadingReviews = true;
   bool _canReview = false;
+  
+  // Weight & Loose Items quantity selection state
+  double _selectedWeightMultiplier = 1.0;
+  late String _selectedWeightUnit;
 
   @override
   void initState() {
     super.initState();
     _currentProduct = widget.product;
+    _selectedWeightUnit = _currentProduct.unit;
     _checkWishlist();
     _fetchReviews();
     _checkReviewEligibility();
@@ -140,16 +146,50 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   ),
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: isDark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(10)))),
-                        _buildHeaderSection(isDark),
-                        const SizedBox(height: 12),
-                        _buildDescriptionSection(cardColor, borderColor, isDark),
-                        _buildBarCodeArea(isDark),
-                        SizedBox(height: 40 + MediaQuery.of(context).padding.bottom),
-                      ],
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth > 720) {
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 4,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildHeaderSection(isDark),
+                                    const SizedBox(height: 16),
+                                    _buildBarCodeArea(isDark),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 32),
+                              Expanded(
+                                flex: 6,
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildDescriptionSection(cardColor, borderColor, isDark),
+                                    SizedBox(height: 40 + MediaQuery.of(context).padding.bottom),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+                        
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: isDark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(10)))),
+                            _buildHeaderSection(isDark),
+                            const SizedBox(height: 12),
+                            _buildDescriptionSection(cardColor, borderColor, isDark),
+                            _buildBarCodeArea(isDark),
+                            SizedBox(height: 40 + MediaQuery.of(context).padding.bottom),
+                          ],
+                        );
+                      }
                     ),
                   ),
                 ),
@@ -325,7 +365,76 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 )
           ],
         ),
+        _buildWeightSelectionOptions(isDark),
       ],
+    );
+  }
+
+  Widget _buildWeightSelectionOptions(bool isDark) {
+    final cat = _currentProduct.category.toLowerCase();
+    final isLoose = cat.contains('sabji') || cat.contains('fruit') || cat.contains('kiryana') || cat.contains('dairy') || _currentProduct.isMandi;
+    if (!isLoose) return const SizedBox.shrink();
+
+    final options = [
+      {'label': '250 g', 'multiplier': 0.25, 'unit': 'kg'},
+      {'label': '500 g', 'multiplier': 0.5, 'unit': 'kg'},
+      {'label': '1 kg', 'multiplier': 1.0, 'unit': 'kg'},
+      {'label': '2 kg', 'multiplier': 2.0, 'unit': 'kg'},
+      {'label': '5 kg', 'multiplier': 5.0, 'unit': 'kg'},
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('SELECT WEIGHT / QUANTITY', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 40,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: options.length,
+              itemBuilder: (ctx, i) {
+                final opt = options[i];
+                final isSelected = _selectedWeightMultiplier == opt['multiplier'];
+                return GestureDetector(
+                  onTap: () {
+                    setState(() {
+                      _selectedWeightMultiplier = opt['multiplier'] as double;
+                      _selectedWeightUnit = opt['unit'] as String;
+                    });
+                    // If already in cart, update it
+                    final cart = context.read<CartProvider>();
+                    if (cart.items.containsKey(_currentProduct.id)) {
+                      cart.updateWeightOrUnit(_currentProduct.id, _selectedWeightMultiplier, _selectedWeightUnit);
+                    }
+                  },
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    decoration: BoxDecoration(
+                      color: isSelected ? Colors.indigoAccent : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04)),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: isSelected ? Colors.indigoAccent : (isDark ? Colors.white10 : Colors.black12)),
+                    ),
+                    child: Center(
+                      child: Text(
+                        opt['label'] as String,
+                        style: GoogleFonts.outfit(
+                          color: isSelected ? Colors.black : (isDark ? Colors.white70 : Colors.black87),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -592,12 +701,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return Consumer<CartProvider>(builder: (context, cart, _) {
       final qty = cart.items[_currentProduct.id] ?? 0;
       final unitPrice = _currentProduct.discountPrice ?? _currentProduct.price;
-      final totalPrice = qty * unitPrice;
+      final mult = cart.weightQuantities[_currentProduct.id] ?? _selectedWeightMultiplier;
+      final totalPrice = qty * unitPrice * mult;
       return Positioned(
         left: 0, right: 0, bottom: 0,
         child: Container(
           padding: EdgeInsets.fromLTRB(20, 16, 20, MediaQuery.of(context).padding.bottom + 16),
-          decoration: BoxDecoration(color: isDark ? const Color(0xFF1E293B) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(36)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, -10))]),
+          decoration: BoxDecoration(color: isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(36)), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 40, offset: const Offset(0, -10))]),
           child: Row(children: [
             if (_currentProduct.stockQuantity <= 0)
               Expanded(
@@ -622,7 +732,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 ),
               ),
               const SizedBox(width: 12),
-              _actionIconBtn(Icons.shopping_cart_checkout_rounded, () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopCheckoutScreen())), isDark),
+              _actionIconBtn(Icons.shopping_cart_checkout_rounded, () => Navigator.push(context, MaterialPageRoute(builder: (_) => ShopCheckoutScreen(isMandiMode: widget.isMandiMode))), isDark),
             ] else
               Expanded(child: _buildAddToCartBtn(cart)),
           ]),
@@ -643,7 +753,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return Container(
       height: 64,
       decoration: BoxDecoration(color: Colors.indigoAccent, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.indigoAccent.withOpacity(0.4), blurRadius: 20, offset: const Offset(0, 8))]),
-      child: Material(color: Colors.transparent, child: InkWell(onTap: () => cart.addItem(_currentProduct), borderRadius: BorderRadius.circular(24), child: const Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 22), SizedBox(width: 12), Text('ADD TO CART SYSTEM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.5))])))),
+      child: Material(color: Colors.transparent, child: InkWell(onTap: () => cart.addItem(_currentProduct, multiplier: _selectedWeightMultiplier, unit: _selectedWeightUnit), borderRadius: BorderRadius.circular(24), child: const Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 22), SizedBox(width: 12), Text('ADD TO CART SYSTEM', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 1.5))])))),
     );
   }
 
@@ -651,7 +761,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return Row(mainAxisSize: MainAxisSize.min, children: [
       _qtyBtn(Icons.remove_rounded, () => cart.removeItem(_currentProduct.id)),
       Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Text('$qty', style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.indigoAccent))),
-      _qtyBtn(Icons.add_rounded, () => cart.addItem(_currentProduct)),
+      _qtyBtn(Icons.add_rounded, () => cart.addItem(_currentProduct, multiplier: _selectedWeightMultiplier, unit: _selectedWeightUnit)),
     ]);
   }
 

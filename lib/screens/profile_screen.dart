@@ -5,22 +5,24 @@ import 'package:animate_do/animate_do.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../services/database_service.dart';
 import 'package:intl/intl.dart';
-import 'settings_screen.dart';
-import 'app_info_screen.dart';
-import 'edit_profile_screen.dart';
-import 'staff_task_hub_screen.dart';
-import 'payroll_terminal_screen.dart';
-import 'payment_ledger_screen.dart';
-import 'my_attendance_screen.dart';
-import 'mess_student_card_screen.dart';
-import 'campus_leaderboard_screen.dart';
 import 'shop_order_status_screen.dart';
+import 'mandi/mandi_seller_screen.dart';
+import 'mandi/mandi_delivery_screen.dart';
+import 'app_info_screen.dart';
+import 'user/edit_profile_screen.dart';
+import 'employee/staff_task_hub_screen.dart';
+import 'employee/payroll_terminal_screen.dart';
+import 'payment_ledger_screen.dart';
+import 'user/settings_screen.dart';
+import 'user/my_attendance_screen.dart';
+import 'student/mess_student_card_screen.dart';
+import 'campus_leaderboard_screen.dart';
 import 'face_enrollment_screen.dart';
-import 'wishlist_screen.dart';
+import 'user/wishlist_screen.dart';
 import 'fiscal_reloading_screen.dart';
-import 'admin_panel_screen.dart';
-import 'admin_finance_hub_screen.dart';
-import 'admin_personnel_hub_screen.dart';
+import 'admin/admin_panel_screen.dart';
+import 'admin/admin_finance_hub_screen.dart';
+import 'user/customer_ranks_screen.dart';
 import 'universal_campus_ledger.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -97,26 +99,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       const SizedBox(height: 32),
                       
                       if (role == 'hostel_student' || role == 'mess_student') ...[
-                        _buildSectionHeader('Information Matrix', isDark),
+                        _buildSectionHeader('Student Information', isDark),
                         const SizedBox(height: 16),
                         _buildDynamicIdentityMatrix(role, isDark),
                         const SizedBox(height: 32),
                       ],
                       
-                      _buildSectionHeader('Operational Controls', isDark),
+                      _buildSectionHeader('Account Controls', isDark),
                       const SizedBox(height: 16),
                       ..._buildRoleSpecificTiles(role, isDark),
                       
                       const SizedBox(height: 32),
-                      _buildSectionHeader('System Protocols', isDark),
-                      const SizedBox(height: 16),
-                      _buildActionItem(Icons.edit_note_rounded, 'Edit Profile', 'Update personal & identity data', Colors.blueAccent, isDark, onTap: () async {
-                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen()));
-                        _fetchProfile();
-                      }),
-                      _buildActionItem(Icons.settings_rounded, 'Settings', 'App preferences & notifications', Colors.blueGrey, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
-                      _buildActionItem(Icons.logout_rounded, 'De-Authorize', 'Signed out from session', Colors.redAccent, isDark, onTap: () => Supabase.instance.client.auth.signOut()),
-                      const SizedBox(height: 120),
+                       _buildSectionHeader('System Settings', isDark),
+                       const SizedBox(height: 16),
+                       _buildActionItem(Icons.info_outline_rounded, 'App Info & Legal', 'Version details and legal documents', Colors.teal, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()))),
+                       _buildActionItem(Icons.settings_rounded, 'Settings', 'App preferences & notifications', Colors.blueGrey, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
+                       _buildActionItem(Icons.logout_rounded, 'Log Out', 'Signed out from session', Colors.redAccent, isDark, onTap: () => Supabase.instance.client.auth.signOut()),
+                       const SizedBox(height: 120),
                     ],
                   ),
                 ),
@@ -136,7 +135,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return SliverAppBar(
       backgroundColor: Colors.transparent,
       elevation: 0, pinned: true, centerTitle: true,
-      title: Text('CENTRAL CORE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2.5)),
+      title: Text('PROFILE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2.5)),
     );
   }
 
@@ -201,18 +200,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } else if (role == 'staff') {
       final doj = _user?['date_of_joining'];
       return _identityCard(
-        'OPERATIONAL IDENTIFIER',
+        'OPERATIONS',
         'CAMPUS STAFF',
         doj != null ? 'SINCE: ${DateFormat('MMM yyyy').format(DateTime.parse(doj))}' : 'Operational personnel',
         Icons.badge_outlined,
         Colors.greenAccent,
         isDark,
       );
+    } else if (role == 'farmer_seller') {
+      return _identityCard(
+        'MANDI SELLER',
+        'PRODUCE SUPPLIER',
+        'Farmer Partnership Program',
+        Icons.agriculture_rounded,
+        Colors.greenAccent,
+        isDark,
+      );
+    } else if (role == 'delivery_partner') {
+      return _identityCard(
+        'DELIVERY AGENT',
+        'DISPATCH PARTNER',
+        'Mandi Logistics Team',
+        Icons.delivery_dining_rounded,
+        Colors.amberAccent,
+        isDark,
+      );
     } else if (role == 'owner') {
       return _identityCard(
-        'AUTHORITY IDENTIFIER',
+        'AUTHORITY',
         role.toUpperCase() == 'OWNER' ? 'SYSTEM_OWNER' : 'CAMPUS_ADMIN',
-        'Command Clearance Level 10',
+        'Full Authorization',
         Icons.shield_rounded,
         Colors.indigoAccent,
         isDark,
@@ -282,6 +299,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
              const Divider(height: 32),
           ],
           _matrixRow('RESIDENCE', _user?['city'] ?? 'N/A', Icons.location_city_rounded, isDark),
+          if (_user?['delivery_address'] != null || _user?['delivery_location'] != null) ...[
+             const Divider(height: 32),
+             _matrixRow('MANDI ADD.', _user?['delivery_address'] ?? 'N/A', Icons.home_rounded, isDark),
+             const Divider(height: 32),
+             _matrixRow('MANDI LOC.', _user?['delivery_location'] ?? 'N/A', Icons.pin_drop_rounded, isDark),
+          ],
         ],
       ),
     );
@@ -290,18 +313,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _matrixRow(String l, String v, IconData i, bool isDark) => Row(children: [Icon(i, color: Colors.indigoAccent, size: 16), const SizedBox(width: 16), Expanded(child: Text(l, style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1))), Text(v.toString().toUpperCase(), style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.bold))]);
 
   List<Widget> _buildRoleSpecificTiles(String role, bool isDark) {
-    if (role == 'admin' || role == 'hostel_manager' || role == 'owner' || role == 'hostel_owner') {
-       return [
-          _buildActionItem(Icons.dashboard_customize_rounded, 'Command Dashboard', 'Admin control & oversight', Colors.indigoAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPanelScreen()))),
-          _buildActionItem(Icons.account_balance_rounded, 'Fiscal Center', 'Revenue & financial auditing', Colors.green, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen()))),
-          _buildActionItem(Icons.menu_book_rounded, 'Universal Ledger', 'Global transaction tracking', Colors.amberAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UniversalCampusLedger()))),
-       ];
-    }
+     if (role == 'admin' || role == 'hostel_manager' || role == 'owner' || role == 'hostel_owner') {
+        return [
+           _buildActionItem(Icons.dashboard_customize_rounded, 'Admin Dashboard', 'Management and operations control', Colors.indigoAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPanelScreen()))),
+           _buildActionItem(Icons.account_balance_rounded, 'Finance Hub', 'Revenue & accounting records', Colors.green, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen()))),
+           _buildActionItem(Icons.menu_book_rounded, 'Transaction Ledger', 'Global transaction tracking details', Colors.amberAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UniversalCampusLedger()))),
+        ];
+     }
     
     List<Widget> tiles = [
-      _buildActionItem(Icons.leaderboard_rounded, 'Campus Ranks', 'View global leaderboard', Colors.purpleAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CampusLeaderboardScreen()))),
-      _buildActionItem(Icons.payments_rounded, 'Fiscal Ledger', 'Wallet, top-up & history', Colors.green, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentLedgerScreen()))),
-      _buildActionItem(Icons.history_edu_rounded, 'Order History', 'Past transactions', Colors.pinkAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ShopOrderStatusScreen()))),
+      _buildActionItem(Icons.leaderboard_rounded, 'Customer Ranks', 'View customer standing & orders', Colors.purpleAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CustomerRanksScreen()))),
+      _buildActionItem(Icons.payments_rounded, 'Finance Ledger', 'Wallet, top-up & history', Colors.green, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PaymentLedgerScreen()))),
+      _buildActionItem(Icons.history_edu_rounded, 'Order History', 'Past transactions', Colors.pinkAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopOrderStatusScreen()))),
+      _buildActionItem(Icons.storefront_rounded, 'Mandi Bookings', 'View booking status', Colors.greenAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopOrderStatusScreen()))),
     ];
 
     if (role == 'hostel_student' || role == 'mess_student') {
@@ -312,6 +336,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (role == 'staff') {
       tiles.insert(0, _buildActionItem(Icons.assignment_turned_in_outlined, 'Mission Hub', 'Staff task management', Colors.orangeAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffTaskHubScreen()))));
       tiles.insert(1, _buildActionItem(Icons.payments_outlined, 'Payroll Portal', 'Disbursement logs', Colors.green, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PayrollTerminalScreen()))));
+    }
+
+    if (role == 'farmer_seller') {
+      tiles.insert(0, _buildActionItem(Icons.agriculture_rounded, 'Farmer Panel', 'Manage products & rates', Colors.green, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MandiSellerScreen()))));
+    }
+
+    if (role == 'delivery_partner') {
+      tiles.insert(0, _buildActionItem(Icons.delivery_dining_rounded, 'Delivery Agent Panel', 'View & complete dispatches', Colors.amberAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MandiDeliveryScreen()))));
     }
 
     return tiles;

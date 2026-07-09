@@ -35,7 +35,7 @@ class _MiniMusicPlayerState extends State<MiniMusicPlayer> {
     if (!_isPlayerVisible) return const SizedBox.shrink();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardColor = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final cardColor = isDark ? const Color(0xFF16181A) : Colors.white;
 
     return StreamBuilder<PositionData>(
       stream: _musicService.player.positionStream.map(
@@ -259,7 +259,7 @@ class _MiniMusicPlayerState extends State<MiniMusicPlayer> {
       builder: (context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF1E293B) : Colors.white,
+          color: isDark ? const Color(0xFF16181A) : Colors.white,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
         ),
         child: Column(

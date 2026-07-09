@@ -20,7 +20,7 @@ class _ZenProtocolScreenState extends State<ZenProtocolScreen> with TickerProvid
   int _minutes = 5;
   int _secondsRemaining = 5 * 60;
   bool _isActive = false;
-  String _status = 'CALIBRATING';
+  String _status = 'READY';
   List<Map<String, dynamic>> _logs = [];
   bool _isAodMode = false;
 
@@ -85,7 +85,7 @@ class _ZenProtocolScreenState extends State<ZenProtocolScreen> with TickerProvid
           if (_secondsRemaining == 0) {
             _isActive = false;
             _breathingController.stop();
-            _tts.speak("Protocol complete. Clarity achieved.");
+            _tts.speak("Meditation complete. Well done.");
             _db.incrementPerformanceWithLog(type: 'meditation', value: _minutes, xp: _minutes * 20);
             _db.updateStudyStatus('available');
             _loadLogs();
@@ -103,11 +103,11 @@ class _ZenProtocolScreenState extends State<ZenProtocolScreen> with TickerProvid
       builder: (c) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+          backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-          title: Text('ZEN_SYNCHRONIZED', style: GoogleFonts.outfit(color: Colors.tealAccent, fontWeight: FontWeight.w900, letterSpacing: 2)),
-          content: Text('Cognitive load reset complete. Minutes logged: $_minutes.', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontWeight: FontWeight.bold)),
-          actions: [ElevatedButton(onPressed: () => Navigator.pop(c), style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent), child: const Text('ACKNOWLEDGE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))],
+          title: Text('Meditation Complete', style: GoogleFonts.outfit(color: Colors.tealAccent, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          content: Text('Session logged. Minutes completed: $_minutes.', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontWeight: FontWeight.bold)),
+          actions: [ElevatedButton(onPressed: () => Navigator.pop(c), style: ElevatedButton.styleFrom(backgroundColor: Colors.tealAccent), child: const Text('DONE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)))],
         ),
       ),
     );
@@ -125,7 +125,7 @@ class _ZenProtocolScreenState extends State<ZenProtocolScreen> with TickerProvid
     return Scaffold(
       backgroundColor: bgColor,
       appBar: _isAodMode ? null : AppBar(
-        title: Text('ZEN_PROTOCOL', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: textColor)),
+        title: Text('MEDITATION', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: textColor)),
         centerTitle: true,
         backgroundColor: Colors.transparent, elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
@@ -192,10 +192,10 @@ class _ZenProtocolScreenState extends State<ZenProtocolScreen> with TickerProvid
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('PREVIOUS_SESSIONS', style: GoogleFonts.outfit(color: Colors.tealAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          Text('PREVIOUS SESSIONS', style: GoogleFonts.outfit(color: Colors.tealAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 20),
           if (_logs.isEmpty) 
-             Text('NO DATA_LOGGED', style: TextStyle(color: isDark ? Colors.white10 : Colors.black12, fontSize: 10, fontWeight: FontWeight.bold))
+             Text('No sessions yet', style: TextStyle(color: isDark ? Colors.white10 : Colors.black12, fontSize: 10, fontWeight: FontWeight.bold))
           else 
              ..._logs.take(5).map((log) => Container(
                 margin: const EdgeInsets.only(bottom: 12),

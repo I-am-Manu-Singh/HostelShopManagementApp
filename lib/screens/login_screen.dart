@@ -30,6 +30,8 @@ class _LoginScreenState extends State<LoginScreen> {
     {'value': 'store_customer', 'label': 'Store Customer'},
     {'value': 'mess_student', 'label': 'Mess Student'},
     {'value': 'staff', 'label': 'Staff'},
+    {'value': 'farmer_seller', 'label': 'Mandi Farmer/Seller'},
+    {'value': 'delivery_partner', 'label': 'Mandi Delivery Partner'},
   ];
 
  Future<void> _login() async {
@@ -77,7 +79,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await Supabase.instance.client.auth.resetPasswordForEmail(_emailController.text.trim());
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reset link dispatched to your inbox'), backgroundColor: Colors.indigoAccent));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password reset link sent to your email'), backgroundColor: Colors.indigoAccent));
         setState(() => _currentStatus = AuthFlowStatus.login);
       }
     } on AuthException catch (e) {
@@ -122,7 +124,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await Supabase.instance.client.auth.signInWithOtp(email: _emailController.text.trim());
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verification code dispatched to your inbox'), backgroundColor: Colors.indigoAccent));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verification code sent to your email'), backgroundColor: Colors.indigoAccent));
       }
     } on AuthException catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: Colors.redAccent));
@@ -170,8 +172,11 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isDesktop = screenWidth > 750;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       body: Stack(
         children: [
           // Background Gradient Orbs
@@ -180,20 +185,39 @@ class _LoginScreenState extends State<LoginScreen> {
           
           SafeArea(
             child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 30.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    FadeInDown(
-                      duration: const Duration(seconds: 2),
-                      child: Image.asset('assets/images/app_logo.png', width: 140, height: 140, fit: BoxFit.contain),
-                    ),
-                    const SizedBox(height: 40),
-                    _buildGlassCard(),
-                    const SizedBox(height: 30),
-                    _buildToggleAuth(),
-                  ],
+              child: Container(
+                constraints: BoxConstraints(maxWidth: isDesktop ? 600 : double.infinity),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 30.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      FadeInDown(
+                        duration: const Duration(seconds: 2),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.05),
+                            border: Border.all(color: Colors.white.withOpacity(0.1)),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(50),
+                            child: Image.asset(
+                              'assets/images/app_logo.png',
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 30),
+                      _buildGlassCard(),
+                      const SizedBox(height: 30),
+                      _buildToggleAuth(),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -245,7 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     alignment: WrapAlignment.spaceBetween,
                     children: [
                       TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.emailOtp), child: Text('LOGIN WITH OTP', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1))),
-                      TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.forgotPassword), child: Text('FORGOT ACCESS KEY?', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1))),
+                      TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.forgotPassword), child: Text('FORGOT PASSWORD?', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1))),
                     ],
                   ),
                 const SizedBox(height: 28),
@@ -255,7 +279,7 @@ class _LoginScreenState extends State<LoginScreen> {
               _buildGoogleButton(),
               if (_currentStatus == AuthFlowStatus.forgotPassword || _currentStatus == AuthFlowStatus.emailOtp) ...[
                 const SizedBox(height: 20),
-                TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.login), child: Text('BACK TO LOGIN STATION', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
+                TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.login), child: Text('BACK TO LOGIN', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
               ],
             ],
           ),
@@ -268,12 +292,12 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       children: [
         Text(
-          _currentStatus == AuthFlowStatus.login ? 'Welcome Back' : (_currentStatus == AuthFlowStatus.signup ? 'Create Account' : (_currentStatus == AuthFlowStatus.emailOtp ? 'Verification Station' : 'Recovery Terminal')),
+          _currentStatus == AuthFlowStatus.login ? 'Welcome Back' : (_currentStatus == AuthFlowStatus.signup ? 'Create Account' : (_currentStatus == AuthFlowStatus.emailOtp ? 'Verify OTP' : 'Reset Password')),
           style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -1),
         ),
         const SizedBox(height: 12),
         Text(
-          _currentStatus == AuthFlowStatus.login ? 'Sign in to access your digital campus' : (_currentStatus == AuthFlowStatus.signup ? 'Join 2,000+ students in our ecosystem' : (_currentStatus == AuthFlowStatus.emailOtp ? 'Input the secure token dispatched to your unit' : 'Initiate sequence to restore access credentials')),
+          _currentStatus == AuthFlowStatus.login ? 'Sign in to access your account' : (_currentStatus == AuthFlowStatus.signup ? 'Join our campus community portal' : (_currentStatus == AuthFlowStatus.emailOtp ? 'Enter the verification code sent to your email' : 'Enter your email to reset password')),
           textAlign: TextAlign.center,
           style: GoogleFonts.outfit(fontSize: 14, color: Colors.white38, fontWeight: FontWeight.w400),
         ),
@@ -312,7 +336,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('CAMPUS ROLE', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        Text('ROLE', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -320,7 +344,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _selectedRole,
-              dropdownColor: const Color(0xFF1E293B),
+              dropdownColor: const Color(0xFF16181A),
               icon: const Icon(Icons.unfold_more_rounded, color: Colors.indigoAccent, size: 20),
               isExpanded: true,
               style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
@@ -355,7 +379,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         child: _isLoading 
             ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-            : Text(_currentStatus == AuthFlowStatus.login ? 'AUTHORIZE ACCESS' : (_currentStatus == AuthFlowStatus.signup ? 'CREATE DOSSIER' : (_currentStatus == AuthFlowStatus.emailOtp ? 'VALIDATE TOKEN' : 'RECOVER TERMINAL')), style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5)),
+            : Text(_currentStatus == AuthFlowStatus.login ? 'SIGN IN' : (_currentStatus == AuthFlowStatus.signup ? 'CREATE ACCOUNT' : (_currentStatus == AuthFlowStatus.emailOtp ? 'VERIFY CODE' : 'RESET PASSWORD')), style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5)),
       ),
     );
   }
@@ -387,3 +411,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

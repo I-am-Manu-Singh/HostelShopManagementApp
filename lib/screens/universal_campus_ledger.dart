@@ -133,7 +133,7 @@ class _UniversalCampusLedgerState extends State<UniversalCampusLedger> with Sing
     final textColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+      backgroundColor: isDark ? const Color(0xFF08090A) : Colors.white,
       appBar: AppBar(
         title: Text('UNIVERSAL CAMPUS LEDGER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent, elevation: 0,
@@ -217,7 +217,7 @@ class _UniversalCampusLedgerState extends State<UniversalCampusLedger> with Sing
   Widget _buildWalletHeader(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1E3A8A), Color(0xFF0F172A)]), borderRadius: BorderRadius.circular(36), boxShadow: [BoxShadow(color: Colors.indigoAccent.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))]),
+      decoration: BoxDecoration(gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1E3A8A), Color(0xFF08090A)]), borderRadius: BorderRadius.circular(36), boxShadow: [BoxShadow(color: Colors.indigoAccent.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))]),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Text('AVAILABLE FIDELITY BALANCE', style: GoogleFonts.outfit(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
@@ -331,7 +331,7 @@ Widget _actionBtn(
       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
       builder: (context) => StatefulBuilder(builder: (c, setModalState) => Container(
         padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        decoration: BoxDecoration(color: isDark ? const Color(0xFF0F172A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+        decoration: BoxDecoration(color: isDark ? const Color(0xFF08090A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('HOSTEL AUDIT LOG', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 18)),
           const SizedBox(height: 24),
@@ -365,7 +365,7 @@ Widget _actionBtn(
       decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(16)),
       child: DropdownButtonHideUnderline(child: DropdownButton<dynamic>(
         hint: Text('ROOM', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10)),
-        isExpanded: true, value: _selectedRoom, dropdownColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+        isExpanded: true, value: _selectedRoom, dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
         items: _rooms.map((r) => DropdownMenuItem(value: r, child: Text('UNIT ${r['room_number']}', style: TextStyle(color: isDark?Colors.white:Colors.black, fontSize: 12)))).toList(),
         onChanged: (v) => setModalState(() => _selectedRoom = v),
       )),
@@ -378,7 +378,7 @@ Widget _actionBtn(
       decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(16)),
       child: DropdownButtonHideUnderline(child: DropdownButton<dynamic>(
         hint: Text('USER', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10)),
-        isExpanded: true, value: _selectedProfile, dropdownColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+        isExpanded: true, value: _selectedProfile, dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
         items: _profiles.map((p) => DropdownMenuItem(value: p, child: Text(p['full_name'].toString().toUpperCase(), style: TextStyle(color: isDark?Colors.white:Colors.black, fontSize: 10, fontWeight: FontWeight.bold)))).toList(),
         onChanged: (v) => setModalState(() => _selectedProfile = v),
       )),
@@ -491,7 +491,7 @@ Widget _actionBtn(
   }
 
   void _showTopUpModal(bool isDark) {
-    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (context) => StatefulBuilder(builder: (c, setModalState) => Container(padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24), decoration: BoxDecoration(color: isDark ? const Color(0xFF0F172A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('FISCAL RELOAD', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 18)), const SizedBox(height: 32), _inputField('AMOUNT (₹)', _reloadAmtCtrl, isDark, Icons.payments_rounded, isNumeric: true), const SizedBox(height: 32), ElevatedButton(onPressed: () async { final amount = double.tryParse(_reloadAmtCtrl.text); if (amount == null || amount <= 0) return; await DatabaseService().reloadWallet(amount, 'RELOAD: UPI_PROTOCOL'); Navigator.pop(context); _reloadAmtCtrl.clear(); _fetchUnifiedData(); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, minimumSize: const Size(double.infinity, 60), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))), child: const Text('AUTHORIZE RELOAD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5)))]))));
+    showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (context) => StatefulBuilder(builder: (c, setModalState) => Container(padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24), decoration: BoxDecoration(color: isDark ? const Color(0xFF08090A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))), child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [Text('FISCAL RELOAD', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 18)), const SizedBox(height: 32), _inputField('AMOUNT (₹)', _reloadAmtCtrl, isDark, Icons.payments_rounded, isNumeric: true), const SizedBox(height: 32), ElevatedButton(onPressed: () async { final amount = double.tryParse(_reloadAmtCtrl.text); if (amount == null || amount <= 0) return; await DatabaseService().reloadWallet(amount, 'RELOAD: UPI_PROTOCOL'); Navigator.pop(context); _reloadAmtCtrl.clear(); _fetchUnifiedData(); }, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, minimumSize: const Size(double.infinity, 60), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))), child: const Text('AUTHORIZE RELOAD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5)))]))));
   }
 
   void _pickDate() async { final picked = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2023), lastDate: DateTime.now()); if (picked != null) { setState(() => _selectedDate = picked); _fetchUnifiedData(); } }

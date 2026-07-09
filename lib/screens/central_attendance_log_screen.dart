@@ -81,7 +81,7 @@ class _CentralAttendanceLogScreenState extends State<CentralAttendanceLogScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark?const Color(0xFF0F172A):Colors.white;
+    final bgColor = isDark?const Color(0xFF08090A):Colors.white;
     final textColor = isDark ? Colors.white : Colors.black;
     final filtered = _personnel.where((s) => s['full_name']?.toString().toLowerCase().contains(_searchQuery.toLowerCase()) ?? true).toList();
 
@@ -261,7 +261,7 @@ class _IssueMessCardModalState extends State<_IssueMessCardModal> {
     return Container(
       padding: EdgeInsets.fromLTRB(32, 40, 32, MediaQuery.of(context).viewInsets.bottom + 40),
       // height: MediaQuery.of(context).size.height * 0.85, // Avoid fixed height
-      decoration: BoxDecoration(color: isDark?const Color(0xFF1E293B):Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(40))),
+      decoration: BoxDecoration(color: isDark?const Color(0xFF16181A):Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(40))),
       child: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -276,7 +276,7 @@ class _IssueMessCardModalState extends State<_IssueMessCardModal> {
               decoration: BoxDecoration(color: isDark?Colors.white.withOpacity(0.04):Colors.black.withOpacity(0.04), borderRadius: BorderRadius.circular(16)), 
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
-                  value: _sid, isExpanded: true, dropdownColor: isDark?const Color(0xFF1E293B):Colors.white,
+                  value: _sid, isExpanded: true, dropdownColor: isDark?const Color(0xFF16181A):Colors.white,
                   hint: Text('SEARCH_DATABASE...', style: TextStyle(color: isDark?Colors.white24:Colors.black26, fontSize: 10, fontWeight: FontWeight.bold)), 
                   items: widget.students.map((s) => DropdownMenuItem(value: s['id'].toString(), child: Text(s['full_name']?.toString().toUpperCase() ?? 'User', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))).toList(), 
                   onChanged: (v) => setState(() => _sid = v)

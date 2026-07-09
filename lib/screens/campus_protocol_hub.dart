@@ -13,51 +13,51 @@ class CampusProtocolHub extends StatefulWidget {
 class _CampusProtocolHubState extends State<CampusProtocolHub> {
   final List<Map<String, dynamic>> _protocols = [
     {
-      'title': 'RESIDENTIAL CODE',
+      'title': 'HOSTEL RULES',
       'category': 'Hostel',
-      'desc': 'Curfews, quiet hours, and visitor protocols.',
+      'desc': 'Gate timings, quiet hours, and visitor policy.',
       'icon': Icons.home_work_rounded,
       'color': Colors.indigoAccent,
       'items': [
         {'title': 'Night Curfew', 'detail': 'Main gate closes at 23:00. Late entry requires warden approval.'},
-        {'title': 'Quiet Hours', 'detail': '22:00 to 07:00. High-decibel activities strictly prohibited.'},
-        {'title': 'Visitor Policy', 'detail': 'Visitors restricted to common lobby. No overnight guests.'},
+        {'title': 'Quiet Hours', 'detail': '22:00 to 07:00. Loud activities not allowed during this time.'},
+        {'title': 'Visitor Policy', 'detail': 'Visitors are allowed only in the common lobby. No overnight guests.'},
       ]
     },
     {
-      'title': 'DIETARY OPERATIONS',
+      'title': 'MESS TIMINGS',
       'category': 'Mess',
       'desc': 'Meal timings and hygiene standards.',
       'icon': Icons.restaurant_rounded,
       'color': Colors.orangeAccent,
       'items': [
-        {'title': 'Breakfast', 'detail': '07:30 - 09:30. Biometric log required.'},
-        {'title': 'Dinner', 'detail': '19:30 - 21:30. Formal attire optional.'},
-        {'title': 'Hydration', 'detail': 'RO water stations available 24/7 on every floor.'},
+        {'title': 'Breakfast', 'detail': '07:30 - 09:30. Biometric check-in required.'},
+        {'title': 'Dinner', 'detail': '19:30 - 21:30.'},
+        {'title': 'Water', 'detail': 'RO water available 24/7 on every floor.'},
       ]
     },
     {
-      'title': 'COMMERCE PROTOCOL',
+      'title': 'SHOP RULES',
       'category': 'Shop',
-      'desc': 'Purchase limits and QR scanning rules.',
+      'desc': 'Purchase limits and QR checkout rules.',
       'icon': Icons.shopping_basket_rounded,
       'color': Colors.pinkAccent,
       'items': [
-        {'title': 'Self Checkout', 'detail': 'Scan QR first, then confirm in app. No manual exits.'},
-        {'title': 'Credit Limit', 'detail': 'Daily threshold ₹500. Clear arrears by weekend.'},
-        {'title': 'Returns', 'detail': 'Accepted within 24h for sealed items only.'},
+        {'title': 'Checkout', 'detail': 'Scan QR first, then confirm in app.'},
+        {'title': 'Daily Credit Limit', 'detail': 'Maximum ₹500 per day. Clear balance by weekend.'},
+        {'title': 'Returns', 'detail': 'Accepted within 24 hours for sealed items only.'},
       ]
     },
     {
-      'title': 'EMERGENCY SIGNALS',
+      'title': 'EMERGENCY INFO',
       'category': 'Emergency',
-      'desc': 'Evacuation and medical pathways.',
+      'desc': 'Evacuation and medical contacts.',
       'icon': Icons.emergency_rounded,
       'color': Colors.redAccent,
       'items': [
-        {'title': 'Fire Exit', 'detail': 'Follow luminant arrows to Assembly Point A (North Wing).'},
-        {'title': 'Medical Unit', 'detail': 'Ground floor, Block C. Reachable via ext. 101.'},
-        {'title': 'Security Hub', 'detail': 'Main Entrance gate. Open 24/7.'},
+        {'title': 'Fire Exit', 'detail': 'Follow the arrows to Assembly Point A (North Wing).'},
+        {'title': 'Medical Room', 'detail': 'Ground floor, Block C. Call ext. 101.'},
+        {'title': 'Security Office', 'detail': 'Main entrance gate. Open 24/7.'},
       ]
     }
   ];
@@ -65,9 +65,9 @@ class _CampusProtocolHubState extends State<CampusProtocolHub> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0F172A),
+      backgroundColor: const Color(0xFF08090A),
       appBar: AppBar(
-        title: Text('CAMPUS PROTOCOL HUB', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
+        title: Text('CAMPUS GUIDELINES', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: Colors.white, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -79,9 +79,9 @@ class _CampusProtocolHubState extends State<CampusProtocolHub> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                FadeInDown(child: Text('OPERATIONAL DIRECTIVES', style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1))),
+                FadeInDown(child: Text('Rules & Guidelines', style: GoogleFonts.outfit(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: -1))),
                 const SizedBox(height: 8),
-                Text('Standard operating procedures for campus safety.', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 13)),
+                Text('Standard rules and procedures for campus life.', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 13)),
                 const SizedBox(height: 48),
                 ..._protocols.map((p) => _buildProtocolCard(p)).toList(),
                 const SizedBox(height: 100),

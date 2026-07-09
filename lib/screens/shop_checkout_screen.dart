@@ -5,12 +5,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'package:intl/intl.dart';
 import '../services/cart_service.dart';
 import '../models/shop.dart';
 import 'shop_order_status_screen.dart';
 
 class ShopCheckoutScreen extends StatefulWidget {
-  const ShopCheckoutScreen({super.key});
+  final bool isMandiMode;
+  const ShopCheckoutScreen({super.key, this.isMandiMode = false});
 
   @override
   State<ShopCheckoutScreen> createState() => _ShopCheckoutScreenState();
@@ -27,6 +29,12 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
   final _emergencyRelationController = TextEditingController();
   final _emergencyPhoneController = TextEditingController();
   final _instructionsController = TextEditingController();
+  
+  // Mandi options
+  final _locationController = TextEditingController();
+  final _advanceController = TextEditingController();
+  String _userType = 'domestic'; // domestic vs commercial
+  DateTime? _bookingDate;
   
   String _deliveryType = 'Pickup';
   String _paymentMethod = 'Wallet';
@@ -51,7 +59,9 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
           _profile = res;
           _phoneController.text = (res['phone_no'] ?? '').toString();
           _altPhoneController.text = (res['alt_phone_no'] ?? '').toString();
-          _addressController.text = (res['last_delivery_address'] ?? '').toString();
+          _addressController.text = (res['last_delivery_address'] ?? res['delivery_address'] ?? '').toString();
+          _locationController.text = (res['delivery_location'] ?? '').toString();
+          _userType = res['user_type'] == 'commercial' ? 'commercial' : 'domestic';
           _emergencyNameController.text = (res['last_emergency_name'] ?? '').toString();
           _emergencyRelationController.text = (res['last_emergency_relation'] ?? '').toString();
           _emergencyPhoneController.text = (res['last_emergency_phone'] ?? '').toString();
@@ -59,6 +69,7 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
       }
     } catch (_) {}
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -86,12 +97,12 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
             child: ListView(
               padding: const EdgeInsets.all(24),
               children: [
-                _sectionLabel('DELIVERY PROTOCOL'),
+                _sectionLabel('DELIVERY METHOD'),
                 const SizedBox(height: 16),
                 Row(children: [_toggleBtn('Pickup', _deliveryType == 'Pickup', () => setState(() => _deliveryType = 'Pickup')), const SizedBox(width: 12), _toggleBtn('Home Delivery', _deliveryType == 'Home Delivery', () => setState(() => _deliveryType = 'Home Delivery'))]),
                 const SizedBox(height: 32),
                 
-                _sectionLabel('PAYMENT MATRIX'),
+                _sectionLabel('PAYMENT METHOD'),
                 const SizedBox(height: 16),
                 Row(
                   children: [
@@ -115,19 +126,63 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
                 _buildTextField('PRIMARY CONTACT PHONE', _phoneController, isDark),
                 const SizedBox(height: 12),
                 _buildTextField('ALTERNATE CONTACT', _altPhoneController, isDark),
-                if (_deliveryType == 'Home Delivery') ...[const SizedBox(height: 12), _buildTextField('UNIT NUMBER / FLOOR', _addressController, isDark)],
+                if (_deliveryType == 'Home Delivery' || widget.isMandiMode) ...[
+                  const SizedBox(height: 12),
+                  _buildTextField('DELIVERY ADDRESS', _addressController, isDark),
+                  const SizedBox(height: 12),
+                  _buildTextField('DELIVERY LOCATION / AREA', _locationController, isDark),
+                ],
                 const SizedBox(height: 32),
 
-                _sectionLabel('EMERGENCY CONTACT'),
-                const SizedBox(height: 16),
-                _buildTextField('PERSON NAME', _emergencyNameController, isDark),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(child: _buildTextField('RELATION', _emergencyRelationController, isDark)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _buildTextField('PHONE NO', _emergencyPhoneController, isDark)),
-                ]),
-                const SizedBox(height: 32),
+                if (widget.isMandiMode) ...[
+                  _sectionLabel('MANDI BOOKING CONFIG'),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      _toggleBtn('Domestic', _userType == 'domestic', () => setState(() => _userType = 'domestic')),
+                      const SizedBox(width: 12),
+                      _toggleBtn('Commercial', _userType == 'commercial', () => setState(() => _userType = 'commercial')),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextField('BOOKING ADVANCE PAYMENT (₹)', _advanceController, isDark),
+                  const SizedBox(height: 16),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      _bookingDate == null 
+                          ? 'SELECT BOOKING/CUTTING DATE' 
+                          : 'BOOKED DATE: ${DateFormat('yyyy-MM-dd').format(_bookingDate!)}',
+                      style: GoogleFonts.outfit(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13, fontWeight: FontWeight.bold),
+                    ),
+                    trailing: const Icon(Icons.calendar_today_rounded, color: Colors.indigoAccent),
+                    onTap: () async {
+                      final selected = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now().add(const Duration(days: 1)),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 30)),
+                      );
+                      if (selected != null) {
+                        setState(() => _bookingDate = selected);
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 32),
+                ],
+
+                if (!widget.isMandiMode) ...[
+                  _sectionLabel('EMERGENCY CONTACT'),
+                  const SizedBox(height: 16),
+                  _buildTextField('PERSON NAME', _emergencyNameController, isDark),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    Expanded(child: _buildTextField('RELATION', _emergencyRelationController, isDark)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildTextField('PHONE NO', _emergencyPhoneController, isDark)),
+                  ]),
+                  const SizedBox(height: 32),
+                ],
 
                 _sectionLabel('SPECIAL INSTRUCTIONS'),
                 const SizedBox(height: 16),
@@ -190,7 +245,15 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(item.name, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                  Text('₹${(item.discountPrice ?? item.price).toInt()} / unit', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10)),
+                  Row(
+                    children: [
+                      Text('₹${(item.discountPrice ?? item.price).toInt()} / unit', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10)),
+                      if (cart.weightQuantities.containsKey(e.key)) ...[
+                        const SizedBox(width: 8),
+                        Text('•  ${cart.weightQuantities[e.key]} ${cart.weightUnits[e.key]}', style: const TextStyle(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                      ]
+                    ],
+                  ),
                 ]),
               ),
               Row(children: [
@@ -239,6 +302,11 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
           emergencyRelation: _emergencyRelationController.text,
           emergencyPhone: _emergencyPhoneController.text,
           instructions: _instructionsController.text,
+          isBooking: widget.isMandiMode,
+          bookingDate: _bookingDate,
+          advancePaid: double.tryParse(_advanceController.text) ?? 0.0,
+          userType: _userType,
+          deliveryLocation: _locationController.text,
         );
         if (mounted) {
           if (error == null) {
@@ -251,6 +319,6 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
       } catch (e) {
         if (mounted) { setState(() => _isProcessing = false); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('TERMINAL REJECTED: $e'), backgroundColor: Colors.redAccent)); }
       }
-    }, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), elevation: 0), child: _isProcessing ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('AUTHORIZE DISPATCH', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 2)))));
+    }, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), elevation: 0), child: _isProcessing ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('PLACE ORDER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 2)))));
   }
 }

@@ -37,7 +37,7 @@ class _FocusModeScreenState extends State<FocusModeScreen> {
         }
       },
       child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF020617) : const Color(0xFFF1F5F9),
+        backgroundColor: isDark ? const Color(0xFF08090A) : const Color(0xFFF1F5F9),
         body: Stack(
           children: [
             _buildShellBackground(isDark),
@@ -159,7 +159,7 @@ class _FocusModeScreenState extends State<FocusModeScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setModalState) => Container(
           padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(color: isDark ? const Color(0xFF1E293B) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+          decoration: BoxDecoration(color: isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: _allowedApps.map((app) => CheckboxListTile(
@@ -250,7 +250,7 @@ class _FocusModeScreenState extends State<FocusModeScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => Container(
         padding: EdgeInsets.fromLTRB(32, 32, 32, MediaQuery.of(ctx).viewInsets.bottom + 32),
-        decoration: const BoxDecoration(color: Color(0xFF0F172A), borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+        decoration: const BoxDecoration(color: Color(0xFF08090A), borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

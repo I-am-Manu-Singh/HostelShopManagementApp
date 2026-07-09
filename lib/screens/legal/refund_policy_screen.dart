@@ -5,37 +5,50 @@ class RefundPolicyScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Refund Policy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-        backgroundColor: const Color(0xFF2E7B32),
+        title: Text('Refund Policy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Refund Policy for Trek India', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            const Text('Last updated: March 20, 2026', style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 24),
-            const Text('Cancellation Fees', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Cancellations made more than 30 days before the trek departure will receive a 90% refund. Cancellations between 15 and 30 days before departure will receive a 50% refund.'),
-            const SizedBox(height: 16),
-            const Text('No Refunds', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('No refunds will be issued for cancellations made within 15 days of the trek departure date, or if a trekker fails to show up for the expedition.'),
-            const SizedBox(height: 16),
-            const Text('Force Majeure', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('In case of cancellations by Trek India due to force majeure events (e.g., natural disasters, government restrictions), trekkers will receive a full refund or a credit towards a future trek.'),
-            const SizedBox(height: 16),
-            const Text('Refund Process', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Refunds will be processed within 7-10 business days after a valid cancellation request is received and approved.'),
+            Text('Refund Policy', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
+            const SizedBox(height: 10),
+            const Text('Last updated: March 2026', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Divider(height: 40, thickness: 1),
+            
+            _buildSection(textColor, '1. Shop Orders', 'Orders placed through the shop can be cancelled within 15 minutes of purchase for a full refund to your in-app wallet. Once items are packed or dispatched, refunds are not permitted.'),
+            _buildSection(textColor, '2. Mandi and Fresh Produce', 'Due to the perishable nature of fresh fruits, vegetables, and dairy products, refunds or replacements are only issued if items are damaged or spoiled at the time of delivery. Claims must be submitted within 2 hours of receipt.'),
+            _buildSection(textColor, '3. Hostel Rent & Fees', 'Room rent and mess fee cancellations are subject to administrative review. Refunds for cancellations requested before the month starts will be credited back minus processing fees.'),
+            _buildSection(textColor, '4. Refund Processing', 'Approved refunds are credited directly to the user\'s in-app wallet instantly, or processed back to the source bank account within 5-7 business days.'),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSection(Color color, String heading, String body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(heading, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 8),
+          Text(body, style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.5)),
+        ],
       ),
     );
   }

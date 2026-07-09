@@ -148,7 +148,7 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
       child: Column(
         children: [
           const SizedBox(height: 120),
-          Text('GATE CONTROL', style: GoogleFonts.outfit(color: textColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 4)),
+          Text('GATE SCANNER', style: GoogleFonts.outfit(color: textColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 4)),
           Text(_status, style: GoogleFonts.outfit(color: _faceDetected ? Colors.indigoAccent : (isDark ? Colors.white38 : Colors.black38), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
           const Spacer(),
           if (!_faceDetected) Pulse(infinite: true, child: Container(width: 280, height: 280, decoration: BoxDecoration(border: Border.all(color: isDark ? Colors.white24 : Colors.black26, width: 2), borderRadius: BorderRadius.circular(40)))),
@@ -162,14 +162,14 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
   Widget _gateModeSelection() {
     return Padding(
       padding: const EdgeInsets.only(bottom: 40),
-      child: Text('RECORDING ${_gateMode}', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+      child: Text('LOGGING ${_gateMode}', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
     );
   }
 
   Widget _buildIdentityBadge(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: isDark ? const Color(0xFF1E293B) : Colors.white, borderRadius: BorderRadius.circular(32), border: Border.all(color: Colors.indigoAccent.withOpacity(0.5)), boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10))]),
+      decoration: BoxDecoration(color: isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: BorderRadius.circular(32), border: Border.all(color: Colors.indigoAccent.withOpacity(0.5)), boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 20, offset: const Offset(0, 10))]),
       child: Row(
         children: [
           CircleAvatar(radius: 30, backgroundColor: Colors.indigoAccent.withOpacity(0.1), child: const Icon(Icons.security_rounded, color: Colors.indigoAccent)),

@@ -7,7 +7,12 @@ class CartProvider with ChangeNotifier {
   final Map<String, int> _items = {}; // itemId -> quantity
   final Map<String, ShopItem> _itemDetails = {};
 
+  final Map<String, double> _weightQuantities = {}; // itemId -> weight/quantity multiplier (e.g. 0.25, 0.5, 1.0, 2.0)
+  final Map<String, String> _weightUnits = {}; // itemId -> unit name (e.g. kg, piece, dozen, g)
+
   Map<String, int> get items => _items;
+  Map<String, double> get weightQuantities => _weightQuantities;
+  Map<String, String> get weightUnits => _weightUnits;
   
   double get totalAmount {
     double total = 0;
@@ -15,7 +20,8 @@ class CartProvider with ChangeNotifier {
       final item = _itemDetails[id];
       if (item != null) {
         final price = item.discountPrice ?? item.price;
-        total += price * qty;
+        final multiplier = _weightQuantities[id] ?? 1.0;
+        total += price * qty * multiplier;
       }
     });
     return total;
@@ -23,7 +29,7 @@ class CartProvider with ChangeNotifier {
 
   int get itemCount => _items.values.fold(0, (sum, qty) => sum + qty);
 
-  void addItem(ShopItem item) {
+  void addItem(ShopItem item, {double multiplier = 1.0, String? unit}) {
     if (item.stockQuantity <= 0) return;
     
     int currentInCart = _items[item.id] ?? 0;
@@ -34,8 +40,18 @@ class CartProvider with ChangeNotifier {
     } else {
       _items[item.id] = 1;
       _itemDetails[item.id] = item;
+      _weightQuantities[item.id] = multiplier;
+      _weightUnits[item.id] = unit ?? item.unit;
     }
     notifyListeners();
+  }
+
+  void updateWeightOrUnit(String itemId, double multiplier, String unit) {
+    if (_items.containsKey(itemId)) {
+      _weightQuantities[itemId] = multiplier;
+      _weightUnits[itemId] = unit;
+      notifyListeners();
+    }
   }
 
   void removeItem(String itemId) {
@@ -45,6 +61,8 @@ class CartProvider with ChangeNotifier {
     } else {
       _items.remove(itemId);
       _itemDetails.remove(itemId);
+      _weightQuantities.remove(itemId);
+      _weightUnits.remove(itemId);
     }
     notifyListeners();
   }
@@ -55,6 +73,8 @@ class CartProvider with ChangeNotifier {
     if (newQty <= 0) {
       _items.remove(itemId);
       _itemDetails.remove(itemId);
+      _weightQuantities.remove(itemId);
+      _weightUnits.remove(itemId);
     } else {
       _items[itemId] = newQty;
     }
@@ -78,6 +98,11 @@ class CartProvider with ChangeNotifier {
     String? emergencyRelation,
     String? emergencyPhone,
     String? instructions,
+    bool isBooking = false,
+    DateTime? bookingDate,
+    double advancePaid = 0.0,
+    String userType = 'domestic',
+    String? deliveryLocation,
   }) async {
     try {
       final user = _supabase.auth.currentUser;
@@ -96,25 +121,47 @@ class CartProvider with ChangeNotifier {
         'qty': e.value, 
         'name': _itemDetails[e.key]?.name,
         'price': _itemDetails[e.key]?.discountPrice ?? _itemDetails[e.key]?.price,
+        'weight_qty': _weightQuantities[e.key] ?? 1.0,
+        'weight_unit': _weightUnits[e.key] ?? _itemDetails[e.key]?.unit ?? 'pcs',
       }).toList();
 
-      // 2. Call ENHANCED ATOMIC Checkout RPC (Solves RLS, Balance Check & Logging & Emergency Info)
-      await _supabase.rpc('place_shop_order', params: {
-        'input_user_id': user.id,
-        'input_total': total,
-        'input_items': itemsJson,
-        'input_delivery_type': deliveryType,
-        'input_payment_method': paymentMethod,
-        'input_address': deliveryAddress,
-        'input_phone': phoneNo,
-        'input_alt_phone': altPhoneNo,
-        'input_screenshot': upiScreenshotUrl,
-        'input_emergency_name': emergencyName,
-        'input_emergency_relation': emergencyRelation,
-        'input_emergency_phone': emergencyPhone,
-        'input_instructions': instructions,
-      });
+      if (isBooking) {
+        // Direct insertion for booking to avoid RPC restrictions
+        await _supabase.from('shop_orders').insert({
+          'user_id': user.id,
+          'items': itemsJson,
+          'total_price': total,
+          'payment_status': paymentMethod == 'Wallet' ? 'Paid' : 'Pending',
+          'order_status': 'Placed',
+          'is_booking': true,
+          'booking_date': bookingDate?.toIso8601String(),
+          'advance_paid': advancePaid,
+          'user_type': userType,
+          'delivery_address': deliveryAddress,
+          'delivery_location': deliveryLocation,
+          'phone_no': phoneNo,
+        });
+      } else {
+        // Call ENHANCED ATOMIC Checkout RPC
+        await _supabase.rpc('place_shop_order', params: {
+          'input_user_id': user.id,
+          'input_total': total,
+          'input_items': itemsJson,
+          'input_delivery_type': deliveryType,
+          'input_payment_method': paymentMethod,
+          'input_address': deliveryAddress,
+          'input_phone': phoneNo,
+          'input_alt_phone': altPhoneNo,
+          'input_screenshot': upiScreenshotUrl,
+          'input_emergency_name': emergencyName,
+          'input_emergency_relation': emergencyRelation,
+          'input_emergency_phone': emergencyPhone,
+          'input_instructions': instructions,
+        });
+      }
 
+      _weightQuantities.clear();
+      _weightUnits.clear();
       clearCart();
       return null;
     } catch (e) {

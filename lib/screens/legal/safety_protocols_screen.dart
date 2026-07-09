@@ -7,12 +7,18 @@ class SafetyProtocolsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('SAFETY PROTOCOLS', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 13, color: Colors.white)),
-        backgroundColor: Colors.black,
+        title: Text('SAFETY PROTOCOLS', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 13, color: textColor)),
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(30),
@@ -20,7 +26,7 @@ class SafetyProtocolsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             FadeInDown(
-              child: Text('EXPEDITION SAFETY STANDARDS', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black87, letterSpacing: 1)),
+              child: Text('CAMPUS RESIDENCE SAFETY', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: textColor, letterSpacing: 1)),
             ),
             const SizedBox(height: 10),
             FadeInDown(
@@ -29,11 +35,10 @@ class SafetyProtocolsScreen extends StatelessWidget {
             ),
             const Divider(height: 60, thickness: 1),
             
-            _buildSection(context, 'I. PRE-TREK BRIEFING', 'All trekkers must undergo a mandatory tactical briefing before departure. This covers route terrain, weather expectations, and communications protocols.'),
-            _buildSection(context, 'II. MEDICAL CLEARANCE', 'Operatives must present valid medical certification. Our team reserves the right to deny participation if physical conditioning markers are not met.'),
-            _buildSection(context, 'III. FIELD GEAR STANDARDS', 'Only certified gear (either personal or issued by our HQ) is permitted. Our guides perform a multi-point equipment check before deployment.'),
-            _buildSection(context, 'IV. EMERGENCY EVACUATION', 'In case of severe altitude sickness (AMS) or injury, a satellite-linked evacuation protocol is triggered. Extraction costs are covered by the specific mission insurance.'),
-            _buildSection(context, 'V. WILDLIFE ENCOUNTERS', 'Strict non-interference protocols are in effect. Trekkers must follow guide instructions during any interaction with local fauna.'),
+            _buildSection(context, 'I. BIOMETRIC & FACE IDENTIFICATION', 'Access to hostel blocks and mess units is secured via mandatory face enrollment and gate biometric scans. Sharing credentials or tailgating is strictly prohibited.'),
+            _buildSection(context, 'II. NIGHT OUTPASS REGISTRATION', 'Any resident leaving the hostel campus after curfew hours must submit an online outpass request for warden approval. Unapproved absences will trigger emergency notifications.'),
+            _buildSection(context, 'III. INVENTORY SAFE KEEPING', 'Room inspections are conducted periodically. Possession of unauthorized electrical appliances or hazards will lead to immediate confiscation.'),
+            _buildSection(context, 'IV. EMERGENCY ALERTS', 'In the event of a medical emergency or security concern, residents can trigger the Emergency Alert button inside the Student App to notify security guards en-route.'),
             
             const SizedBox(height: 50),
             Container(
@@ -43,7 +48,7 @@ class SafetyProtocolsScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.warning_amber_rounded, color: Colors.red, size: 30),
                   SizedBox(width: 20),
-                  Expanded(child: Text('SAFETY IS NON-NEGOTIABLE. Violating guide instructions results in immediate mission termination without refund.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.redAccent))),
+                  Expanded(child: Text('SAFETY RULES ARE STRICTLY ENFORCED. Violations of code of conduct will result in disciplinary action.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.redAccent))),
                 ],
               ),
             ),
@@ -56,15 +61,16 @@ class SafetyProtocolsScreen extends StatelessWidget {
 
   Widget _buildSection(BuildContext context, String title, String content) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
     return FadeInUp(
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 32),
+        padding: const EdgeInsets.only(bottom: 30),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: Colors.blueAccent, letterSpacing: 1.5)),
-            const SizedBox(height: 12),
-            Text(content, style: TextStyle(fontSize: 14, height: 1.6, color: isDark ? Colors.white70 : Colors.black54)),
+            Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 1)),
+            const SizedBox(height: 10),
+            Text(content, style: TextStyle(fontSize: 14, color: textColor.withOpacity(0.7), height: 1.5)),
           ],
         ),
       ),

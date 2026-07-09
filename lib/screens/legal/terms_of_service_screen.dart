@@ -5,41 +5,50 @@ class TermsOfServiceScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+
     return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: const Text('Terms of Service', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white)),
-        backgroundColor: const Color(0xFF2E7B32),
+        title: Text('Terms of Service', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Terms of Service for Trek India', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            const Text('Last updated: March 20, 2026', style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 24),
-            const Text('Acceptance of Terms', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('By downloading, accessing, or using the Trek India mobile application, you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use our application.'),
-            const SizedBox(height: 16),
-            const Text('Eligibility', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('You must be at least 18 years old to use Trek India. Users under 18 must have the consent of a parent or legal guardian to participate in treks.'),
-            const SizedBox(height: 16),
-            const Text('User Accounts', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('You are responsible for maintaining the confidentiality of your account information. You agree to notify us immediately of any unauthorized use of your account or any other breach of security.'),
-            const SizedBox(height: 16),
-            const Text('Trek Participation', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Trekkers are responsible for providing accurate health information and following all instructions from our guides to ensure their safety and the safety of others on the trek.'),
-            const SizedBox(height: 16),
-            const Text('Limitation of Liability', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            const Text('Trek India is not liable for any injuries, losses, or damages occurring during treks, except those resulting from our gross negligence or willful misconduct.'),
+            Text('Terms of Service', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
+            const SizedBox(height: 10),
+            const Text('Last updated: March 2026', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Divider(height: 40, thickness: 1),
+            
+            _buildSection(textColor, '1. Terms Acceptance', 'By downloading, accessing, or using the Hostel & Mandi Shop Management application, you agree to be bound by these Terms of Service. If you disagree with any terms, please do not use the app.'),
+            _buildSection(textColor, '2. User Accounts', 'You are responsible for maintaining the confidentiality of your account login credentials. Any activity performed through your account is your sole responsibility.'),
+            _buildSection(textColor, '3. Service Use Rules', 'Users must provide accurate details (including roles and contact details). Any misuse of shop checkouts, fake order placements, or fraudulent payment receipt uploads may result in immediate suspension.'),
+            _buildSection(textColor, '4. Service Availability', 'While we strive to provide uninterrupted service, we reserve the right to suspend or modify features for maintenance or updates without prior notice.'),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSection(Color color, String heading, String body) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(heading, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          const SizedBox(height: 8),
+          Text(body, style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.5)),
+        ],
       ),
     );
   }

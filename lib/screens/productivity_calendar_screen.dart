@@ -73,7 +73,7 @@ class _ProductivityCalendarScreenState extends State<ProductivityCalendarScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC);
+    final bgColor = isDark ? const Color(0xFF08090A) : const Color(0xFFF8FAFC);
     final textColor = isDark ? Colors.white : Colors.black;
 
     final selectedDayEvents = _getEventsForDay(_selectedDay!);

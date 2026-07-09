@@ -17,7 +17,8 @@ import 'shop_order_status_screen.dart'; // Still needed for profile/menu links
 import 'shop_checkout_screen.dart';
 
 class ShopBrowseScreen extends StatefulWidget {
-  const ShopBrowseScreen({super.key});
+  final bool isMandiMode;
+  const ShopBrowseScreen({super.key, this.isMandiMode = false});
 
   @override
   State<ShopBrowseScreen> createState() => _ShopBrowseScreenState();
@@ -132,7 +133,7 @@ Future<void> _fetchItems({bool silent = false}) async {
     }
 
     /// ---------------- SHOP ITEMS FETCH ----------------
-    final res = await _supabase.from('shop_items').select();
+    final res = await _supabase.from('shop_items').select().eq('is_mandi', widget.isMandiMode);
     final parsed = (res as List).map((i) => ShopItem.fromJson(i)).toList();
 
     /// ---------------- APP SETTINGS FETCH ----------------
@@ -235,8 +236,8 @@ Future<void> _toggleWishlist(String pid) async {
                       SliverPadding(
                         padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
                         sliver: SliverGrid(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: MediaQuery.of(context).size.width > 900 ? 5 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
                             mainAxisSpacing: 16,
                             crossAxisSpacing: 16,
                             childAspectRatio: 0.75,
@@ -295,7 +296,7 @@ Widget _buildRefinedFixedHeader(bool isDark) {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'CAMPUS MARKETPLACE',
+                        widget.isMandiMode ? 'MANDI FRESH MART' : 'CAMPUS MARKETPLACE',
                         style: GoogleFonts.outfit(
                           color: Colors.white70,
                           fontSize: 7,
@@ -304,7 +305,7 @@ Widget _buildRefinedFixedHeader(bool isDark) {
                         ),
                       ),
                       Text(
-                        'Provisions',
+                        widget.isMandiMode ? 'Fruits & Sabji' : 'Provisions',
                         style: GoogleFonts.outfit(
                           color: Colors.white,
                           fontSize: 16,
@@ -387,7 +388,11 @@ Widget _buildModernSearch(bool isDark) => Container(
         child: TextField(
           onChanged: (v) => setState(() => _searchQuery = v),
           style: const TextStyle(color: Colors.white, fontSize: 13),
-          decoration: const InputDecoration(hintText: 'Search provisions...', hintStyle: TextStyle(color: Colors.white54), border: InputBorder.none),
+          decoration: InputDecoration(
+            hintText: widget.isMandiMode ? 'Search fresh produce...' : 'Search provisions...',
+            hintStyle: const TextStyle(color: Colors.white54),
+            border: InputBorder.none,
+          ),
         ),
       ),
       GestureDetector(
@@ -453,7 +458,7 @@ void _showSortModal(bool isDark) {
   final options = ['Popularity', 'Price: Low to High', 'Price: High to Low', 'Rating', 'Name: A-Z'];
   showModalBottomSheet(
     context: context,
-    backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
+    backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
     shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
     builder: (ctx) => Container(
       padding: const EdgeInsets.all(24),
@@ -591,7 +596,7 @@ Widget _buildCategoryStrip(bool isDark) {
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => ProductDetailScreen(product: item),
+              builder: (_) => ProductDetailScreen(product: item, isMandiMode: widget.isMandiMode),
             ),
           );
           _fetchItems(silent: true);
@@ -812,7 +817,12 @@ Widget _circleBtn({
       final count = cart.itemCount;
 
       return GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ShopCheckoutScreen())),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ShopCheckoutScreen(isMandiMode: widget.isMandiMode),
+          ),
+        ),
         child: Stack(
           clipBehavior: Clip.none,
           children: [

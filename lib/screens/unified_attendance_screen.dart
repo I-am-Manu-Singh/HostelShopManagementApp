@@ -4,8 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'attendance_screen.dart';
-import 'admin_attendance_analytics_screen.dart';
+import 'student/attendance_screen.dart';
+import 'admin/admin_attendance_analytics_screen.dart';
 
 class UnifiedAttendanceScreen extends StatefulWidget {
   final String role;
@@ -80,7 +80,7 @@ class _UnifiedAttendanceScreenState extends State<UnifiedAttendanceScreen> with 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('CONTROL CENTER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        title: Text('ATTENDANCE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
