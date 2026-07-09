@@ -51,7 +51,7 @@ class WebLandingScreen extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: isDesktop ? 64 : 24, vertical: 20),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF08090A) : Colors.white,
-        border: Border(bottom: BorderSide(color: isDark ? Colors.white10 : Colors.black10)),
+        border: Border(bottom: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -305,7 +305,7 @@ class WebLandingScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 40),
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black10)),
+        border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
       ),
       child: Center(
         child: Text(
