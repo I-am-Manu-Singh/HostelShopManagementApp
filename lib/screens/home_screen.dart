@@ -21,7 +21,8 @@ import 'mandi/mandi_seller_screen.dart';
 import 'mandi/mandi_delivery_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final bool isGuest;
+  const HomeScreen({super.key, this.isGuest = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -35,7 +36,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    if (widget.isGuest) {
+      _isLoading = false;
+    } else {
+      _loadProfile();
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -94,6 +99,15 @@ class _HomeScreenState extends State<HomeScreen> {
       ];
     }
     
+    // Guest Mode Pages
+    if (widget.isGuest) {
+      return [
+        const ShopBrowseScreen(isMandiMode: false),
+        const ShopBrowseScreen(isMandiMode: true),
+        const LoginScreen(),
+      ];
+    }
+    
     // Default for store_customer or others
     return [
       const ShopBrowseScreen(isMandiMode: false),
@@ -103,6 +117,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<IconData> _getIcons(String role) {
+    if (widget.isGuest) {
+      return [Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.login_rounded];
+    }
     if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
       return [Icons.grid_view_rounded, Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.receipt_long_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
     } else if (role == 'staff') {
@@ -118,6 +135,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<String> _getLabels(String role) {
+    if (widget.isGuest) {
+      return ['CAMPUS SHOP', 'MANDI MARKET', 'LOGIN'];
+    }
     if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
       return ['DASHBOARD', 'CAMPUS SHOP', 'MANDI MARKET', 'FINANCES', 'CHATS', 'PROFILE'];
     } else if (role == 'staff') {
@@ -251,7 +271,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // Clickable Profile Avatar to switch to Profile Tab index
               GestureDetector(
                 onTap: () {
-                  final profileIndex = labels.indexOf('PROFILE');
+                  final profileIndex = labels.indexOf(widget.isGuest ? 'LOGIN' : 'PROFILE');
                   if (profileIndex != -1) {
                     setState(() => _currentIndex = profileIndex);
                   }
@@ -261,11 +281,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.indigoAccent, width: 1.5)),
                   child: CircleAvatar(
                     radius: 14,
-                    backgroundImage: _userProfile?['avatar_url'] != null ? NetworkImage(_userProfile!['avatar_url']) : null,
+                    backgroundImage: (!widget.isGuest && _userProfile?['avatar_url'] != null) ? NetworkImage(_userProfile!['avatar_url']) : null,
                     backgroundColor: Colors.indigoAccent.withOpacity(0.1),
-                    child: _userProfile?['avatar_url'] == null 
+                    child: (widget.isGuest || _userProfile?['avatar_url'] == null)
                       ? Text(
-                          (_userProfile?['full_name'] ?? 'U')[0].toString().toUpperCase(),
+                          widget.isGuest ? 'G' : (_userProfile?['full_name'] ?? 'U')[0].toString().toUpperCase(),
                           style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigoAccent),
                         )
                       : null,
@@ -274,16 +294,17 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                '${(_userProfile?['full_name'] ?? 'USER').toString().toUpperCase()}',
+                widget.isGuest ? 'GUEST USER' : '${(_userProfile?['full_name'] ?? 'USER').toString().toUpperCase()}',
                 style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 1),
               ),
               const SizedBox(width: 12),
-              IconButton(
-                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 18),
-                onPressed: () async {
-                  await Supabase.instance.client.auth.signOut();
-                },
-              )
+              if (!widget.isGuest)
+                IconButton(
+                  icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 18),
+                  onPressed: () async {
+                    await Supabase.instance.client.auth.signOut();
+                  },
+                )
             ],
           )
         ],

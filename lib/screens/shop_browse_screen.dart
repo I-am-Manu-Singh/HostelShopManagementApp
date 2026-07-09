@@ -170,7 +170,34 @@ Future<void> _refreshUserSessionState() async {
     }
   }
 
+  bool _checkAuthorized(BuildContext context) {
+    if (_supabase.auth.currentUser == null) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: Theme.of(context).cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text('Login Required', style: GoogleFonts.outfit(fontWeight: FontWeight.bold)),
+          content: const Text('Please login to your account to add items to cart, manage wishlists, or proceed to checkout.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.pushReplacementNamed(context, '/');
+              },
+              child: const Text('GO TO LOGIN', style: TextStyle(color: Colors.indigoAccent, fontWeight: FontWeight.bold)),
+            ),
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+          ],
+        ),
+      );
+      return false;
+    }
+    return true;
+  }
+
 Future<void> _toggleWishlist(String pid) async {
+  if (!_checkAuthorized(context)) return;
   final user = _supabase.auth.currentUser;
   if (user == null) return;
   
@@ -593,6 +620,7 @@ Widget _buildCategoryStrip(bool isDark) {
       return GestureDetector(
         key: ValueKey('gesture_${item.id}'),
         onTap: () async {
+          if (!_checkAuthorized(context)) return;
           await Navigator.push(
             context,
             MaterialPageRoute(
@@ -737,7 +765,10 @@ Widget _buildAddButton(ShopItem item, int count) {
 
   if (count == 0) {
     return GestureDetector(
-      onTap: () => cart.addItem(item),
+      onTap: () {
+        if (!_checkAuthorized(context)) return;
+        cart.addItem(item);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
         decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.08), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.indigoAccent.withOpacity(0.4))),
@@ -817,12 +848,15 @@ Widget _circleBtn({
       final count = cart.itemCount;
 
       return GestureDetector(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ShopCheckoutScreen(isMandiMode: widget.isMandiMode),
-          ),
-        ),
+        onTap: () {
+          if (!_checkAuthorized(context)) return;
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ShopCheckoutScreen(isMandiMode: widget.isMandiMode),
+            ),
+          );
+        },
         child: Stack(
           clipBehavior: Clip.none,
           children: [

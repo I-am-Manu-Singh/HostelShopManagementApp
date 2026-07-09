@@ -5,7 +5,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'login_screen.dart';
 
 class WebLandingScreen extends StatelessWidget {
-  const WebLandingScreen({super.key});
+  final VoidCallback onLaunchApp;
+  const WebLandingScreen({super.key, required this.onLaunchApp});
 
   Future<void> _openGoogleForm() async {
     final Uri url = Uri.parse('https://docs.google.com/forms');
@@ -74,9 +75,7 @@ class WebLandingScreen extends StatelessWidget {
               ),
               const SizedBox(width: 16),
               ElevatedButton(
-                onPressed: () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-                },
+                onPressed: onLaunchApp,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.indigoAccent,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -154,9 +153,7 @@ class WebLandingScreen extends StatelessWidget {
         Row(
           children: [
             ElevatedButton(
-              onPressed: () {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
-              },
+              onPressed: onLaunchApp,
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.indigoAccent,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),

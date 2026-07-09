@@ -89,7 +89,7 @@ class HostelShopMgmtApp extends StatelessWidget {
               textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme),
               useMaterial3: true,
             ),
-            home: const _LandingOrAuthGuard(),
+            home: const AuthGuard(),
             routes: {
               '/rooms': (context) => const RoomInventoryScreen(),
               '/shop': (context) => const ShopBrowseScreen(),
@@ -123,6 +123,8 @@ class AuthGuard extends StatefulWidget {
 }
 
 class _AuthGuardState extends State<AuthGuard> {
+  bool _webLandingShown = false;
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AuthState>(
@@ -133,7 +135,20 @@ class _AuthGuardState extends State<AuthGuard> {
         if (session != null) {
           return const HomeScreen();
         }
-        return const LoginScreen();
+        
+        // Unauthenticated flow
+        if (kIsWeb && !_webLandingShown) {
+          return WebLandingScreen(
+            onLaunchApp: () {
+              setState(() {
+                _webLandingShown = true;
+              });
+            },
+          );
+        }
+        
+        // Show HomeScreen in Guest mode
+        return const HomeScreen(isGuest: true);
       },
     );
   }
