@@ -104,17 +104,6 @@ class HostelShopMgmtApp extends StatelessWidget {
   }
 }
 
-class _LandingOrAuthGuard extends StatelessWidget {
-  const _LandingOrAuthGuard();
-
-  @override
-  Widget build(BuildContext context) {
-    if (kIsWeb) {
-      return const WebLandingScreen();
-    }
-    return const AuthGuard();
-  }
-}
 
 class AuthGuard extends StatefulWidget {
   const AuthGuard({super.key});

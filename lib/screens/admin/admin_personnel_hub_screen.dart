@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/database_service.dart';
-import 'admin_attendance_calendar_screen.dart';
+import '../student/attendance_calendar_screen.dart';
 import '../employee/payroll_terminal_screen.dart';
 import '../employee/staff_dossier_screen.dart';
 import '../user/my_attendance_screen.dart';

@@ -315,11 +315,11 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text('₹$price', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 32, fontWeight: FontWeight.w800)),
+            Text('₹${(price * _selectedWeightMultiplier).toInt()}', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 32, fontWeight: FontWeight.w800)),
             const SizedBox(width: 12),
             if (hasDiscount) ...[
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('₹${_currentProduct.price.toInt()}', style: TextStyle(color: isDark ? Colors.white30 : Colors.black26, fontSize: 14, decoration: TextDecoration.lineThrough)),
+                Text('₹${(_currentProduct.price * _selectedWeightMultiplier).toInt()}', style: TextStyle(color: isDark ? Colors.white30 : Colors.black26, fontSize: 14, decoration: TextDecoration.lineThrough)),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(6)), child: Text('-${((1 - (_currentProduct.discountPrice! / _currentProduct.price)) * 100).toInt()}%', style: const TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.w900))),
               ]),
             ],
@@ -373,15 +373,34 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   Widget _buildWeightSelectionOptions(bool isDark) {
     final cat = _currentProduct.category.toLowerCase();
     final isLoose = cat.contains('sabji') || cat.contains('fruit') || cat.contains('kiryana') || cat.contains('dairy') || _currentProduct.isMandi;
-    if (!isLoose) return const SizedBox.shrink();
-
-    final options = [
-      {'label': '250 g', 'multiplier': 0.25, 'unit': 'kg'},
-      {'label': '500 g', 'multiplier': 0.5, 'unit': 'kg'},
-      {'label': '1 kg', 'multiplier': 1.0, 'unit': 'kg'},
-      {'label': '2 kg', 'multiplier': 2.0, 'unit': 'kg'},
-      {'label': '5 kg', 'multiplier': 5.0, 'unit': 'kg'},
-    ];
+    
+    // Choose appropriate options depending on the product's unit type
+    final List<Map<String, dynamic>> options;
+    if (_currentProduct.unit == 'kg') {
+      options = [
+        {'label': '250 g', 'multiplier': 0.25, 'unit': 'kg'},
+        {'label': '500 g', 'multiplier': 0.5, 'unit': 'kg'},
+        {'label': '1 kg', 'multiplier': 1.0, 'unit': 'kg'},
+        {'label': '2 kg', 'multiplier': 2.0, 'unit': 'kg'},
+        {'label': '5 kg', 'multiplier': 5.0, 'unit': 'kg'},
+      ];
+    } else if (_currentProduct.unit == 'L' || _currentProduct.unit == 'litre') {
+      options = [
+        {'label': '250 ml', 'multiplier': 0.25, 'unit': _currentProduct.unit},
+        {'label': '500 ml', 'multiplier': 0.5, 'unit': _currentProduct.unit},
+        {'label': '1 L', 'multiplier': 1.0, 'unit': _currentProduct.unit},
+        {'label': '2 L', 'multiplier': 2.0, 'unit': _currentProduct.unit},
+      ];
+    } else if (isLoose) {
+      options = [
+        {'label': '0.5x', 'multiplier': 0.5, 'unit': _currentProduct.unit},
+        {'label': '1.0x', 'multiplier': 1.0, 'unit': _currentProduct.unit},
+        {'label': '2.0x', 'multiplier': 2.0, 'unit': _currentProduct.unit},
+        {'label': '5.0x', 'multiplier': 5.0, 'unit': _currentProduct.unit},
+      ];
+    } else {
+      return const SizedBox.shrink();
+    }
 
     return Padding(
       padding: const EdgeInsets.only(top: 24),
@@ -479,7 +498,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 36), // 👈 increased gap spacer between product specs/identifier card and user feedback
         _buildReviewsSection(isDark),
       ],
     );
