@@ -183,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildWebHeader(List<String> labels, bool isDark) {
     return Container(
       height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF16181A) : Colors.white,
         border: Border(bottom: BorderSide(color: isDark ? Colors.white10 : Colors.black10)),
@@ -193,11 +193,31 @@ class _HomeScreenState extends State<HomeScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.hub_rounded, color: Colors.indigoAccent, size: 28),
+              // Back Navigation Button
+              IconButton(
+                icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white70 : Colors.black87, size: 16),
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+              // App Brand Logo Asset
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  'assets/images/app_logo.png',
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.hub_rounded, color: Colors.indigoAccent, size: 28),
+                ),
+              ),
               const SizedBox(width: 12),
               Text(
                 'CAMPUS CONNECT',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.5, color: isDark ? Colors.white : Colors.black),
+                style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 1, color: isDark ? Colors.white : Colors.black),
               ),
             ],
           ),
@@ -205,14 +225,14 @@ class _HomeScreenState extends State<HomeScreen> {
             children: List.generate(labels.length, (index) {
               final active = _currentIndex == index;
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: TextButton(
                   onPressed: () => setState(() => _currentIndex = index),
                   child: Text(
                     labels[index],
                     style: GoogleFonts.outfit(
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 11,
                       color: active ? Colors.indigoAccent : (isDark ? Colors.white70 : Colors.black87),
                     ),
                   ),
@@ -222,13 +242,44 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
           Row(
             children: [
+              // Notification Bell
+              IconButton(
+                icon: Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white70 : Colors.black87, size: 20),
+                onPressed: () {},
+              ),
+              const SizedBox(width: 12),
+              // Clickable Profile Avatar to switch to Profile Tab index
+              GestureDetector(
+                onTap: () {
+                  final profileIndex = labels.indexOf('PROFILE');
+                  if (profileIndex != -1) {
+                    setState(() => _currentIndex = profileIndex);
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.indigoAccent, width: 1.5)),
+                  child: CircleAvatar(
+                    radius: 14,
+                    backgroundImage: _userProfile?['avatar_url'] != null ? NetworkImage(_userProfile!['avatar_url']) : null,
+                    backgroundColor: Colors.indigoAccent.withOpacity(0.1),
+                    child: _userProfile?['avatar_url'] == null 
+                      ? Text(
+                          (_userProfile?['full_name'] ?? 'U')[0].toString().toUpperCase(),
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigoAccent),
+                        )
+                      : null,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
               Text(
                 '${(_userProfile?['full_name'] ?? 'USER').toString().toUpperCase()}',
                 style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 1),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(width: 12),
               IconButton(
-                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 20),
+                icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 18),
                 onPressed: () async {
                   await Supabase.instance.client.auth.signOut();
                 },
