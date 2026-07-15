@@ -12,7 +12,7 @@ class WebLandingScreen extends StatelessWidget {
   const WebLandingScreen({super.key, required this.onLaunchApp});
 
   Future<void> _openGoogleForm() async {
-    final Uri url = Uri.parse('https://forms.gle/HsKxdsiq77yT9CddA');
+    final Uri url = Uri.parse('https://docs.google.com/forms/d/e/1FAIpQLSd3D3S0LFovzE4NIk9ExznOh5I0jjUyRQ13Bz6DI1SVN_eusg/viewform?usp=header');
     if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       throw 'Could not launch $url';
     }

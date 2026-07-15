@@ -25,10 +25,11 @@ import 'admin_biometric_sync_screen.dart';
 import '../gate_terminal_screen.dart';
 import 'admin_guest_invitations_screen.dart';
 import 'admin_approvals_center_screen.dart';
-import '../central_attendance_log_screen.dart';
 import 'admin_broadcast_screen.dart';
+import '../central_attendance_log_screen.dart';
 import 'admin_room_inspection_screen.dart';
-import 'admin_procurement_screen.dart';
+import 'admin_fleet_console_screen.dart';
+import 'admin_meter_intelligence_screen.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -357,6 +358,20 @@ Widget _buildHubGrid(bool isDark) {
             'value': 'HISTORY',
             'color': Colors.tealAccent,
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminProcurementScreen())),
+          },
+          {
+            'icon': Icons.local_shipping_rounded,
+            'label': 'Fleet Console',
+            'value': 'FLEET LOGS',
+            'color': Colors.greenAccent,
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFleetConsoleScreen())),
+          },
+          {
+            'icon': Icons.flash_on_rounded,
+            'label': 'Power Audits',
+            'value': 'STATISTICS',
+            'color': Colors.amberAccent,
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminMeterIntelligenceScreen())),
           },
         ],
         isDark,
