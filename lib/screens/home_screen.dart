@@ -189,7 +189,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: pages,
                       ),
                     ),
-                    _buildWebFooter(context, isDark, MediaQuery.of(context).size.width > 800),
+                    if (!(widget.isGuest && _currentIndex == pages.length - 1))
+                      _buildWebFooter(context, isDark, MediaQuery.of(context).size.width > 800),
                   ],
                 ),
               ),
@@ -215,10 +216,10 @@ Widget _buildWebHeader(BuildContext context) {
   final List<String> labels = _getLabels(role);
 
   return Container(
-    height: 60, // Increase header height slightly for profile visibility
+    height: 48, // Optimize height to match app bar size
     padding: const EdgeInsets.symmetric(horizontal: 24),
     decoration: BoxDecoration(
-      color: isDark ? const Color(0xFF16181A) : Colors.white,
+      color: isDark ? const Color(0xFF08090A) : Colors.white, // Match appBarTheme background
       border: Border(
         bottom: BorderSide(
           color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),

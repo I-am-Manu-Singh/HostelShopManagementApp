@@ -11,7 +11,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Privacy Policy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
+        title: Text('PRIVACY POLICY', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -20,13 +20,13 @@ class PrivacyPolicyScreen extends StatelessWidget {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Privacy Policy', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
+            Text('PRIVACY STATEMENT', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor, letterSpacing: -0.5)),
             const SizedBox(height: 10),
-            const Text('Last updated: March 2026', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Text('Last updated: March 2026', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
             const Divider(height: 40, thickness: 1),
             
             _buildSection(textColor, '1. Introduction', 'We are committed to protecting your privacy. This policy explains how we collect, use, and store information when you use our Hostel & Mandi Shop Management application.'),

@@ -11,7 +11,7 @@ class TermsOfServiceScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Terms of Service', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: textColor)),
+        title: Text('TERMS OF SERVICE', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
@@ -20,13 +20,13 @@ class TermsOfServiceScreen extends StatelessWidget {
         ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Terms of Service', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor)),
+            Text('TERMS & CONDITIONS', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textColor, letterSpacing: -0.5)),
             const SizedBox(height: 10),
-            const Text('Last updated: March 2026', style: TextStyle(color: Colors.grey, fontSize: 12)),
+            const Text('Last updated: March 2026', style: TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.bold)),
             const Divider(height: 40, thickness: 1),
             
             _buildSection(textColor, '1. Terms Acceptance', 'By downloading, accessing, or using the Hostel & Mandi Shop Management application, you agree to be bound by these Terms of Service. If you disagree with any terms, please do not use the app.'),
