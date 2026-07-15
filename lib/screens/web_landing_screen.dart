@@ -444,45 +444,7 @@ Widget _buildFooter(
                 ],
               ),
 
-        const SizedBox(height: 30),
-
-        Divider(
-          color: isDark ? Colors.white10 : Colors.black12,
-        ),
-
-        const SizedBox(height: 16),
-
-        Text(
-          '© ${DateTime.now().year} Campus Connect Operations Platform.',
-          style: TextStyle(
-            color: isDark ? Colors.white38 : Colors.black45,
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-          ),
-          textAlign: TextAlign.center,
-        ),
-
-        const SizedBox(height: 8),
-
-        Text(
-          '24×7 CAMPUS OPERATIONS ONLINE',
-          style: GoogleFonts.outfit(
-            color: Colors.greenAccent,
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.3,
-          ),
-        ),
-
-        const SizedBox(height: 8),
-
-        Text(
-          'Developed by Manpreet Singh',
-          style: TextStyle(
-            color: isDark ? Colors.white30 : Colors.black38,
-            fontSize: 11,
-          ),
-        ),
+     
       ],
     ),
   );
@@ -510,6 +472,29 @@ Widget _footerAbout(bool isDark) {
           height: 1.6,
         ),
       ),
+
+        const SizedBox(height: 12),
+
+        Text(
+          '© ${DateTime.now().year} Campus Connect Operations Platform.',
+          style: TextStyle(
+            color: isDark ? Colors.white38 : Colors.black45,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+
+     
+        const SizedBox(height: 8),
+
+        Text(
+          'Developed by Manpreet Singh',
+          style: TextStyle(
+            color: isDark ? Colors.white30 : Colors.black38,
+            fontSize: 11,
+          ),
+        ),
     ],
   );
 }
@@ -539,9 +524,9 @@ Widget _footerAbout(bool isDark) {
         _footerLink(context, 'Support', () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
         }, isDark),
-        _footerLink(context, 'Help Center', () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
-        }, isDark),
+        // _footerLink(context, 'Help Center', () {
+        //   Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
+        // }, isDark),
       ],
     );
   }

@@ -381,55 +381,101 @@ Widget _buildHeaderActions(
   );
 }
 
-Widget _buildWebFooter(BuildContext context) {
-  if (!kIsWeb) return const SizedBox.shrink();
 
-  final bool isDark = Theme.of(context).brightness == Brightness.dark;
-
+Widget _buildWebFooter(
+  BuildContext context,
+  bool isDark,
+  bool isDesktop,
+) {
   return Container(
     width: double.infinity,
-    color: isDark ? const Color(0xFF08090A) : const Color(0xFFF1F5F9),
-    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 36),
+    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+    decoration: BoxDecoration(
+      color: isDark ? const Color(0xFF08090A) : const Color(0xFFF1F5F9),
+      border: Border(
+        top: BorderSide(
+          color: isDark
+              ? Colors.white10
+              : Colors.black.withOpacity(0.05),
+        ),
+      ),
+    ),
     child: Column(
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Expanded(
-              flex: 2,
-              child: Column(
+        isDesktop
+            ? Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'CAMPUS CONNECT',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
+                  Expanded(
+                    flex: 2,
+                    child: _footerAbout(isDark),
+                  ),
+                  const SizedBox(width: 40),
+                  Expanded(
+                    child: _footerPlatform(
+                      context,
+                      isDark,
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Campus Connect is a centralized hostel operations platform for students, wardens, administrators, and staff. It streamlines room allocation, attendance, complaints, visitor management, notices, inventory, and daily hostel operations through a secure digital ecosystem.',
-                    style: TextStyle(
-                      color: isDark ? Colors.white60 : Colors.black54,
-                      fontSize: 13,
-                      height: 1.6,
-                    ),
+                  Expanded(
+                    child: _footerContact(isDark),
                   ),
-                               const SizedBox(height: 6),
-
-                  Text(
-              '© ${DateTime.now().year} Campus Connect Operations Platform.',
-              style: TextStyle(
-                color: isDark ? Colors.white38 : Colors.black45,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _footerAbout(isDark),
+                  const SizedBox(height: 30),
+                  _footerPlatform(context, isDark),
+                  const SizedBox(height: 30),
+                  _footerContact(isDark),
+                ],
               ),
-            ),
-             const SizedBox(height: 6),
+
+     
+      ],
+    ),
+  );
+}
+
+Widget _footerAbout(bool isDark) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'CAMPUS CONNECT',
+        style: TextStyle(
+          color: isDark ? Colors.white : Colors.black,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1,
+        ),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        "Campus Connect is India's next-generation Hostel & Campus Super App designed for students, wardens, administrators, stores, mess facilities, farmers, and delivery partners. From room allocation and digital mess cards to campus shopping, mandi marketplace, inventory management, order tracking, and room delivery, everything works together in one intelligent platform.",
+        style: TextStyle(
+          color: isDark ? Colors.white60 : Colors.black54,
+          fontSize: 13,
+          height: 1.6,
+        ),
+      ),
+
+        const SizedBox(height: 12),
+
+        Text(
+          '© ${DateTime.now().year} Campus Connect Operations Platform.',
+          style: TextStyle(
+            color: isDark ? Colors.white38 : Colors.black45,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+
+     
+        const SizedBox(height: 8),
 
         Text(
           'Developed by Manpreet Singh',
@@ -438,131 +484,98 @@ Widget _buildWebFooter(BuildContext context) {
             fontSize: 11,
           ),
         ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 50),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Platform',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  _footerLink(
-                    context,
-                    'Privacy Policy',
-                    () {
-                      // Navigate
-                    },
-                    isDark,
-                  ),
-
-                  _footerLink(
-                    context,
-                    'Terms & Conditions',
-                    () {},
-                    isDark,
-                  ),
-
-                  _footerLink(
-                    context,
-                    'Support',
-                    () {},
-                    isDark,
-                  ),
-
-                  _footerLink(
-                    context,
-                    'Help Center',
-                    () {},
-                    isDark,
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Contact',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-
-                  Text(
-                    'Email: support@campusconnect.com',
-                    style: TextStyle(
-                      color: isDark ? Colors.white60 : Colors.black54,
-                      fontSize: 12,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    'Phone: +91 XXXXX XXXXX',
-                    style: TextStyle(
-                      color: isDark ? Colors.white60 : Colors.black54,
-                      fontSize: 12,
-                    ),
-                  ),
-
-                  const SizedBox(height: 6),
-
-                  Text(
-                    'India',
-                    style: TextStyle(
-                      color: isDark ? Colors.white60 : Colors.black54,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),       
-      ],
-    ),
+    ],
   );
 }
 
-Widget _footerLink(
-  BuildContext context,
-  String title,
-  VoidCallback onTap,
-  bool isDark,
-) {
-  return Padding(
-    padding: const EdgeInsets.only(bottom: 8),
-    child: InkWell(
+  Widget _footerPlatform(
+    BuildContext context,
+    bool isDark,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Platform',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _footerLink(context, 'Privacy Policy', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
+        }, isDark),
+        _footerLink(context, 'Terms & Conditions', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()));
+        }, isDark),
+        _footerLink(context, 'Support', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
+        }, isDark),
+        // _footerLink(context, 'Help Center', () {
+        //   Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
+        // }, isDark),
+      ],
+    );
+  }
+
+  Widget _footerLink(BuildContext context, String text, VoidCallback onTap, bool isDark) {
+    return GestureDetector(
       onTap: onTap,
-      child: Text(
-        title,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isDark ? Colors.white60 : Colors.black54,
+            fontSize: 12,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      ),
+    );
+  }
+
+Widget _footerContact(bool isDark) {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Text(
+        'Get In Touch',
+        style: TextStyle(
+          color: isDark ? Colors.white : Colors.black,
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+        ),
+      ),
+      const SizedBox(height: 12),
+      Text(
+        'support@campusconnect.com',
         style: TextStyle(
           color: isDark ? Colors.white60 : Colors.black54,
           fontSize: 12,
         ),
       ),
-    ),
+      const SizedBox(height: 6),
+      Text(
+        '+91 XXXXX XXXXX',
+        style: TextStyle(
+          color: isDark ? Colors.white60 : Colors.black54,
+          fontSize: 12,
+        ),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'India',
+        style: TextStyle(
+          color: isDark ? Colors.white60 : Colors.black54,
+          fontSize: 12,
+        ),
+      ),
+    ],
   );
 }
-
   Widget _buildBottomBar(List<IconData> icons, bool isDark) {
     return Container(
       height: 70, 
