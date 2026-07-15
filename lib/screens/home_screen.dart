@@ -506,13 +506,13 @@ Widget _footerAbout(bool isDark) {
         ),
         const SizedBox(height: 12),
         _footerLink(context, 'Privacy Policy', () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => PrivacyPolicyScreen()));
         }, isDark),
         _footerLink(context, 'Terms & Conditions', () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => TermsOfServiceScreen()));
         }, isDark),
         _footerLink(context, 'Support', () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => AppInfoScreen()));
         }, isDark),
         // _footerLink(context, 'Help Center', () {
         //   Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
