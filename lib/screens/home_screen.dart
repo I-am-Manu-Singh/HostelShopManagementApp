@@ -208,32 +208,27 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: _buildBottomBar(icons, isDark),
     );
   }
-Widget _buildWebHeader(BuildContext context) {
-  final bool isDark =
-      Theme.of(context).brightness == Brightness.dark;
 
+Widget _buildWebHeader(BuildContext context) {
+  final bool isDark = Theme.of(context).brightness == Brightness.dark;
   final String role = (_userProfile?['role'] ?? '').toString();
   final List<String> labels = _getLabels(role);
 
   return Container(
-    height: 40,
+    height: 60, // Increase header height slightly for profile visibility
     padding: const EdgeInsets.symmetric(horizontal: 24),
     decoration: BoxDecoration(
       color: isDark ? const Color(0xFF16181A) : Colors.white,
       border: Border(
         bottom: BorderSide(
-          color: isDark
-              ? Colors.white10
-              : Colors.black.withOpacity(0.05),
+          color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
         ),
       ),
     ),
     child: Row(
       children: [
         _buildHeaderBrand(isDark),
-
         const SizedBox(width: 40),
-
         Expanded(
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -241,8 +236,7 @@ Widget _buildWebHeader(BuildContext context) {
               final bool active = _currentIndex == index;
 
               return Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
                 child: TextButton(
                   onPressed: () {
                     setState(() => _currentIndex = index);
@@ -250,13 +244,11 @@ Widget _buildWebHeader(BuildContext context) {
                   child: Text(
                     labels[index],
                     style: GoogleFonts.outfit(
-                      fontSize: 11,
+                      fontSize: 13,
                       fontWeight: FontWeight.bold,
                       color: active
                           ? Colors.indigoAccent
-                          : (isDark
-                              ? Colors.white70
-                              : Colors.black87),
+                          : (isDark ? Colors.white70 : Colors.black87),
                     ),
                   ),
                 ),
@@ -264,7 +256,6 @@ Widget _buildWebHeader(BuildContext context) {
             }),
           ),
         ),
-
         _buildHeaderActions(isDark, labels),
       ],
     ),
@@ -274,25 +265,12 @@ Widget _buildWebHeader(BuildContext context) {
 Widget _buildHeaderBrand(bool isDark) {
   return Row(
     children: [
-      IconButton(
-        onPressed: () {
-          if (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          }
-        },
-        icon: Icon(
-          Icons.arrow_back_ios_new_rounded,
-          size: 16,
-          color: isDark ? Colors.white70 : Colors.black87,
-        ),
-      ),
-      const SizedBox(width: 8),
       ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.asset(
           'assets/images/app_logo.png',
-          width: 32,
-          height: 32,
+          width: 36,
+          height: 36,
           fit: BoxFit.cover,
           errorBuilder: (_, __, ___) => const Icon(
             Icons.hub_rounded,
@@ -306,7 +284,7 @@ Widget _buildHeaderBrand(bool isDark) {
         'CAMPUS CONNECT',
         style: GoogleFonts.outfit(
           fontWeight: FontWeight.w900,
-          fontSize: 15,
+          fontSize: 16,
           letterSpacing: 1,
           color: isDark ? Colors.white : Colors.black,
         ),
@@ -319,8 +297,21 @@ Widget _buildHeaderActions(
   bool isDark,
   List<String> labels,
 ) {
+  final profileName = _userProfile?['full_name'] ?? 'User';
   return Row(
     children: [
+      if (!widget.isGuest) ...[
+        Text(
+          profileName.toString().toUpperCase(),
+          style: GoogleFonts.outfit(
+            color: isDark ? Colors.white70 : Colors.black87,
+            fontWeight: FontWeight.w900,
+            fontSize: 11,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(width: 12),
+      ],
       IconButton(
         onPressed: () {},
         icon: Icon(
@@ -328,9 +319,7 @@ Widget _buildHeaderActions(
           color: isDark ? Colors.white70 : Colors.black87,
         ),
       ),
-
       const SizedBox(width: 12),
-
       GestureDetector(
         onTap: () {
           final int profileIndex = labels.indexOf(
@@ -351,18 +340,14 @@ Widget _buildHeaderActions(
             ),
           ),
           child: CircleAvatar(
-            radius: 14,
-            backgroundColor:
-                Colors.indigoAccent.withOpacity(.1),
-            backgroundImage:
-                (!widget.isGuest &&
-                        _userProfile?['avatar_url'] != null)
-                    ? NetworkImage(
-                        _userProfile!['avatar_url'],
-                      )
-                    : null,
-            child: (widget.isGuest ||
-                    _userProfile?['avatar_url'] == null)
+            radius: 16,
+            backgroundColor: Colors.indigoAccent.withOpacity(.1),
+            backgroundImage: (!widget.isGuest && _userProfile?['avatar_url'] != null)
+                ? NetworkImage(
+                    _userProfile!['avatar_url'],
+                  )
+                : null,
+            child: (widget.isGuest || _userProfile?['avatar_url'] == null)
                 ? Text(
                     widget.isGuest
                         ? 'G'
@@ -372,30 +357,13 @@ Widget _buildHeaderActions(
                     style: const TextStyle(
                       color: Colors.indigoAccent,
                       fontWeight: FontWeight.bold,
-                      fontSize: 10,
+                      fontSize: 12,
                     ),
                   )
                 : null,
           ),
         ),
       ),
-
-      const SizedBox(width: 8),
-
-      Text(
-        widget.isGuest
-            ? 'GUEST USER'
-            : (_userProfile?['full_name'] ?? 'USER')
-                .toString()
-                .toUpperCase(),
-        style: GoogleFonts.outfit(
-          color: Colors.indigoAccent,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 1,
-        ),
-      ),
-
       if (!widget.isGuest) ...[
         const SizedBox(width: 12),
         IconButton(
