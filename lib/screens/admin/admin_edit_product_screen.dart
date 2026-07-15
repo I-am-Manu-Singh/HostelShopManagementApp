@@ -394,18 +394,32 @@ class _AdminEditProductScreenState extends State<AdminEditProductScreen> {
   }
 
   Widget _buildPackageDropdown(bool isDark) {
+    final List<String> packageTypes = ['Packet', 'Bottle', 'Can', 'Unit', 'Box', 'Bar', 'Jar', 'Tetra', 'Tube', 'Strip', 'Egg', 'Dropper', 'Pack', 'Bundle'];
+    
+    // Safety check: ensure _packageType is valid and present in packageTypes
+    String selectedPackageType = _packageType;
+    if (!packageTypes.contains(selectedPackageType)) {
+      if (selectedPackageType.isEmpty) {
+        selectedPackageType = 'Packet';
+      } else {
+        packageTypes.add(selectedPackageType);
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       margin: const EdgeInsets.only(bottom: 20),
       decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04), borderRadius: BorderRadius.circular(15)),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
-          value: _packageType,
+          value: selectedPackageType,
           isExpanded: true,
           dropdownColor: isDark ? const Color(0xFF16181A) : Colors.white,
           style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 14),
-          onChanged: (v) => setState(() => _packageType = v!),
-          items: ['Packet', 'Bottle', 'Can', 'Unit', 'Box', 'Bar', 'Jar', 'Tetra', 'Tube', 'Strip', 'Egg', 'Dropper', 'Pack']
+          onChanged: (v) => setState(() {
+            _packageType = v!;
+          }),
+          items: packageTypes
               .map((e) => DropdownMenuItem(value: e, child: Text(e, style: TextStyle(color: isDark ? Colors.white : Colors.black)))).toList(),
         ),
       ),
