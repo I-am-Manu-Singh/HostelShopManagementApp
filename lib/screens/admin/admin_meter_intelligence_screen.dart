@@ -53,7 +53,7 @@ class _AdminMeterIntelligenceScreenState extends State<AdminMeterIntelligenceScr
       }
 
       // 3. Fetch meter readings
-      final readingsRes = await _client.from('meter_readings').select('*, hostel_rooms(*), profiles(full_name)').order('reading_date', ascending: false);
+      final readingsRes = await _client.from('meter_readings').select('*, hostel_rooms(*), profiles!meter_readings_student_id_fkey(full_name)').order('reading_date', ascending: false);
       
       if (mounted) {
         setState(() {
@@ -97,7 +97,7 @@ class _AdminMeterIntelligenceScreenState extends State<AdminMeterIntelligenceScr
         if (reading != null && reading > lastR) {
           await _client.from('meter_readings').upsert({
             'room_id': roomId,
-            'user_id': studentId,
+            'student_id': studentId,
             'previous_reading': lastR,
             'latest_reading': reading,
             'month_period': monthStr,
