@@ -68,6 +68,9 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
     _filterDate = widget.initialDate;
     final initialIndex = widget.filterType == 'Rent' ? 1 : (widget.filterType == 'Mess' ? 2 : 0);
     _tabController = TabController(length: 6, vsync: this, initialIndex: initialIndex);
+    _tabController.addListener(() {
+      if (mounted) setState(() {});
+    });
     _loadFinanceData();
   }
 
@@ -77,13 +80,9 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         'id', 'user_id', 'card_number', 'status', 'expiry_date', 'meals_allowed',
         'is_nfc_synced', 'last_sync_at', 'temp_balance'
       ];
-      
       final buffer = StringBuffer();
       buffer.writeln(csvHeaders.join(','));
-      
-      final List<dynamic> cards = await _client.from('mess_cards').select();
-      
-      for (var c in cards) {
+      for (var c in _activeMessCards + _expiringSoonCards + _expiredMessCards) {
         final List<String> row = [
           c['id']?.toString() ?? '',
           c['user_id']?.toString() ?? '',
@@ -97,16 +96,128 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         ];
         buffer.writeln(row.join(','));
       }
-      
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/mess_cards_export.csv');
       await file.writeAsString(buffer.toString());
-      
       await Share.shareXFiles([XFile(file.path)], text: 'Mess Cards Database Export');
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+    }
+  }
+
+  Future<void> _exportRentalsToCSV() async {
+    try {
+      final List<String> csvHeaders = ['id', 'user_id', 'amount', 'collection_type', 'payment_method', 'created_at'];
+      final buffer = StringBuffer();
+      buffer.writeln(csvHeaders.join(','));
+      for (var r in _rentCollections) {
+        final List<String> row = [
+          r['id']?.toString() ?? '',
+          r['user_id']?.toString() ?? '',
+          r['amount']?.toString() ?? '0',
+          r['collection_type']?.toString() ?? 'Rent',
+          r['payment_method']?.toString() ?? '',
+          r['created_at']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
       }
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/rent_collections_export.csv');
+      await file.writeAsString(buffer.toString());
+      await Share.shareXFiles([XFile(file.path)], text: 'Rent Collections Export');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+    }
+  }
+
+  Future<void> _exportPayrollToCSV() async {
+    try {
+      final List<String> csvHeaders = ['id', 'employee_id', 'amount', 'month', 'status', 'created_at'];
+      final buffer = StringBuffer();
+      buffer.writeln(csvHeaders.join(','));
+      for (var p in _payrollLogs) {
+        final List<String> row = [
+          p['id']?.toString() ?? '',
+          p['employee_id']?.toString() ?? '',
+          p['amount']?.toString() ?? '0',
+          p['month']?.toString() ?? '',
+          p['status']?.toString() ?? '',
+          p['created_at']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
+      }
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/payroll_export.csv');
+      await file.writeAsString(buffer.toString());
+      await Share.shareXFiles([XFile(file.path)], text: 'Payroll Records Export');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+    }
+  }
+
+  Future<void> _exportShopOrdersToCSV() async {
+    try {
+      final List<String> csvHeaders = ['id', 'user_id', 'total_price', 'payment_method', 'order_status', 'created_at'];
+      final buffer = StringBuffer();
+      buffer.writeln(csvHeaders.join(','));
+      for (var o in _shopOrders) {
+        final List<String> row = [
+          o['id']?.toString() ?? '',
+          o['user_id']?.toString() ?? '',
+          o['total_price']?.toString() ?? '0',
+          o['payment_method']?.toString() ?? '',
+          o['order_status']?.toString() ?? '',
+          o['created_at']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
+      }
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/shop_orders_export.csv');
+      await file.writeAsString(buffer.toString());
+      await Share.shareXFiles([XFile(file.path)], text: 'Shop Orders Export');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+    }
+  }
+
+  Future<void> _exportLedgerToCSV() async {
+    try {
+      final List<String> csvHeaders = ['name', 'type', 'amount', 'date'];
+      final buffer = StringBuffer();
+      buffer.writeln(csvHeaders.join(','));
+      
+      List<dynamic> combinedLogs = [];
+      for (var e in _hostelStudents) {
+        final paid = double.tryParse(e['paid_amount']?.toString() ?? '0') ?? 0;
+        if (paid > 0) combinedLogs.add({'type': 'RENT_IN', 'val': paid, 'date': e['updated_at'] ?? e['created_at'], 'name': e['profiles']?['full_name'] ?? 'RESIDENT'});
+      }
+      for (var s in _shopOrders) {
+        if (s['order_status'] != 'Cancelled') combinedLogs.add({'type': 'SHOP_IN', 'val': (s['total_price'] ?? 0).toDouble(), 'date': s['created_at'], 'name': s['profiles']?['full_name'] ?? 'CUSTOMER'});
+      }
+      for (var p in _payrollLogs) {
+        combinedLogs.add({'type': 'PAYROLL_OUT', 'val': double.tryParse(p['amount']?.toString() ?? '0') ?? 0, 'date': p['month'], 'name': p['profiles']?['full_name'] ?? 'EMPLOYEE'});
+      }
+      for (var m in _dayBookEntries) {
+        final isInc = m['entry_type'] == 'Income';
+        combinedLogs.add({'type': isInc ? 'MANUAL_IN' : 'MANUAL_OUT', 'val': (m['amount'] as num).toDouble(), 'date': m['created_at'], 'name': m['category'] ?? 'MANUAL'});
+      }
+      combinedLogs.sort((a,b) => DateTime.parse(b['date'].toString()).compareTo(DateTime.parse(a['date'].toString())));
+
+      for (var l in combinedLogs) {
+        final List<String> row = [
+          '"${l['name'].toString().replaceAll('"', '""')}"',
+          l['type'].toString(),
+          l['val']?.toString() ?? '0',
+          l['date']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
+      }
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/finance_ledger_export.csv');
+      await file.writeAsString(buffer.toString());
+      await Share.shareXFiles([XFile(file.path)], text: 'Finance Ledger Export');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
     }
   }
 
@@ -116,24 +227,18 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         type: FileType.custom,
         allowedExtensions: ['csv'],
       );
-      
       if (result == null || result.files.single.path == null) return;
-      
       final file = File(result.files.single.path!);
       final List<String> lines = await file.readAsLines();
       if (lines.length < 2) throw 'File is empty or missing headers';
-      
       final headers = lines.first.split(',').map((h) => h.trim().toLowerCase()).toList();
-      
       int successCount = 0;
       for (int i = 1; i < lines.length; i++) {
         final line = lines[i].trim();
         if (line.isEmpty) continue;
-        
         final List<String> cells = [];
         bool inQuotes = false;
         StringBuffer currentCell = StringBuffer();
-        
         for (int c = 0; c < line.length; c++) {
           final char = line[c];
           if (char == '"') {
@@ -301,15 +406,37 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         iconTheme: IconThemeData(color: textColor),
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.file_upload_rounded, color: Colors.indigoAccent),
-            tooltip: 'Import Mess Cards',
-            onPressed: _importMessCardsFromCSV,
-          ),
+          if (_tabController.index == 2)
+            IconButton(
+              icon: const Icon(Icons.file_upload_rounded, color: Colors.indigoAccent),
+              tooltip: 'Import Mess Cards',
+              onPressed: _importMessCardsFromCSV,
+            ),
           IconButton(
             icon: const Icon(Icons.file_download_rounded, color: Colors.indigoAccent),
-            tooltip: 'Export Mess Cards',
-            onPressed: _exportMessCardsToCSV,
+            tooltip: 'Export Tab Data',
+            onPressed: () {
+              switch (_tabController.index) {
+                case 1:
+                  _exportRentalsToCSV();
+                  break;
+                case 2:
+                  _exportMessCardsToCSV();
+                  break;
+                case 3:
+                  _exportPayrollToCSV();
+                  break;
+                case 4:
+                  _exportShopOrdersToCSV();
+                  break;
+                case 5:
+                  _exportLedgerToCSV();
+                  break;
+                default:
+                  _exportLedgerToCSV(); // Default backup fallback
+                  break;
+              }
+            },
           ),
           IconButton(icon: const Icon(Icons.calendar_month_rounded, color: Colors.indigoAccent), onPressed: () async {
              final d = await showDatePicker(context: context, initialDate: _filterDate ?? DateTime.now(), firstDate: DateTime(2023), lastDate: DateTime.now());
@@ -564,10 +691,16 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
             final student = searchResults.first;
             if (type == 'Rent') {
                await _client.from('fiscal_collections').insert({'user_id': student['id'], 'amount': double.parse(amountCtrl.text), 'collection_type': 'Rent', 'payment_method': 'Cash'});
-            } else if (type == 'Mess') {
-               final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String();
-               await _client.from('mess_cards').upsert({'user_id': student['id'], 'expiry_date': expiry, 'card_type': 'Standard', 'status': 'Active'}, onConflict: 'user_id');
-            } else if (type == 'Wallet') {
+             } else if (type == 'Mess') {
+                final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String();
+                await _client.from('mess_cards').upsert({
+                  'user_id': student['id'],
+                  'expiry_date': expiry,
+                  'card_type': 'Standard',
+                  'status': 'Active',
+                  'card_number': 'MC-${student['id'].toString().substring(0, 8).toUpperCase()}',
+                }, onConflict: 'user_id');
+             } else if (type == 'Wallet') {
                // Admin direct top-up logic
                final currentBal = (student['balance'] ?? 0.0) as num;
                final add = double.parse(amountCtrl.text);
