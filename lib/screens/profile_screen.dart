@@ -92,8 +92,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   child: Column(
                     children: [
                       _buildProfileInfo(name, email, role, isDark),
-                      const SizedBox(height: 32),
-                      _buildRoleSpecificIdentityCard(role, isDark),
+                    
                       const SizedBox(height: 32),
                       _buildQuickMetrics(isDark),
                       const SizedBox(height: 32),
@@ -174,69 +173,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _buildRoleSpecificIdentityCard(String role, bool isDark) {
-    if (role == 'hostel_student') {
-      final enrollment = _user?['hostel_enrollments'];
-      final room = (enrollment is List && enrollment.isNotEmpty) ? enrollment[0]['hostel_rooms'] : null;
-      return _identityCard(
-        'RESIDENTIAL CLEARANCE',
-        room != null ? 'ROOM ${room['room_number']}' : 'PENDING ALLOCATION',
-        room != null ? '${room['building_name']} • FLOOR ${room['floor']}' : 'Awaiting admin approval',
-        Icons.bed_rounded,
-        Colors.indigoAccent,
-        isDark,
-      );
-    } else if (role == 'mess_student') {
-      final card = _user?['mess_cards'];
-      final expiry = (card is List && card.isNotEmpty) ? card[0]['expiry_date'] : null;
-      return _identityCard(
-        'MESS SERVICE ACCESS',
-        'ACTIVE CARD',
-        expiry != null ? 'EXPIRY: ${DateFormat('MMM dd, yyyy').format(DateTime.parse(expiry))}' : 'No active card found',
-        Icons.restaurant_rounded,
-        Colors.orangeAccent,
-        isDark,
-      );
-    } else if (role == 'staff') {
-      final doj = _user?['date_of_joining'];
-      return _identityCard(
-        'OPERATIONS',
-        'CAMPUS STAFF',
-        doj != null ? 'SINCE: ${DateFormat('MMM yyyy').format(DateTime.parse(doj))}' : 'Operational personnel',
-        Icons.badge_outlined,
-        Colors.greenAccent,
-        isDark,
-      );
-    } else if (role == 'farmer_seller') {
-      return _identityCard(
-        'MANDI SELLER',
-        'PRODUCE SUPPLIER',
-        'Farmer Partnership Program',
-        Icons.agriculture_rounded,
-        Colors.greenAccent,
-        isDark,
-      );
-    } else if (role == 'delivery_partner') {
-      return _identityCard(
-        'DELIVERY AGENT',
-        'DISPATCH PARTNER',
-        'Mandi Logistics Team',
-        Icons.delivery_dining_rounded,
-        Colors.amberAccent,
-        isDark,
-      );
-    } else if (role == 'owner') {
-      return _identityCard(
-        'AUTHORITY',
-        role.toUpperCase() == 'OWNER' ? 'SYSTEM_OWNER' : 'CAMPUS_ADMIN',
-        'Full Authorization',
-        Icons.shield_rounded,
-        Colors.indigoAccent,
-        isDark,
-      );
-    }
-    return const SizedBox.shrink();
-  }
 
   Widget _identityCard(String label, String title, String subtitle, IconData icon, Color color, bool isDark) {
     return Container(

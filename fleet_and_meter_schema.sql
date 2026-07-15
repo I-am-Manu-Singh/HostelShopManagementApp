@@ -7,8 +7,12 @@
 -- 1. FLEET & REFUELING LOGS DATABASE
 -- ────────────────────────────────────────────────────────────────────
 
+-- Drop existing tables to ensure clean recreate (Warning: deletes existing records)
+DROP TABLE IF EXISTS van_logs CASCADE;
+DROP TABLE IF EXISTS vans CASCADE;
+
 -- Vans table to track vehicle details and default drivers
-CREATE TABLE IF NOT EXISTS vans (
+CREATE TABLE vans (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   van_number TEXT NOT NULL UNIQUE,
   driver_name TEXT,
@@ -17,7 +21,7 @@ CREATE TABLE IF NOT EXISTS vans (
 );
 
 -- Refueling & Odometer logs
-CREATE TABLE IF NOT EXISTS van_logs (
+CREATE TABLE van_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   van_id UUID REFERENCES vans(id) ON DELETE CASCADE,
   user_id UUID REFERENCES auth.users(id),
@@ -57,8 +61,11 @@ ON vans FOR INSERT TO authenticated WITH CHECK (
 -- 2. UTILITY POWER AUDIT (METER READINGS)
 -- ────────────────────────────────────────────────────────────────────
 
+-- Drop the existing stale table to recreate it clean
+DROP TABLE IF EXISTS meter_readings CASCADE;
+
 -- Meter readings table for room electricity logging (Uses student_id instead of user_id)
-CREATE TABLE IF NOT EXISTS meter_readings (
+CREATE TABLE meter_readings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   room_id UUID REFERENCES hostel_rooms(id) ON DELETE CASCADE,
   student_id UUID REFERENCES auth.users(id),
