@@ -178,24 +178,23 @@ class _HomeScreenState extends State<HomeScreen> {
         body: Column(
           children: [
             _buildWebHeader(context),
-            // Scrollable Page Content + Footer
             Expanded(
-              child: SingleChildScrollView(
-                child: Column(
-                  children: [
-                    ConstrainedBox(
-                      constraints: BoxConstraints(
-                        minHeight: MediaQuery.of(context).size.height - 130, // Adjust height based on header/footer heights
+              child: IndexedStack(
+                index: _currentIndex,
+                children: pages.map((page) => SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: MediaQuery.of(context).size.height - 108, // Subtract only header height (48) + topbar (60) offset
+                        ),
+                        child: page,
                       ),
-                      child: IndexedStack(
-                        index: _currentIndex,
-                        children: pages,
-                      ),
-                    ),
-                    if (!(widget.isGuest && _currentIndex == pages.length - 1))
-                      _buildWebFooter(context, isDark, MediaQuery.of(context).size.width > 800),
-                  ],
-                ),
+                      if (!(widget.isGuest && _currentIndex == pages.length - 1))
+                        _buildWebFooter(context, isDark, MediaQuery.of(context).size.width > 800),
+                    ],
+                  ),
+                )).toList(),
               ),
             ),
           ],

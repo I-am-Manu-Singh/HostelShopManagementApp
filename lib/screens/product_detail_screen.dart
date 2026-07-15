@@ -551,7 +551,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             const Divider(thickness: 1, color: Colors.black12, height: 24),
           ],
           if (_currentProduct.howToUse != null && _currentProduct.howToUse!.isNotEmpty) ...[
-            Text('Instructions:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: labelColor, letterSpacing: 1)),
+            Text('INSTRUCTIONS:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: labelColor, letterSpacing: 1)),
             const SizedBox(height: 8),
             Text(_currentProduct.howToUse!, style: TextStyle(fontSize: 12, color: labelColor.withOpacity(0.8), height: 1.5)),
             const Divider(thickness: 4, color: Colors.black, height: 16),
@@ -654,7 +654,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           ),
 
         if (_reviews.isEmpty)
-          Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Text('MISSION INTEL PENDING: NO REVIEWS YET.', style: GoogleFonts.outfit(fontSize: 10, color: Colors.white24, fontWeight: FontWeight.bold))))
+          Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Text('NO REVIEWS YET.', style: GoogleFonts.outfit(fontSize: 10, color: Colors.white24, fontWeight: FontWeight.bold))))
         else
           ListView.builder(
             shrinkWrap: true,
