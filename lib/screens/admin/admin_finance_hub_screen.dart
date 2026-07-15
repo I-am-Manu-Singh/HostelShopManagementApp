@@ -6,7 +6,6 @@ import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../widgets/user_avatar.dart';
-import 'admin_meter_entry_screen.dart';
 import 'admin_audit_nexus_screen.dart';
 import '../universal_campus_ledger.dart';
 import '../fiscal_calendar_screen.dart';
