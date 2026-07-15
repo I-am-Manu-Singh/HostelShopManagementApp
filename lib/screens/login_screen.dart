@@ -214,8 +214,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 30),
                       _buildGlassCard(),
-                      const SizedBox(height: 30),
-                      _buildToggleAuth(),
+                      
                     ],
                   ),
                 ),
@@ -281,6 +280,8 @@ class _LoginScreenState extends State<LoginScreen> {
               _buildPrimaryButton(),
               const SizedBox(height: 20),
               _buildGoogleButton(),
+              const SizedBox(height: 30),
+                      _buildToggleAuth(),
               if (_currentStatus == AuthFlowStatus.forgotPassword || _currentStatus == AuthFlowStatus.emailOtp) ...[
                 const SizedBox(height: 20),
                 TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.login), child: Text('BACK TO LOGIN', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
