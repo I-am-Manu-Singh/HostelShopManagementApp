@@ -330,7 +330,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     color: (_currentProduct.stockQuantity > 0
             ? Colors.greenAccent
             : Colors.redAccent)
-        .withOpacity(0.15),
+        .withOpacity(0.15), 
     borderRadius: BorderRadius.circular(6), // 🔥 match discount badge
   ),
   child: Row(
@@ -529,7 +529,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(isFood ? 'Nutrition Facts' : 'Technical Specifications', style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, color: labelColor)),
+          Text(isFood ? 'Nutrition Facts' : 'Nutrition Info', style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, color: labelColor)),
           const Divider(thickness: 8, color: Colors.black, height: 16),
           if (isFood) ...[
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Serving size', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: labelColor)), Text(_currentProduct.weightMl ?? '1 unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: labelColor))]),
@@ -551,7 +551,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
             const Divider(thickness: 1, color: Colors.black12, height: 24),
           ],
           if (_currentProduct.howToUse != null && _currentProduct.howToUse!.isNotEmpty) ...[
-            Text('MISSION PROTOCOL:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: labelColor, letterSpacing: 1)),
+            Text('Instructions:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: labelColor, letterSpacing: 1)),
             const SizedBox(height: 8),
             Text(_currentProduct.howToUse!, style: TextStyle(fontSize: 12, color: labelColor.withOpacity(0.8), height: 1.5)),
             const Divider(thickness: 4, color: Colors.black, height: 16),

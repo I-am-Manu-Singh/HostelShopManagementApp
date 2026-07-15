@@ -174,8 +174,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: bgColor,
         body: Column(
           children: [
-            // Web Header
-            _buildWebHeader(labels, isDark),
+             _buildWebHeader(context),
             // Page Body
             Expanded(
               child: IndexedStack(
@@ -184,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             // Web Footer
-            _buildWebFooter(isDark),
+          _buildWebFooter(context),
           ],
         ),
       );
@@ -199,142 +198,415 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: _buildBottomBar(icons, isDark),
     );
   }
+Widget _buildWebHeader(BuildContext context) {
+  final bool isDark =
+      Theme.of(context).brightness == Brightness.dark;
 
-  Widget _buildWebHeader(List<String> labels, bool isDark) {
-    return Container(
-      height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF16181A) : Colors.white,
-        border: Border(bottom: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
+  final String role = (_userProfile?['role'] ?? '').toString();
+  final List<String> labels = _getLabels(role);
+
+  return Container(
+    height: 80,
+    padding: const EdgeInsets.symmetric(horizontal: 24),
+    decoration: BoxDecoration(
+      color: isDark ? const Color(0xFF16181A) : Colors.white,
+      border: Border(
+        bottom: BorderSide(
+          color: isDark
+              ? Colors.white10
+              : Colors.black.withOpacity(0.05),
+        ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              // Back Navigation Button
-              IconButton(
-                icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white70 : Colors.black87, size: 16),
-                onPressed: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
-                },
-              ),
-              const SizedBox(width: 8),
-              // App Brand Logo Asset
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: Image.asset(
-                  'assets/images/app_logo.png',
-                  width: 32,
-                  height: 32,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) => const Icon(Icons.hub_rounded, color: Colors.indigoAccent, size: 28),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'CAMPUS CONNECT',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 1, color: isDark ? Colors.white : Colors.black),
-              ),
-            ],
-          ),
-          Row(
+    ),
+    child: Row(
+      children: [
+        _buildHeaderBrand(isDark),
+
+        const SizedBox(width: 40),
+
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(labels.length, (index) {
-              final active = _currentIndex == index;
+              final bool active = _currentIndex == index;
+
               return Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10),
                 child: TextButton(
-                  onPressed: () => setState(() => _currentIndex = index),
+                  onPressed: () {
+                    setState(() => _currentIndex = index);
+                  },
                   child: Text(
                     labels[index],
                     style: GoogleFonts.outfit(
-                      fontWeight: FontWeight.bold,
                       fontSize: 11,
-                      color: active ? Colors.indigoAccent : (isDark ? Colors.white70 : Colors.black87),
+                      fontWeight: FontWeight.bold,
+                      color: active
+                          ? Colors.indigoAccent
+                          : (isDark
+                              ? Colors.white70
+                              : Colors.black87),
                     ),
                   ),
                 ),
               );
             }),
           ),
-          Row(
-            children: [
-              // Notification Bell
-              IconButton(
-                icon: Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white70 : Colors.black87, size: 20),
-                onPressed: () {},
-              ),
-              const SizedBox(width: 12),
-              // Clickable Profile Avatar to switch to Profile Tab index
-              GestureDetector(
-                onTap: () {
-                  final profileIndex = labels.indexOf(widget.isGuest ? 'LOGIN' : 'PROFILE');
-                  if (profileIndex != -1) {
-                    setState(() => _currentIndex = profileIndex);
-                  }
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.indigoAccent, width: 1.5)),
-                  child: CircleAvatar(
-                    radius: 14,
-                    backgroundImage: (!widget.isGuest && _userProfile?['avatar_url'] != null) ? NetworkImage(_userProfile!['avatar_url']) : null,
-                    backgroundColor: Colors.indigoAccent.withOpacity(0.1),
-                    child: (widget.isGuest || _userProfile?['avatar_url'] == null)
-                      ? Text(
-                          widget.isGuest ? 'G' : (_userProfile?['full_name'] ?? 'U')[0].toString().toUpperCase(),
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.indigoAccent),
-                        )
-                      : null,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                widget.isGuest ? 'GUEST USER' : '${(_userProfile?['full_name'] ?? 'USER').toString().toUpperCase()}',
-                style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 1),
-              ),
-              const SizedBox(width: 12),
-              if (!widget.isGuest)
-                IconButton(
-                  icon: const Icon(Icons.logout_rounded, color: Colors.redAccent, size: 18),
-                  onPressed: () async {
-                    await Supabase.instance.client.auth.signOut();
-                  },
-                )
-            ],
-          )
-        ],
-      ),
-    );
-  }
+        ),
 
-  Widget _buildWebFooter(bool isDark) {
-    return Container(
-      height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 40),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF08090A) : const Color(0xFFF1F5F9),
-        border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
+        _buildHeaderActions(isDark, labels),
+      ],
+    ),
+  );
+}
+
+Widget _buildHeaderBrand(bool isDark) {
+  return Row(
+    children: [
+      IconButton(
+        onPressed: () {
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
+        },
+        icon: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: 16,
+          color: isDark ? Colors.white70 : Colors.black87,
+        ),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            '© 2026 Campus Connect Operations Platform.',
-            style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold),
+      const SizedBox(width: 8),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.asset(
+          'assets/images/app_logo.png',
+          width: 32,
+          height: 32,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => const Icon(
+            Icons.hub_rounded,
+            color: Colors.indigoAccent,
+            size: 28,
           ),
-          Text(
-            'SYSTEM LOGISTICS ACTIVE',
-            style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1),
-          )
-        ],
+        ),
       ),
-    );
-  }
+      const SizedBox(width: 12),
+      Text(
+        'CAMPUS CONNECT',
+        style: GoogleFonts.outfit(
+          fontWeight: FontWeight.w900,
+          fontSize: 15,
+          letterSpacing: 1,
+          color: isDark ? Colors.white : Colors.black,
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _buildHeaderActions(
+  bool isDark,
+  List<String> labels,
+) {
+  return Row(
+    children: [
+      IconButton(
+        onPressed: () {},
+        icon: Icon(
+          Icons.notifications_none_rounded,
+          color: isDark ? Colors.white70 : Colors.black87,
+        ),
+      ),
+
+      const SizedBox(width: 12),
+
+      GestureDetector(
+        onTap: () {
+          final int profileIndex = labels.indexOf(
+            widget.isGuest ? 'LOGIN' : 'PROFILE',
+          );
+
+          if (profileIndex != -1) {
+            setState(() => _currentIndex = profileIndex);
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.all(2),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: Colors.indigoAccent,
+              width: 1.5,
+            ),
+          ),
+          child: CircleAvatar(
+            radius: 14,
+            backgroundColor:
+                Colors.indigoAccent.withOpacity(.1),
+            backgroundImage:
+                (!widget.isGuest &&
+                        _userProfile?['avatar_url'] != null)
+                    ? NetworkImage(
+                        _userProfile!['avatar_url'],
+                      )
+                    : null,
+            child: (widget.isGuest ||
+                    _userProfile?['avatar_url'] == null)
+                ? Text(
+                    widget.isGuest
+                        ? 'G'
+                        : (_userProfile?['full_name'] ?? 'U')
+                            .toString()[0]
+                            .toUpperCase(),
+                    style: const TextStyle(
+                      color: Colors.indigoAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  )
+                : null,
+          ),
+        ),
+      ),
+
+      const SizedBox(width: 8),
+
+      Text(
+        widget.isGuest
+            ? 'GUEST USER'
+            : (_userProfile?['full_name'] ?? 'USER')
+                .toString()
+                .toUpperCase(),
+        style: GoogleFonts.outfit(
+          color: Colors.indigoAccent,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1,
+        ),
+      ),
+
+      if (!widget.isGuest) ...[
+        const SizedBox(width: 12),
+        IconButton(
+          icon: const Icon(
+            Icons.logout_rounded,
+            color: Colors.redAccent,
+            size: 18,
+          ),
+          onPressed: () async {
+            await Supabase.instance.client.auth.signOut();
+          },
+        ),
+      ],
+    ],
+  );
+}
+
+Widget _buildWebFooter(BuildContext context) {
+  if (!kIsWeb) return const SizedBox.shrink();
+
+  final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+  return Container(
+    width: double.infinity,
+    color: isDark ? const Color(0xFF08090A) : const Color(0xFFF1F5F9),
+    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 36),
+    child: Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              flex: 2,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'CAMPUS CONNECT',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Campus Connect is a centralized hostel operations platform for students, wardens, administrators, and staff. It streamlines room allocation, attendance, complaints, visitor management, notices, inventory, and daily hostel operations through a secure digital ecosystem.',
+                    style: TextStyle(
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      fontSize: 13,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(width: 50),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Platform',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _footerLink(
+                    context,
+                    'Privacy Policy',
+                    () {
+                      // Navigate
+                    },
+                    isDark,
+                  ),
+
+                  _footerLink(
+                    context,
+                    'Terms & Conditions',
+                    () {},
+                    isDark,
+                  ),
+
+                  _footerLink(
+                    context,
+                    'Support',
+                    () {},
+                    isDark,
+                  ),
+
+                  _footerLink(
+                    context,
+                    'Help Center',
+                    () {},
+                    isDark,
+                  ),
+                ],
+              ),
+            ),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Contact',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  Text(
+                    'Email: support@campusconnect.com',
+                    style: TextStyle(
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      fontSize: 12,
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    'Phone: +91 XXXXX XXXXX',
+                    style: TextStyle(
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      fontSize: 12,
+                    ),
+                  ),
+
+                  const SizedBox(height: 6),
+
+                  Text(
+                    'India',
+                    style: TextStyle(
+                      color: isDark ? Colors.white60 : Colors.black54,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 28),
+
+        Divider(
+          color: isDark ? Colors.white10 : Colors.black12,
+        ),
+
+        const SizedBox(height: 16),
+
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              '© ${DateTime.now().year} Campus Connect Operations Platform.',
+              style: TextStyle(
+                color: isDark ? Colors.white38 : Colors.black45,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+
+            Text(
+              'SYSTEM LOGISTICS ACTIVE',
+              style: GoogleFonts.outfit(
+                color: Colors.greenAccent,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.4,
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 6),
+
+        Text(
+          'Developed by Manpreet Singh',
+          style: TextStyle(
+            color: isDark ? Colors.white30 : Colors.black38,
+            fontSize: 11,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _footerLink(
+  BuildContext context,
+  String title,
+  VoidCallback onTap,
+  bool isDark,
+) {
+  return Padding(
+    padding: const EdgeInsets.only(bottom: 8),
+    child: InkWell(
+      onTap: onTap,
+      child: Text(
+        title,
+        style: TextStyle(
+          color: isDark ? Colors.white60 : Colors.black54,
+          fontSize: 12,
+        ),
+      ),
+    ),
+  );
+}
 
   Widget _buildBottomBar(List<IconData> icons, bool isDark) {
     return Container(

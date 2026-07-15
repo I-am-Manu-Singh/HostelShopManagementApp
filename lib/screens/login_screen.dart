@@ -228,25 +228,29 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildOrb(double size, Color color) {
-    return ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(width: size, height: size, decoration: BoxDecoration(color: color, shape: BoxShape.circle)));
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [color, color.withOpacity(0.0)],
+        ),
+      ),
+    );
   }
 
   Widget _buildGlassCard() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(32),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: Container(
-          padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.03),
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildHeader(),
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: const Color(0xFF16181A),
+        borderRadius: BorderRadius.circular(32),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildHeader(),
               const SizedBox(height: 40),
               if (_currentStatus == AuthFlowStatus.signup) ...[
                 _buildTextField(_nameController, 'FULL NAME', Icons.person_outline),
@@ -282,10 +286,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.login), child: Text('BACK TO LOGIN', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
               ],
             ],
-          ),
         ),
-      ),
-    );
+      );
   }
 
   Widget _buildHeader() {

@@ -272,12 +272,7 @@ Future<void> _toggleWishlist(String pid) async {
                           delegate: SliverChildBuilderDelegate(
                             (context, i) {
                               final item = filtered[i];
-                              return FadeInUp(
-                                key: ValueKey('anim_${item.id}'),
-                                duration: const Duration(milliseconds: 400),
-                                delay: Duration(milliseconds: 50 * i),
-                                child: _buildPremiumProductCard(item, isDark),
-                              );
+                              return _buildPremiumProductCard(item, isDark);
                             },
                             childCount: filtered.length,
                           ),

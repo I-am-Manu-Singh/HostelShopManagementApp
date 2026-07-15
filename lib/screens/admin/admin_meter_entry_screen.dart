@@ -115,13 +115,18 @@ class _AdminMeterEntryScreenState extends State<AdminMeterEntryScreen> {
                      children: [
                        _buildFloorHeader(f),
                        const SizedBox(height: 16),
-                       GridView.builder(
-                         shrinkWrap: true,
-                         physics: const NeverScrollableScrollPhysics(),
-                         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, crossAxisSpacing: 16, mainAxisSpacing: 16, childAspectRatio: 0.8),
-                         itemCount: floorGroups[f]!.length,
-                         itemBuilder: (context, i) => _buildMeterTile(floorGroups[f]![i]),
-                       ),
+                        GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: MediaQuery.of(context).size.width > 900 ? 5 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 0.8,
+                          ),
+                          itemCount: floorGroups[f]!.length,
+                          itemBuilder: (context, i) => _buildMeterTile(floorGroups[f]![i]),
+                        ),
                        const SizedBox(height: 40),
                      ],
                    )).toList(),

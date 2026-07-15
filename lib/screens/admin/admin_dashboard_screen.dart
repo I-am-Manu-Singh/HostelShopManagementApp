@@ -112,22 +112,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 const SizedBox(height: 32),
                 const Text('OPERATIONAL METRICS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 2, color: Colors.blueGrey)),
                 const SizedBox(height: 16),
-                GridView.count(
-                  crossAxisCount: 2,
+                GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.6,
-                  children: [
-                    _statCard('OPS COMMAND', 'LIVE', Icons.security_rounded, Colors.indigoAccent, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LiveSecurityDashboard()))),
-                    _statCard('TOTAL REVENUE', '₹${(_stats['revenue'] / 1000).toStringAsFixed(1)}K', Icons.payments, Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen()))),
-                    _statCard('ENROLLMENTS', '${_stats['bookings']}', Icons.assignment, Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen()))),
-                    _statCard('FIELD PERSONNEL', '${_stats['personnel']}', Icons.people, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPersonnelHubScreen()))),
-                    _statCard('EXIT CLEARANCE', '${_stats['logistics']}', Icons.sensor_door_outlined, Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOutpassScreen()))),
-                    _statCard('COMPLAINTS', '${_stats['complaints']}', Icons.report_problem, Colors.red, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminComplaintsScreen()))),
-                  ],
-                ),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: MediaQuery.of(context).size.width > 900 ? 6 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: 1.6,
+                  ),
+                  itemCount: 6,
+                  itemBuilder: (context, index) {
+                    final cardList = [
+                      _statCard('OPS COMMAND', 'LIVE', Icons.security_rounded, Colors.indigoAccent, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LiveSecurityDashboard()))),
+                      _statCard('TOTAL REVENUE', '₹${(_stats['revenue'] / 1000).toStringAsFixed(1)}K', Icons.payments, Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen()))),
+                      _statCard('ENROLLMENTS', '${_stats['bookings']}', Icons.assignment, Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen()))),
+                      _statCard('FIELD PERSONNEL', '${_stats['personnel']}', Icons.people, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPersonnelHubScreen()))),
+                      _statCard('EXIT CLEARANCE', '${_stats['logistics']}', Icons.sensor_door_outlined, Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOutpassScreen()))),
+                      _statCard('COMPLAINTS', '${_stats['complaints']}', Icons.report_problem, Colors.red, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminComplaintsScreen()))),
+                    ];
+                    return cardList[index];
+                  },
+                ),),
                 const SizedBox(height: 40),
                 const Text('GLOBAL BROADCAST CONTROL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 2, color: Colors.blueGrey)),
                 const SizedBox(height: 16),
