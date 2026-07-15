@@ -124,11 +124,15 @@ Future<void> _fetchItems({bool silent = false}) async {
 
     /// ---------------- WISHLIST FETCH ----------------
     if (user != null) {
-      final wish = await _supabase.from('wishlist').select('product_id').eq('user_id', user.id);
-      if (mounted) {
-        setState(() {
-          _wishlistIds = (wish as List).map((e) => e['product_id'].toString()).toSet();
-        });
+      try {
+        final wish = await _supabase.from('wishlist').select('product_id').eq('user_id', user.id);
+        if (mounted) {
+          setState(() {
+            _wishlistIds = (wish as List).map((e) => e['product_id'].toString()).toSet();
+          });
+        }
+      } catch (e) {
+        debugPrint("❌ WISHLIST FETCH ERROR: $e");
       }
     }
 

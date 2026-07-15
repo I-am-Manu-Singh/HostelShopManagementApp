@@ -192,29 +192,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      FadeInDown(
-                        duration: const Duration(seconds: 2),
-                        child: Container(
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.white.withOpacity(0.05),
-                            border: Border.all(color: Colors.white.withOpacity(0.1)),
-                          ),
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(50),
-                            child: Image.asset(
-                              'assets/images/app_logo.png',
-                              width: 80,
-                              height: 80,
-                              fit: BoxFit.cover,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 30),
+                      const SizedBox(height: 20),
                       _buildGlassCard(),
-                      
                     ],
                   ),
                 ),
@@ -249,8 +228,31 @@ class _LoginScreenState extends State<LoginScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Center(
+            child: FadeInDown(
+              duration: const Duration(seconds: 1),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 20),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.white.withOpacity(0.03),
+                  border: Border.all(color: Colors.white.withOpacity(0.06)),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(40),
+                  child: Image.asset(
+                    'assets/images/app_logo.png',
+                    width: 64,
+                    height: 64,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+            ),
+          ),
           _buildHeader(),
-              const SizedBox(height: 40),
+          const SizedBox(height: 24),
               if (_currentStatus == AuthFlowStatus.signup) ...[
                 _buildTextField(_nameController, 'FULL NAME', Icons.person_outline),
                 const SizedBox(height: 20),
