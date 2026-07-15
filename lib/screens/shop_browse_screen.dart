@@ -137,12 +137,17 @@ Future<void> _fetchItems({bool silent = false}) async {
     final parsed = (res as List).map((i) => ShopItem.fromJson(i)).toList();
 
     /// ---------------- APP SETTINGS FETCH ----------------
-    final settings = await _supabase.from('app_settings').select('value').eq('key', 'delivery_charge').maybeSingle();
-    final fee = (settings?['value'] as num? ?? 20.0).toDouble();
+    double fee = 20.0;
+    try {
+      final settings = await _supabase.from('app_settings').select('value').eq('key', 'delivery_charge').maybeSingle();
+      if (settings != null) {
+        fee = (settings['value'] as num? ?? 20.0).toDouble();
+      }
+    } catch (_) {}
 
     if (mounted) setState(() { _items = parsed; _deliveryFee = fee; _isLoading = false; });
   } catch (e) {
-    if (mounted) setState(() => _isLoading = false);
+    if (mounted) setState(() { _isLoading = false; _items = []; });
   }
 }
 
