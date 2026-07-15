@@ -10,7 +10,7 @@ import '../policy_handbook_screen.dart';
 import '../attendance_calendar_screen.dart';
 import '../staff_task_hub_screen.dart';
 import '../notifications_screen.dart';
-import '../van_log_screen.dart';
+import '../admin/admin_fleet_console_screen.dart';
 import '../payroll_terminal_screen.dart';
 import '../../services/database_service.dart';
 
@@ -184,7 +184,7 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
       {'icon': Icons.assignment_outlined, 'label': 'Tasks', 'color': Colors.orangeAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffTaskHubScreen()))},
       {'icon': Icons.menu_book_outlined, 'label': 'Policies', 'color': Colors.tealAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PolicyHandbookScreen()))},
       {'icon': Icons.payments_outlined, 'label': 'Payroll', 'color': Colors.indigoAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PayrollTerminalScreen()))},
-      {'icon': Icons.local_shipping_outlined, 'label': 'Van Log', 'color': Colors.blueAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const VanLogScreen()))},
+      {'icon': Icons.local_shipping_outlined, 'label': 'Van Log', 'color': Colors.blueAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFleetConsoleScreen()))},
     ];
 
     return GridView.builder(

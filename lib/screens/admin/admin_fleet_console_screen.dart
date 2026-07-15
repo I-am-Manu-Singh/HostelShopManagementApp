@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 class AdminFleetConsoleScreen extends StatefulWidget {
   const AdminFleetConsoleScreen({super.key});
@@ -18,6 +19,14 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
   List<dynamic> _vans = [];
   List<dynamic> _logs = [];
   DateTime _selectedDate = DateTime.now();
+
+  String? _selectedVanId;
+  double _lastMeter = 0.0;
+  final _todayMeterCtrl = TextEditingController();
+  final _litersCtrl = TextEditingController();
+  final _amountCtrl = TextEditingController();
+  String _paymentMethod = 'Cash';
+  String? _receiptUrl;
 
   @override
   void initState() {
@@ -39,6 +48,57 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
       }
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _fetchLastMeter(String vanId) async {
+    try {
+      final res = await _client.from('van_logs').select('latest_meter').eq('van_id', vanId).order('created_at', ascending: false).limit(1).maybeSingle();
+      if (mounted) {
+        setState(() {
+          _lastMeter = (res?['latest_meter'] as num?)?.toDouble() ?? 0.0;
+          _selectedVanId = vanId;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _pickReceipt() async {
+    final picker = ImagePicker();
+    final img = await picker.pickImage(source: ImageSource.gallery);
+    if (img != null) {
+      setState(() => _receiptUrl = 'https://hostel-mgmt.up.railway.app/fleet/receipts/${img.name}');
+    }
+  }
+
+  Future<void> _submitRefuelingLog() async {
+    if (_selectedVanId == null || _todayMeterCtrl.text.isEmpty || _litersCtrl.text.isEmpty || _amountCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please complete all refueling details.'), backgroundColor: Colors.orangeAccent));
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final user = _client.auth.currentUser;
+      await _client.from('van_logs').insert({
+        'van_id': _selectedVanId,
+        'user_id': user?.id,
+        'previous_meter': _lastMeter,
+        'latest_meter': double.parse(_todayMeterCtrl.text),
+        'fuel_liters': double.parse(_litersCtrl.text),
+        'amount_paid': double.parse(_amountCtrl.text),
+        'payment_method': _paymentMethod,
+        'receipt_url': _receiptUrl,
+      });
+      _todayMeterCtrl.clear();
+      _litersCtrl.clear();
+      _amountCtrl.clear();
+      _receiptUrl = null;
+      _selectedVanId = null;
+      _fetchConsoleData();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Refueling log submitted successfully.'), backgroundColor: Colors.greenAccent));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
+      setState(() => _isLoading = false);
     }
   }
 
@@ -70,13 +130,13 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('ADD NEW VEHICLE', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+            Text('ADD NEW VEHICLE', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2)),
             const SizedBox(height: 20),
-            TextField(controller: numCtrl, style: TextStyle(color: isDark ? Colors.white : Colors.black), decoration: InputDecoration(labelText: 'VEHICLE NUMBER (e.g. MH12AB1234)', labelStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 10), filled: true, fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)))),
+            TextField(controller: numCtrl, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 15), decoration: InputDecoration(labelText: 'VEHICLE NUMBER (e.g. MH12AB1234)', labelStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 13), filled: true, fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 16),
-            TextField(controller: driverCtrl, style: TextStyle(color: isDark ? Colors.white : Colors.black), decoration: InputDecoration(labelText: 'DEFAULT DRIVER NAME', labelStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 10), filled: true, fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)))),
+            TextField(controller: driverCtrl, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 15), decoration: InputDecoration(labelText: 'DEFAULT DRIVER NAME', labelStyle: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 13), filled: true, fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 24),
-            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: () { if (numCtrl.text.isNotEmpty) { _addNewVan(numCtrl.text, driverCtrl.text); Navigator.pop(c); } }, style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent), child: const Text('REGISTER VEHICLE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold))))
+            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: () { if (numCtrl.text.isNotEmpty) { _addNewVan(numCtrl.text, driverCtrl.text); Navigator.pop(c); } }, style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent), child: const Text('REGISTER VEHICLE', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15))))
           ],
         ),
       ),
@@ -107,13 +167,13 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('FLEET CONSOLE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        title: Text('FLEET CONSOLE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.greenAccent), onPressed: () => _showAddVanModal(isDark)),
-          IconButton(icon: const Icon(Icons.calendar_month_rounded, color: Colors.indigoAccent), onPressed: () async {
+          IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.greenAccent, size: 24), onPressed: () => _showAddVanModal(isDark)),
+          IconButton(icon: const Icon(Icons.calendar_month_rounded, color: Colors.indigoAccent, size: 24), onPressed: () async {
             final picked = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2024), lastDate: DateTime(2030));
             if (picked != null) setState(() => _selectedDate = picked);
           }),
@@ -128,17 +188,77 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
                   padding: const EdgeInsets.all(24),
                   children: [
                     _buildOverviewMetrics(totalCost, totalLiters, isDark),
+                    const SizedBox(height: 24),
+                    _buildRefuelingEntryForm(isDark),
                     const SizedBox(height: 32),
-                    Text('REFUELING REGISTRY (${DateFormat('dd MMM yyyy').format(_selectedDate).toUpperCase()})', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
+                    Text('REFUELING REGISTRY (${DateFormat('dd MMM yyyy').format(_selectedDate).toUpperCase()})', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
                     const SizedBox(height: 16),
                     if (dateFiltered.isEmpty)
-                      Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('NO ENTRIES REGISTERED TODAY', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 11, fontWeight: FontWeight.bold))))
+                      Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('NO ENTRIES REGISTERED TODAY', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13, fontWeight: FontWeight.bold))))
                     else
                       ...dateFiltered.map((l) => _buildLogCard(l, isDark)).toList(),
                   ],
                 )
               ],
             ),
+    );
+  }
+
+  Widget _buildRefuelingEntryForm(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.greenAccent.withOpacity(0.2))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('NEW REFUELING AUDIT LOG', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+          const SizedBox(height: 16),
+          // Van Selector
+          DropdownButtonHideUnderline(
+            child: DropdownButtonFormField<String>(
+              value: _selectedVanId,
+              hint: const Text('SELECT VEHICLE', style: TextStyle(fontSize: 13)),
+              dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
+              items: _vans.map((v) => DropdownMenuItem(value: v['id'].toString(), child: Text(v['van_number'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))).toList(),
+              onChanged: (val) { if (val != null) _fetchLastMeter(val); },
+            ),
+          ),
+          if (_selectedVanId != null) ...[
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _infoBox('PREVIOUS METER', _lastMeter.toStringAsFixed(1), isDark)),
+              const SizedBox(width: 12),
+              Expanded(child: _inputBox('TODAY METER', _todayMeterCtrl, isDark)),
+            ]),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _inputBox('VOLUME (LITERS)', _litersCtrl, isDark, icon: Icons.local_gas_station_outlined)),
+              const SizedBox(width: 12),
+              Expanded(child: _inputBox('COST AMOUNT (₹)', _amountCtrl, isDark, icon: Icons.payments_outlined)),
+            ]),
+            const SizedBox(height: 16),
+            // Payment method selector
+            Row(children: ['Cash', 'Card', 'Wallet'].map((type) {
+              bool sel = _paymentMethod == type;
+              return Expanded(child: GestureDetector(onTap: () => setState(() => _paymentMethod = type), child: Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: sel ? Colors.greenAccent : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03)), borderRadius: BorderRadius.circular(12)), child: Center(child: Text(type.toUpperCase(), style: TextStyle(color: sel ? Colors.black : (isDark ? Colors.white60 : Colors.black54), fontWeight: FontWeight.bold, fontSize: 11))))));
+            }).toList()),
+            const SizedBox(height: 16),
+            // Receipt pick
+            GestureDetector(
+              onTap: _pickReceipt,
+              child: Container(
+                height: 100, width: double.infinity,
+                decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.greenAccent.withOpacity(0.1))),
+                child: _receiptUrl == null
+                    ? const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.camera_alt_outlined, color: Colors.greenAccent, size: 24), SizedBox(height: 8), Text('UPLOAD RECEIPT IMAGE', style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold))])
+                    : ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(_receiptUrl!, fit: BoxFit.cover)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: _submitRefuelingLog, style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent), child: const Text('SUBMIT REFUEL LOG', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15))))
+          ]
+        ],
+      ),
     );
   }
 
@@ -149,18 +269,18 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('FLEET LIFETIME OUTLAY', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          Text('FLEET LIFETIME OUTLAY', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2)),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('₹${totalCost.toInt()}', style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
-                const Text('TOTAL FUEL COST', style: TextStyle(color: Colors.white24, fontSize: 8, fontWeight: FontWeight.bold)),
+                const Text('TOTAL FUEL COST', style: TextStyle(color: Colors.white24, fontSize: 11, fontWeight: FontWeight.bold)),
               ]),
               Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                 Text('${totalLiters.toStringAsFixed(1)}L', style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
-                const Text('TOTAL VOLUME INJECTED', style: TextStyle(color: Colors.white24, fontSize: 8, fontWeight: FontWeight.bold)),
+                const Text('TOTAL VOLUME INJECTED', style: TextStyle(color: Colors.white24, fontSize: 11, fontWeight: FontWeight.bold)),
               ])
             ],
           ),
@@ -186,34 +306,42 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(van?['van_number'] ?? 'FLEET UNIT', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 15)),
-              Text('₹${log['amount_paid']}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.greenAccent)),
+              Text(van?['van_number'] ?? 'FLEET UNIT', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text('₹${log['amount_paid']}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.greenAccent)),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Volume: ${log['fuel_liters']}L', style: const TextStyle(fontSize: 11, color: Colors.white60)),
-              Text('Distance: ${delta.toStringAsFixed(1)}km', style: const TextStyle(fontSize: 11, color: Colors.white60)),
+              Text('Volume: ${log['fuel_liters']}L', style: const TextStyle(fontSize: 13, color: Colors.white60)),
+              Text('Distance: ${delta.toStringAsFixed(1)}km', style: const TextStyle(fontSize: 13, color: Colors.white60)),
             ],
           ),
           const Divider(height: 24, color: Colors.white10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Refueled By: ${profile?['full_name'] ?? 'Driver'}', style: const TextStyle(fontSize: 9, color: Colors.white30, fontWeight: FontWeight.bold)),
+              Text('Refueled By: ${profile?['full_name'] ?? 'Driver'}', style: const TextStyle(fontSize: 11, color: Colors.white30, fontWeight: FontWeight.bold)),
               if (log['receipt_url'] != null)
                 GestureDetector(
                   onTap: () {
                     showDialog(context: context, builder: (_) => Dialog(child: Container(padding: const EdgeInsets.all(8), child: Image.network(log['receipt_url'], fit: BoxFit.contain))));
                   },
-                  child: const Row(children: [Icon(Icons.receipt_long_rounded, color: Colors.greenAccent, size: 12), SizedBox(width: 4), Text('VIEW RECEIPT', style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.bold))]),
+                  child: const Row(children: [Icon(Icons.receipt_long_rounded, color: Colors.greenAccent, size: 14), SizedBox(width: 4), Text('VIEW RECEIPT', style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold))]),
                 )
             ],
           )
         ],
       ),
     );
+  }
+
+  Widget _infoBox(String label, String value, bool isDark) {
+    return Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(16)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(label, style: const TextStyle(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold)), const SizedBox(height: 4), Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))]));
+  }
+
+  Widget _inputBox(String label, TextEditingController ctrl, bool isDark, {IconData? icon}) {
+    return TextField(controller: ctrl, keyboardType: TextInputType.number, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), decoration: InputDecoration(labelText: label, labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), prefixIcon: icon != null ? Icon(icon, size: 16) : null, filled: true, fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16))));
   }
 }
