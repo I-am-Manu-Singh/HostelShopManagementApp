@@ -327,7 +327,7 @@ _featureCard(
           : Colors.white,
       Colors.transparent,
     ],
-  ),
+  ),  
   borderRadius: BorderRadius.circular(32),
   border: Border.all(
     color: isDark

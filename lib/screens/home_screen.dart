@@ -19,6 +19,9 @@ import 'chat_room_list_screen.dart';
 import 'admin/admin_finance_hub_screen.dart';
 import 'mandi/mandi_seller_screen.dart';
 import 'mandi/mandi_delivery_screen.dart';
+import 'legal/privacy_policy_screen.dart';
+import 'legal/terms_of_service_screen.dart';
+import 'app_info_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isGuest;
