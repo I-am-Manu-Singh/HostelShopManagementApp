@@ -174,16 +174,26 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: bgColor,
         body: Column(
           children: [
-             _buildWebHeader(context),
-            // Page Body
+            _buildWebHeader(context),
+            // Scrollable Page Content + Footer
             Expanded(
-              child: IndexedStack(
-                index: _currentIndex,
-                children: pages,
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: MediaQuery.of(context).size.height - 130, // Adjust height based on header/footer heights
+                      ),
+                      child: IndexedStack(
+                        index: _currentIndex,
+                        children: pages,
+                      ),
+                    ),
+                    _buildWebFooter(context),
+                  ],
+                ),
               ),
             ),
-            // Web Footer
-          _buildWebFooter(context),
           ],
         ),
       );
@@ -206,7 +216,7 @@ Widget _buildWebHeader(BuildContext context) {
   final List<String> labels = _getLabels(role);
 
   return Container(
-    height: 80,
+    height: 40,
     padding: const EdgeInsets.symmetric(horizontal: 24),
     decoration: BoxDecoration(
       color: isDark ? const Color(0xFF16181A) : Colors.white,
@@ -441,6 +451,25 @@ Widget _buildWebFooter(BuildContext context) {
                       height: 1.6,
                     ),
                   ),
+                               const SizedBox(height: 6),
+
+                  Text(
+              '© ${DateTime.now().year} Campus Connect Operations Platform.',
+              style: TextStyle(
+                color: isDark ? Colors.white38 : Colors.black45,
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+             const SizedBox(height: 6),
+
+        Text(
+          'Developed by Manpreet Singh',
+          style: TextStyle(
+            color: isDark ? Colors.white30 : Colors.black38,
+            fontSize: 11,
+          ),
+        ),
                 ],
               ),
             ),
@@ -539,49 +568,7 @@ Widget _buildWebFooter(BuildContext context) {
               ),
             ),
           ],
-        ),
-
-        const SizedBox(height: 28),
-
-        Divider(
-          color: isDark ? Colors.white10 : Colors.black12,
-        ),
-
-        const SizedBox(height: 16),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              '© ${DateTime.now().year} Campus Connect Operations Platform.',
-              style: TextStyle(
-                color: isDark ? Colors.white38 : Colors.black45,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-
-            Text(
-              'SYSTEM LOGISTICS ACTIVE',
-              style: GoogleFonts.outfit(
-                color: Colors.greenAccent,
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.4,
-              ),
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 6),
-
-        Text(
-          'Developed by Manpreet Singh',
-          style: TextStyle(
-            color: isDark ? Colors.white30 : Colors.black38,
-            fontSize: 11,
-          ),
-        ),
+        ),       
       ],
     ),
   );
