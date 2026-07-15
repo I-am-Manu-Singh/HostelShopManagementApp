@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         children: pages,
                       ),
                     ),
-                    _buildWebFooter(context),
+                    _buildWebFooter(context, isDark, MediaQuery.of(context).size.width > 800),
                   ],
                 ),
               ),

@@ -334,13 +334,7 @@ _featureCard(
         ? Colors.white12
         : Colors.black12,
   ),
-  boxShadow: [
-    BoxShadow(
-      blurRadius: 30,
-      spreadRadius: 1,
-      color: Colors.black.withOpacity(.08),
-    )
-  ],
+  boxShadow: [],
 ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
