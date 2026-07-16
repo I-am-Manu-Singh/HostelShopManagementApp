@@ -233,6 +233,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             _buildHeaderSection(isDark),
                             const SizedBox(height: 12),
                             _buildDescriptionSection(cardColor, borderColor, isDark),
+                             const SizedBox(height: 12),
                             _buildBarCodeArea(isDark),
                             SizedBox(height: 40 + MediaQuery.of(context).padding.bottom),
                           ],

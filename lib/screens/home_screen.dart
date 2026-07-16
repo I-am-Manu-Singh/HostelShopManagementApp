@@ -159,26 +159,20 @@ class _HomeScreenState extends State<HomeScreen> {
       final isDesktop = MediaQuery.of(context).size.width > 800;
       return Scaffold(
         backgroundColor: bgColor,
-        body: SingleChildScrollView(
-          child: Column(
-            children: [
-              WebHeader(
-                userProfile: _userProfile,
-                isGuest: widget.isGuest,
-                currentIndex: _currentIndex,
-                labels: labels,
-                onTabSelected: (index) => setState(() => _currentIndex = index),
-              ),
-              // Constrain the active page height dynamically or let it size natively so column splits work correctly
-              Container(
-                constraints: BoxConstraints(
-                  minHeight: MediaQuery.of(context).size.height - 48 - 300,
-                ),
-                child: pages[_currentIndex],
-              ),
-              SharedWebFooter(isDark: isDark, isDesktop: isDesktop),
-            ],
-          ),
+        body: Column(
+          children: [
+            WebHeader(
+              userProfile: _userProfile,
+              isGuest: widget.isGuest,
+              currentIndex: _currentIndex,
+              labels: labels,
+              onTabSelected: (index) => setState(() => _currentIndex = index),
+            ),
+            // Expanded allows LayoutBuilder down the widget tree to query window size correctly
+            Expanded(
+              child: pages[_currentIndex],
+            ),
+          ],
         ),
       );
     }
