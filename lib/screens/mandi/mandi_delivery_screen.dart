@@ -145,16 +145,47 @@ class _MandiDeliveryScreenState extends State<MandiDeliveryScreen> {
                 )
               : RefreshIndicator(
                   onRefresh: _fetchAssignedDeliveries,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(24),
-                    itemCount: _assignedOrders.length,
-                    itemBuilder: (context, i) {
-                      final o = _assignedOrders[i];
-                      final status = o['order_status'] ?? 'Placed';
-                      final profile = o['profiles'];
-                      final isBooking = o['is_booking'] ?? false;
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth > 800) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(24),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 16,
+                            mainAxisSpacing: 16,
+                            childAspectRatio: 1.8,
+                          ),
+                          itemCount: _assignedOrders.length,
+                          itemBuilder: (context, i) {
+                            final o = _assignedOrders[i];
+                            final status = o['order_status'] ?? 'Placed';
+                            final profile = o['profiles'];
+                            final isBooking = o['is_booking'] ?? false;
+                            return _buildDeliveryCard(o, status, profile, isBooking, isDark, textColor);
+                          },
+                        );
+                      }
 
-                      return FadeInUp(
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(24),
+                        itemCount: _assignedOrders.length,
+                        itemBuilder: (context, i) {
+                          final o = _assignedOrders[i];
+                          final status = o['order_status'] ?? 'Placed';
+                          final profile = o['profiles'];
+                          final isBooking = o['is_booking'] ?? false;
+                          return _buildDeliveryCard(o, status, profile, isBooking, isDark, textColor);
+                        },
+                      );
+                    },
+                  ),
+                ),
+    );
+  }
+
+  Widget _buildDeliveryCard(dynamic o, String status, dynamic profile, bool isBooking, bool isDark, Color textColor) {
+    return FadeInUp(
                         child: Container(
                           margin: const EdgeInsets.only(bottom: 16),
                           padding: const EdgeInsets.all(20),
@@ -215,13 +246,9 @@ class _MandiDeliveryScreenState extends State<MandiDeliveryScreen> {
                                 ),
                               ],
                             ],
-                          ),
-                        ),
-                      );
-                    },
                   ),
                 ),
-    );
+              );
   }
 
   Widget _rowDetail(String label, String val, Color c) {

@@ -181,13 +181,57 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
         : Stack(
             children: [
               _buildBackgroundGlow(isDark),
-              Column(
-                children: [
-                  _buildTabSwitcher(isDark),
-                  Expanded(
-                    child: _activeTab == 0 ? _buildLedgerView(isDark) : _buildAnalyticsView(isDark),
-                  ),
-                ],
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 800) {
+                    // Desktop/Wide View: 2-column layout split
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 4,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.only(top: 24),
+                            child: Column(
+                              children: [
+                                _buildWalletHeader(isDark),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const VerticalDivider(width: 1, color: Colors.black12),
+                        Expanded(
+                          flex: 6,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildTabSwitcher(isDark),
+                              Expanded(
+                                child: _activeTab == 0 
+                                  ? ListView.builder(
+                                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                                      itemCount: _transactions.length,
+                                      itemBuilder: (context, i) => _buildTransactionCard(_transactions[i], isDark),
+                                    )
+                                  : _buildAnalyticsView(isDark),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  // Mobile View: Single column scrolling list
+                  return Column(
+                    children: [
+                      _buildTabSwitcher(isDark),
+                      Expanded(
+                        child: _activeTab == 0 ? _buildLedgerView(isDark) : _buildAnalyticsView(isDark),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),

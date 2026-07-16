@@ -39,7 +39,7 @@ class NotificationService {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'trek_chats',
       'Trek Group Chats',
-      channelDescription: 'Notifications for trek group messages',
+      channelDescription: 'Notifications for group messages',
       importance: Importance.max,
       priority: Priority.high,
     );

@@ -83,51 +83,81 @@ class _StudentTaskHubScreenState extends State<StudentTaskHubScreen> {
               Expanded(
                 child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-                    : ListView(
-                        padding: const EdgeInsets.all(24),
-                        children: [
-                          _buildAnalyticsCard(isDark),
-                          const SizedBox(height: 32),
-                          EisenhowerMatrix(tasks: _tasks),
-                          const SizedBox(height: 32),
-                          _buildCategoryFilter(isDark),
-                        const SizedBox(height: 32),
-                        _buildMotivationalHeader(textColor),
-                        const SizedBox(height: 32),
-                        ..._tasks.isEmpty 
-                          ? [_buildEmptyState(isDark)] 
-                          : [
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final crossCount = constraints.maxWidth > 900 ? 3 : (constraints.maxWidth > 600 ? 2 : 1);
-                                  if (crossCount > 1) {
-                                    final visibleTasks = _tasks.where((t) {
-                                      if (_selectedCategory == 'ALL') return true;
-                                      return t['category'] == _selectedCategory.toLowerCase();
-                                    }).toList();
-                                    return GridView.builder(
-                                      shrinkWrap: true,
-                                      physics: const NeverScrollableScrollPhysics(),
-                                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                                        crossAxisCount: crossCount,
-                                        crossAxisSpacing: 16,
-                                        mainAxisSpacing: 16,
-                                        childAspectRatio: 3.2,
-                                      ),
-                                      itemCount: visibleTasks.length,
-                                      itemBuilder: (context, i) => _buildTaskTimelineItem(visibleTasks[i], isDark),
-                                    );
-                                  }
-                                  return Column(
-                                    children: _tasks.map((t) => _buildTaskTimelineItem(t, isDark)).toList(),
-                                  );
-                                }
-                              )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (constraints.maxWidth > 800) {
+                          // Desktop/Wide View: 2-column layout split
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                flex: 5,
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    children: [
+                                      _buildAnalyticsCard(isDark),
+                                      const SizedBox(height: 32),
+                                      EisenhowerMatrix(tasks: _tasks),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const VerticalDivider(width: 1, color: Colors.black12),
+                              Expanded(
+                                flex: 5,
+                                child: SingleChildScrollView(
+                                  padding: const EdgeInsets.all(24),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      _buildCategoryFilter(isDark),
+                                      const SizedBox(height: 32),
+                                      _buildMotivationalHeader(textColor),
+                                      const SizedBox(height: 32),
+                                      ..._tasks.isEmpty 
+                                        ? [_buildEmptyState(isDark)] 
+                                        : [
+                                            Column(
+                                              children: _tasks.map((t) => _buildTaskTimelineItem(t, isDark)).toList(),
+                                            ),
+                                          ],
+                                      const SizedBox(height: 32),
+                                      _buildCommunityFocusIntel(isDark),
+                                      const SizedBox(height: 100),
+                                    ],
+                                  ),
+                                ),
+                              ),
                             ],
-                        const SizedBox(height: 32),
-                        _buildCommunityFocusIntel(isDark),
-                        const SizedBox(height: 100),
-                      ],
+                          );
+                        }
+
+                        // Mobile View: Single column layout list
+                        return ListView(
+                          padding: const EdgeInsets.all(24),
+                          children: [
+                            _buildAnalyticsCard(isDark),
+                            const SizedBox(height: 32),
+                            EisenhowerMatrix(tasks: _tasks),
+                            const SizedBox(height: 32),
+                            _buildCategoryFilter(isDark),
+                            const SizedBox(height: 32),
+                            _buildMotivationalHeader(textColor),
+                            const SizedBox(height: 32),
+                            ..._tasks.isEmpty 
+                              ? [_buildEmptyState(isDark)] 
+                              : [
+                                  Column(
+                                    children: _tasks.map((t) => _buildTaskTimelineItem(t, isDark)).toList(),
+                                  ),
+                                ],
+                            const SizedBox(height: 32),
+                            _buildCommunityFocusIntel(isDark),
+                            const SizedBox(height: 100),
+                          ],
+                        );
+                      },
                     ),
               ),
             ],

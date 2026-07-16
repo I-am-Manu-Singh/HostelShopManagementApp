@@ -96,74 +96,150 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> with SingleTickerPr
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFF08090A),
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverAppBar(
-              expandedHeight: 400,
-              pinned: false,
-              floating: true,
-              backgroundColor: const Color(0xFF08090A),
-              flexibleSpace: FlexibleSpaceBar(
-                background: _buildImageGallery(),
-              ),
-              leading: _buildAppBarAction(Icons.arrow_back, () => Navigator.pop(context)),
-              actions: [
-                _buildAppBarAction(Icons.share, () => Share.share('Join me at Unit ${widget.room.roomNumber}!')),
-                _buildAppBarAction(_isSaved ? Icons.favorite : Icons.favorite_border, () {}, color: _isSaved ? Colors.red : Colors.white),
-              ],
-            ),
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildHeader(),
-                    const SizedBox(height: 12),
-                    _buildLocationRow(),
-                    const SizedBox(height: 24),
-                    _buildQuickStats(),
-                  ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > 800) {
+            // Desktop/Wide View: 2-column sidebar layout
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 5,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      children: [
+                        SizedBox(
+                          height: 400,
+                          width: double.infinity,
+                          child: _buildImageGallery(),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildHeader(),
+                              const SizedBox(height: 12),
+                              _buildLocationRow(),
+                              const SizedBox(height: 24),
+                              _buildQuickStats(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _SliverAppBarDelegate(
-                preferredHeight: 60,
-                child: Container(
-                  color: const Color(0xFF08090A),
-                  child: TabBar(
-                    controller: _tabController,
-                    isScrollable: true,
-                    indicatorColor: Colors.indigoAccent,
-                    labelColor: Colors.white,
-                    unselectedLabelColor: Colors.white38,
-                    labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
-                    tabs: const [
-                      Tab(text: 'OVERVIEW'),
-                      Tab(text: 'AMENITIES'),
-                      Tab(text: 'INCLUSIONS'),
-                      Tab(text: 'INSPECTION'),
-                      Tab(text: 'REVIEWS'),
+                const VerticalDivider(width: 1, color: Colors.white12),
+                Expanded(
+                  flex: 5,
+                  child: Column(
+                    children: [
+                      TabBar(
+                        controller: _tabController,
+                        isScrollable: true,
+                        indicatorColor: Colors.indigoAccent,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: Colors.white38,
+                        labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+                        tabs: const [
+                          Tab(text: 'OVERVIEW'),
+                          Tab(text: 'AMENITIES'),
+                          Tab(text: 'INCLUSIONS'),
+                          Tab(text: 'INSPECTION'),
+                          Tab(text: 'REVIEWS'),
+                        ],
+                      ),
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildOverview(),
+                            _buildAmenities(),
+                            _buildInclusions(),
+                            _buildInspectionChecklist(),
+                            _buildReviewsTab(),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ),
+              ],
+            );
+          }
+
+          // Mobile View: Default nested scrolling list
+          return NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) {
+              return [
+                SliverAppBar(
+                  expandedHeight: 400,
+                  pinned: false,
+                  floating: true,
+                  backgroundColor: const Color(0xFF08090A),
+                  flexibleSpace: FlexibleSpaceBar(
+                    background: _buildImageGallery(),
+                  ),
+                  leading: _buildAppBarAction(Icons.arrow_back, () => Navigator.pop(context)),
+                  actions: [
+                    _buildAppBarAction(Icons.share, () => Share.share('Join me at Unit ${widget.room.roomNumber}!')),
+                    _buildAppBarAction(_isSaved ? Icons.favorite : Icons.favorite_border, () {}, color: _isSaved ? Colors.red : Colors.white),
+                  ],
+                ),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildHeader(),
+                        const SizedBox(height: 12),
+                        _buildLocationRow(),
+                        const SizedBox(height: 24),
+                        _buildQuickStats(),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: _SliverAppBarDelegate(
+                    preferredHeight: 60,
+                    child: Container(
+                      color: const Color(0xFF08090A),
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: true,
+                        indicatorColor: Colors.indigoAccent,
+                        labelColor: Colors.white,
+                        unselectedLabelColor: Colors.white38,
+                        labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
+                        tabs: const [
+                          Tab(text: 'OVERVIEW'),
+                          Tab(text: 'AMENITIES'),
+                          Tab(text: 'INCLUSIONS'),
+                          Tab(text: 'INSPECTION'),
+                          Tab(text: 'REVIEWS'),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ];
+            },
+            body: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildOverview(),
+                _buildAmenities(),
+                _buildInclusions(),
+                _buildInspectionChecklist(),
+                _buildReviewsTab(),
+              ],
             ),
-          ];
+          );
         },
-        body: TabBarView(
-          controller: _tabController,
-          children: [
-            _buildOverview(),
-            _buildAmenities(),
-            _buildInclusions(),
-            _buildInspectionChecklist(),
-            _buildReviewsTab(),
-          ],
-        ),
       ),
       bottomNavigationBar: _buildBottomBar(),
     );

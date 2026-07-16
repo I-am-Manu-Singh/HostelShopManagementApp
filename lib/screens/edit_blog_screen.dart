@@ -50,7 +50,7 @@ class _EditBlogScreenState extends State<EditBlogScreen> {
       if (mounted) setState(() => _isAuthorized = true);
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('UNAUTHORIZED: ONLY THE TREK ARCHITECT OR HQ CAN EDIT THIS INTEL.')));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('UNAUTHORIZED: ONLY THE ADMIN CAN EDIT THIS INTEL.')));
         Navigator.pop(context);
       }
     }
@@ -66,7 +66,7 @@ class _EditBlogScreenState extends State<EditBlogScreen> {
         'content': _contentCtrl.text.trim(),
         'gallery': _imageUrls.where((u) => u.isNotEmpty).toList(),
         'tags': _tags,
-        'category': _tags.isNotEmpty ? _tags.first : 'Trekking',
+        'category': _tags.isNotEmpty ? _tags.first : 'HostelLife',
       }).eq('id', widget.blog['id']);
       if (mounted) {
         Navigator.pop(context, true);

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 🛡️ Trek India Tactical Build Script for Vercel
+# 🛡️ Tactical Build Script for Vercel
 
 # 1. Acquire Flutter Intelligence
 if [ ! -d "$HOME/flutter" ]; then

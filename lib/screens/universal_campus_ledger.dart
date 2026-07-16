@@ -131,34 +131,93 @@ class _UniversalCampusLedgerState extends State<UniversalCampusLedger> with Sing
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
+    final bgColor = isDark ? const Color(0xFF08090A) : Colors.white;
+    final showSidebar = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF08090A) : Colors.white,
+      backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('UNIVERSAL CAMPUS LEDGER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
-        backgroundColor: Colors.transparent, elevation: 0,
+        title: Text('UNIVERSAL CAMPUS LEDGER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2.5)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
           IconButton(icon: const Icon(Icons.receipt_long_rounded, color: Colors.indigoAccent), onPressed: () => _showAuditLogModal(isDark)),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
-          indicatorColor: Colors.indigoAccent,
-          tabs: const [ Tab(text: 'LEDGER'), Tab(text: 'KHATA/DUES'), Tab(text: 'ANALYTICS') ],
-        ),
+        bottom: showSidebar 
+          ? null 
+          : TabBar(
+              controller: _tabController,
+              labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+              indicatorColor: Colors.indigoAccent,
+              tabs: const [ Tab(text: 'LEDGER'), Tab(text: 'KHATA/DUES'), Tab(text: 'ANALYTICS') ],
+            ),
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-        : TabBarView(
-            controller: _tabController,
-            physics: const NeverScrollableScrollPhysics(),
-            children: [
-               _buildLedgerTab(isDark),
-               _buildKhataTab(isDark),
-               _buildAnalyticsTab(isDark),
-            ],
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              if (showSidebar) {
+                return Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
+                        ),
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          children: [
+                            _buildLedgerSidebarTile(0, 'LEDGER', Icons.receipt_long_rounded),
+                            _buildLedgerSidebarTile(1, 'KHATA/DUES', Icons.account_balance_wallet_rounded),
+                            _buildLedgerSidebarTile(2, 'ANALYTICS', Icons.analytics_rounded),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 7,
+                      child: TabBarView(
+                        controller: _tabController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                           _buildLedgerTab(isDark),
+                           _buildKhataTab(isDark),
+                           _buildAnalyticsTab(isDark),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return TabBarView(
+                controller: _tabController,
+                physics: const NeverScrollableScrollPhysics(),
+                children: [
+                   _buildLedgerTab(isDark),
+                   _buildKhataTab(isDark),
+                   _buildAnalyticsTab(isDark),
+                ],
+              );
+            },
           ),
+    );
+  }
+
+  Widget _buildLedgerSidebarTile(int index, String label, IconData icon) {
+    final active = _tabController.index == index;
+    return ListTile(
+      selected: active,
+      selectedTileColor: Colors.indigoAccent.withOpacity(0.08),
+      leading: Icon(icon, color: active ? Colors.indigoAccent : Colors.grey),
+      title: Text(label, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11, color: active ? Colors.indigoAccent : Colors.grey)),
+      onTap: () {
+        setState(() {
+          _tabController.index = index;
+        });
+      },
     );
   }
 

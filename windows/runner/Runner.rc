@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.trekbooking" "\0"
-            VALUE "FileDescription", "Trek India" "\0"
+            VALUE "CompanyName", "com.campusconnect" "\0"
+            VALUE "FileDescription", "CAMPUS CONNECT" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "Trek India" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.trekbooking. All rights reserved." "\0"
-            VALUE "OriginalFilename", "trek_booking_app.exe" "\0"
-            VALUE "ProductName", "Trek India" "\0"
+            VALUE "InternalName", "Campus Connect" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.campusconnect. All rights reserved." "\0"
+            VALUE "OriginalFilename", "campus_connect_app.exe" "\0"
+            VALUE "ProductName", "CAMPUS CONNECT" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

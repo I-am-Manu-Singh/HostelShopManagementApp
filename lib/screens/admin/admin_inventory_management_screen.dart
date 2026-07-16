@@ -292,20 +292,68 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         : Stack(
             children: [
               _buildRefractionOrbs(isDark),
-              Column(
-                children: [
-                  _buildSearchBar(isDark),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 800) {
+                    // Desktop/Wide View: 2-column sidebar tab structure
+                    return Row(
                       children: [
-                        _buildTabContent('SHOP', isDark, cardColor, borderColor),
-                        _buildTabContent('MESS', isDark, cardColor, borderColor),
-                        _buildTabContent('CANTEEN', isDark, cardColor, borderColor),
+                        Expanded(
+                          flex: 3,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
+                            ),
+                            child: ListView(
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              children: [
+                                _buildInventorySidebarTile(0, 'SHOP STOCK', Icons.storefront_rounded),
+                                _buildInventorySidebarTile(1, 'MESS INVENTORY', Icons.restaurant_menu_rounded),
+                                _buildInventorySidebarTile(2, 'CANTEEN', Icons.coffee_rounded),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Expanded(
+                          flex: 7,
+                          child: Column(
+                            children: [
+                              _buildSearchBar(isDark),
+                              Expanded(
+                                child: TabBarView(
+                                  controller: _tabController,
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  children: [
+                                    _buildTabContent('SHOP', isDark, cardColor, borderColor),
+                                    _buildTabContent('MESS', isDark, cardColor, borderColor),
+                                    _buildTabContent('CANTEEN', isDark, cardColor, borderColor),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ],
-                    ),
-                  ),
-                ],
+                    );
+                  }
+
+                  // Mobile View: Single column layout list
+                  return Column(
+                    children: [
+                      _buildSearchBar(isDark),
+                      Expanded(
+                        child: TabBarView(
+                          controller: _tabController,
+                          children: [
+                            _buildTabContent('SHOP', isDark, cardColor, borderColor),
+                            _buildTabContent('MESS', isDark, cardColor, borderColor),
+                            _buildTabContent('CANTEEN', isDark, cardColor, borderColor),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ],
           ),
@@ -317,6 +365,21 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         backgroundColor: Colors.indigoAccent,
         child: const Icon(Icons.add_rounded, color: Colors.white),
       ),
+    );
+  }
+
+  Widget _buildInventorySidebarTile(int index, String label, IconData icon) {
+    final active = _tabController.index == index;
+    return ListTile(
+      selected: active,
+      selectedTileColor: Colors.indigoAccent.withOpacity(0.08),
+      leading: Icon(icon, color: active ? Colors.indigoAccent : Colors.grey),
+      title: Text(label, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11, color: active ? Colors.indigoAccent : Colors.grey)),
+      onTap: () {
+        setState(() {
+          _tabController.index = index;
+        });
+      },
     );
   }
 

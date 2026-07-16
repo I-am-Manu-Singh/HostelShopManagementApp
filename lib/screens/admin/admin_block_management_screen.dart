@@ -231,10 +231,27 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-        : ListView.builder(
-            padding: const EdgeInsets.all(24),
-            itemCount: _hostels.length,
-            itemBuilder: (context, i) => _buildHostelCard(_hostels[i], isDark),
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > 800) {
+                return GridView.builder(
+                  padding: const EdgeInsets.all(24),
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: 2.2,
+                  ),
+                  itemCount: _hostels.length,
+                  itemBuilder: (context, i) => _buildHostelCard(_hostels[i], isDark),
+                );
+              }
+              return ListView.builder(
+                padding: const EdgeInsets.all(24),
+                itemCount: _hostels.length,
+                itemBuilder: (context, i) => _buildHostelCard(_hostels[i], isDark),
+              );
+            },
           ),
     );
   }

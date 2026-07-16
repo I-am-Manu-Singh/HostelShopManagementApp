@@ -61,15 +61,55 @@ class _AdminWalletScreenState extends State<AdminWalletScreen> {
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator())
-        : ListView(
-            children: [
-              _buildBalanceCard(),
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Text('RECENT TREK FUNDING RECEIPTS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Colors.grey)),
-              ),
-              ..._transactions.map((t) => _transactionTile(t)).toList(),
-            ],
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > 800) {
+                // Responsive Desktop/Wide View: 2-column layout
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 4,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(top: 24),
+                        child: _buildBalanceCard(),
+                      ),
+                    ),
+                    const VerticalDivider(width: 1, color: Colors.black12),
+                    Expanded(
+                      flex: 6,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.fromLTRB(24, 24, 24, 8),
+                            child: Text('RECENT FUNDING RECEIPTS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Colors.grey)),
+                          ),
+                          Expanded(
+                            child: ListView.builder(
+                              itemCount: _transactions.length,
+                              itemBuilder: (context, idx) => _transactionTile(_transactions[idx]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }
+              
+              // Mobile View: Single column layout
+              return ListView(
+                children: [
+                  _buildBalanceCard(),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    child: Text('RECENT FUNDING RECEIPTS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5, color: Colors.grey)),
+                  ),
+                  ..._transactions.map((t) => _transactionTile(t)).toList(),
+                ],
+              );
+            },
           ),
     );
   }
@@ -81,7 +121,7 @@ class _AdminWalletScreenState extends State<AdminWalletScreen> {
         decoration: BoxDecoration(color: Colors.green.withOpacity(0.1), shape: BoxShape.circle),
         child: const Icon(Icons.download_for_offline_outlined, color: Colors.green, size: 20),
       ),
-      title: Text(t['profiles']?['full_name'] ?? 'Trekker Payment', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+      title: Text(t['profiles']?['full_name'] ?? 'Payment', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
       subtitle: Text(DateFormat('MMM dd, yyyy').format(DateTime.parse(t['created_at'])), style: const TextStyle(fontSize: 10, color: Colors.grey)),
       trailing: Text('+₹${t['paid_amount'] ?? t['total_price']}', style: const TextStyle(color: Colors.green, fontWeight: FontWeight.w900, fontSize: 14)),
     );

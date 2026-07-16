@@ -86,14 +86,52 @@ class _MyAttendanceScreenState extends State<MyAttendanceScreen> {
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
       ),
-      body: Column(
-        children: [
-          _buildMonthHeader(isDark, textColor),
-          _buildMetrics(isDark),
-          Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent)) : _buildCalendarGrid(isDark)),
-          _buildLegend(isDark),
-          const SizedBox(height: 40),
-        ],
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > 800) {
+            // Desktop/Wide View: 2-column split
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  flex: 4,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.only(top: 24),
+                    child: Column(
+                      children: [
+                        _buildMonthHeader(isDark, textColor),
+                        const SizedBox(height: 24),
+                        _buildMetrics(isDark),
+                      ],
+                    ),
+                  ),
+                ),
+                const VerticalDivider(width: 1, color: Colors.black12),
+                Expanded(
+                  flex: 6,
+                  child: Column(
+                    children: [
+                      Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent)) : _buildCalendarGrid(isDark)),
+                      _buildLegend(isDark),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          }
+
+          // Mobile View: Single column layout
+          return Column(
+            children: [
+              _buildMonthHeader(isDark, textColor),
+              _buildMetrics(isDark),
+              Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent)) : _buildCalendarGrid(isDark)),
+              _buildLegend(isDark),
+              const SizedBox(height: 40),
+            ],
+          );
+        },
       ),
     );
   }

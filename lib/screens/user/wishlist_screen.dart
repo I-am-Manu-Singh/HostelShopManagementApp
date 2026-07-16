@@ -68,10 +68,27 @@ class _WishlistScreenState extends State<WishlistScreen> {
             ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
             : _wishlist.isEmpty 
               ? _buildEmptyState(isDark)
-              : ListView.builder(
-                  padding: const EdgeInsets.all(24),
-                  itemCount: _wishlist.length,
-                  itemBuilder: (context, index) => _buildWishlistItem(_wishlist[index], isDark),
+              : LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 800) {
+                      return GridView.builder(
+                        padding: const EdgeInsets.all(24),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 2.8,
+                        ),
+                        itemCount: _wishlist.length,
+                        itemBuilder: (context, index) => _buildWishlistItem(_wishlist[index], isDark),
+                      );
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(24),
+                      itemCount: _wishlist.length,
+                      itemBuilder: (context, index) => _buildWishlistItem(_wishlist[index], isDark),
+                    );
+                  },
                 ),
         ],
       ),

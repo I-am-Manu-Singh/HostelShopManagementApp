@@ -89,25 +89,72 @@ class _OutpassScreenState extends State<OutpassScreen> {
       body: Stack(
         children: [
           _buildRefractionOrbs(),
-          SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(isDark),
-                const SizedBox(height: 32),
-                _buildForm(isDark),
-                const SizedBox(height: 48),
-                Text('REQUEST HISTORY', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
-                const SizedBox(height: 16),
-                _isLoadingLogs 
-                  ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-                  : _activeLogs.isEmpty 
-                    ? Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('No previous requests', style: TextStyle(color: isDark ? Colors.white10 : Colors.black12, fontSize: 12, fontWeight: FontWeight.bold))))
-                    : Column(children: _activeLogs.map((log) => _buildRequestCard(log, isDark)).toList()),
-                const SizedBox(height: 100),
-              ],
-            ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > 800) {
+                // Desktop/Wide View: 2-column layout split
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            _buildHeader(isDark),
+                            const SizedBox(height: 32),
+                            _buildForm(isDark),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const VerticalDivider(width: 1, color: Colors.black12),
+                    Expanded(
+                      flex: 5,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('REQUEST HISTORY', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
+                            const SizedBox(height: 16),
+                            _isLoadingLogs 
+                              ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+                              : _activeLogs.isEmpty 
+                                ? Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('No previous requests', style: TextStyle(color: isDark ? Colors.white10 : Colors.black12, fontSize: 12, fontWeight: FontWeight.bold))))
+                                : Column(children: _activeLogs.map((log) => _buildRequestCard(log, isDark)).toList()),
+                            const SizedBox(height: 100),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              // Mobile View: Single column layout list
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(isDark),
+                    const SizedBox(height: 32),
+                    _buildForm(isDark),
+                    const SizedBox(height: 48),
+                    Text('REQUEST HISTORY', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
+                    const SizedBox(height: 16),
+                    _isLoadingLogs 
+                      ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+                      : _activeLogs.isEmpty 
+                        ? Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('No previous requests', style: TextStyle(color: isDark ? Colors.white10 : Colors.black12, fontSize: 12, fontWeight: FontWeight.bold))))
+                        : Column(children: _activeLogs.map((log) => _buildRequestCard(log, isDark)).toList()),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              );
+            },
           ),
         ],
       ),

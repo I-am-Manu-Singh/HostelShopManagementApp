@@ -83,30 +83,75 @@ class _PayrollTerminalScreenState extends State<PayrollTerminalScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
+      appBar: AppBar(
+        title: Text('PAYROLL_COMMAND', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 4)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
+      ),
       body: Stack(
         children: [
           _buildBackgroundAura(isDark),
-          CustomScrollView(
-            slivers: [
-              _buildAppBar(textColor),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    children: [
-                      _buildMonthNavigator(isDark),
-                      const SizedBox(height: 32),
-                      if (_profile != null) ...[
-                        _buildCurrentBreakup(_profile!, isDark),
-                        const SizedBox(height: 40),
-                        _buildHistorySection(isDark),
-                      ],
-                      const SizedBox(height: 100),
-                    ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > 800) {
+                // Desktop/Wide View: 2-column split
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            _buildMonthNavigator(isDark),
+                            const SizedBox(height: 32),
+                            if (_profile != null) _buildCurrentBreakup(_profile!, isDark),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const VerticalDivider(width: 1, color: Colors.black12),
+                    Expanded(
+                      flex: 5,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            if (_profile != null) _buildHistorySection(isDark),
+                            const SizedBox(height: 100),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              // Mobile View: Default single-column scrolling view
+              return CustomScrollView(
+                slivers: [
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          _buildMonthNavigator(isDark),
+                          const SizedBox(height: 32),
+                          if (_profile != null) ...[
+                            _buildCurrentBreakup(_profile!, isDark),
+                            const SizedBox(height: 40),
+                            _buildHistorySection(isDark),
+                          ],
+                          const SizedBox(height: 100),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
         ],
       ),
@@ -128,16 +173,7 @@ class _PayrollTerminalScreenState extends State<PayrollTerminalScreen> {
     );
   }
 
-  Widget _buildAppBar(Color textColor) {
-    return SliverAppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      pinned: true,
-      title: Text('PAYROLL_COMMAND', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 4)),
-      centerTitle: true,
-      leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
-    );
-  }
+
 
   Widget _buildMonthNavigator(bool isDark) {
     return Container(

@@ -114,23 +114,68 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
         : Stack(
             children: [
               _buildRefractionOrbs(),
-              RefreshIndicator(
-                onRefresh: _loadData,
-                child: ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    _buildAttendanceHero(isDark),
-                    const SizedBox(height: 32),
-                    _buildStaffMetrics(isDark),
-                    const SizedBox(height: 32),
-                    _buildAnnouncementsSection(),
-                    const SizedBox(height: 32),
-                    Text('TOOLS & SERVICES', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
-                    const SizedBox(height: 16),
-                    _buildTerminalGrid(isDark),
-                    const SizedBox(height: 48),
-                  ],
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 800) {
+                    // Desktop/Wide View: 2-column sidebar layout
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 5,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              children: [
+                                _buildAttendanceHero(isDark),
+                                const SizedBox(height: 32),
+                                _buildStaffMetrics(isDark),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const VerticalDivider(width: 1, color: Colors.black12),
+                        Expanded(
+                          flex: 5,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildAnnouncementsSection(),
+                                const SizedBox(height: 32),
+                                Text('TOOLS & SERVICES', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
+                                const SizedBox(height: 16),
+                                _buildTerminalGrid(isDark),
+                                const SizedBox(height: 48),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  // Mobile View: Single column layout list
+                  return RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        _buildAttendanceHero(isDark),
+                        const SizedBox(height: 32),
+                        _buildStaffMetrics(isDark),
+                        const SizedBox(height: 32),
+                        _buildAnnouncementsSection(),
+                        const SizedBox(height: 32),
+                        Text('TOOLS & SERVICES', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
+                        const SizedBox(height: 16),
+                        _buildTerminalGrid(isDark),
+                        const SizedBox(height: 48),
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
           ),

@@ -91,109 +91,250 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
         elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: () => Navigator.pop(context)),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.all(24),
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: Text('CHECKOUT CONFIG', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2.5)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: () => Navigator.pop(context)),
+      ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > 800) {
+            // Desktop/Wide View: 2-column layout split
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _sectionLabel('DELIVERY METHOD'),
-                const SizedBox(height: 16),
-                Row(children: [_toggleBtn('Pickup', _deliveryType == 'Pickup', () => setState(() => _deliveryType = 'Pickup')), const SizedBox(width: 12), _toggleBtn('Home Delivery', _deliveryType == 'Home Delivery', () => setState(() => _deliveryType = 'Home Delivery'))]),
-                const SizedBox(height: 32),
-                
-                _sectionLabel('PAYMENT METHOD'),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    _paymentTile('Wallet', Icons.account_balance_wallet_outlined, _paymentMethod == 'Wallet', () => setState(() => _paymentMethod = 'Wallet'), isDark),
-                    const SizedBox(width: 10),
-                    _paymentTile('UPI / QR', Icons.qr_code_rounded, _paymentMethod == 'UPI', () => setState(() => _paymentMethod = 'UPI'), isDark),
-                    const SizedBox(width: 10),
-                    _paymentTile('Cash', Icons.payments_outlined, _paymentMethod == 'Cash', () => setState(() => _paymentMethod = 'Cash'), isDark),
-                  ],
+                Expanded(
+                  flex: 5,
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _sectionLabel('DELIVERY METHOD'),
+                        const SizedBox(height: 16),
+                        Row(children: [_toggleBtn('Pickup', _deliveryType == 'Pickup', () => setState(() => _deliveryType = 'Pickup')), const SizedBox(width: 12), _toggleBtn('Home Delivery', _deliveryType == 'Home Delivery', () => setState(() => _deliveryType = 'Home Delivery'))]),
+                        const SizedBox(height: 32),
+                        
+                        _sectionLabel('PAYMENT METHOD'),
+                        const SizedBox(height: 16),
+                        Row(
+                          children: [
+                            _paymentTile('Wallet', Icons.account_balance_wallet_outlined, _paymentMethod == 'Wallet', () => setState(() => _paymentMethod = 'Wallet'), isDark),
+                            const SizedBox(width: 10),
+                            _paymentTile('UPI / QR', Icons.qr_code_rounded, _paymentMethod == 'UPI', () => setState(() => _paymentMethod = 'UPI'), isDark),
+                            const SizedBox(width: 10),
+                            _paymentTile('Cash', Icons.payments_outlined, _paymentMethod == 'Cash', () => setState(() => _paymentMethod = 'Cash'), isDark),
+                          ],
+                        ),
+                        if (_paymentMethod == 'UPI') ...[const SizedBox(height: 24), _buildUPIUpload(isDark)],
+                        const SizedBox(height: 32),
+
+                        _sectionLabel('PRIMARY COMMUNICATION'),
+                        const SizedBox(height: 16),
+                        _buildTextField('PRIMARY CONTACT PHONE', _phoneController, isDark),
+                        const SizedBox(height: 12),
+                        _buildTextField('ALTERNATE CONTACT', _altPhoneController, isDark),
+                        if (_deliveryType == 'Home Delivery' || widget.isMandiMode) ...[
+                          const SizedBox(height: 12),
+                          _buildTextField('DELIVERY ADDRESS', _addressController, isDark),
+                          const SizedBox(height: 12),
+                          _buildTextField('DELIVERY LOCATION / AREA', _locationController, isDark),
+                        ],
+                        const SizedBox(height: 32),
+
+                        if (widget.isMandiMode) ...[
+                          _sectionLabel('MANDI BOOKING CONFIG'),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              _toggleBtn('Domestic', _userType == 'domestic', () => setState(() => _userType = 'domestic')),
+                              const SizedBox(width: 12),
+                              _toggleBtn('Commercial', _userType == 'commercial', () => setState(() => _userType = 'commercial')),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _buildTextField('BOOKING ADVANCE PAYMENT (₹)', _advanceController, isDark),
+                          const SizedBox(height: 16),
+                          ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: Text(
+                              _bookingDate == null 
+                                  ? 'SELECT BOOKING/CUTTING DATE' 
+                                  : 'BOOKED DATE: ${DateFormat('yyyy-MM-dd').format(_bookingDate!)}',
+                              style: GoogleFonts.outfit(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13, fontWeight: FontWeight.bold),
+                            ),
+                            trailing: const Icon(Icons.calendar_today_rounded, color: Colors.indigoAccent),
+                            onTap: () async {
+                              final selected = await showDatePicker(
+                                context: context,
+                                initialDate: DateTime.now().add(const Duration(days: 1)),
+                                firstDate: DateTime.now(),
+                                lastDate: DateTime.now().add(const Duration(days: 30)),
+                              );
+                              if (selected != null) {
+                                setState(() => _bookingDate = selected);
+                              }
+                            },
+                          ),
+                          const SizedBox(height: 32),
+                        ],
+
+                        if (!widget.isMandiMode) ...[
+                          _sectionLabel('EMERGENCY CONTACT'),
+                          const SizedBox(height: 16),
+                          _buildTextField('PERSON NAME', _emergencyNameController, isDark),
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Expanded(child: _buildTextField('RELATION', _emergencyRelationController, isDark)),
+                            const SizedBox(width: 12),
+                            Expanded(child: _buildTextField('PHONE NO', _emergencyPhoneController, isDark)),
+                          ]),
+                          const SizedBox(height: 32),
+                        ],
+
+                        _sectionLabel('SPECIAL INSTRUCTIONS'),
+                        const SizedBox(height: 16),
+                        _buildTextField('ORDER NOTES / INSTRUCTIONS', _instructionsController, isDark),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  ),
                 ),
-                if (_paymentMethod == 'UPI') ...[const SizedBox(height: 24), _buildUPIUpload(isDark)],
-                const SizedBox(height: 32),
-
-                _sectionLabel('CART INVENTORY'),
-                const SizedBox(height: 16),
-                _buildCartItemsList(cart, isDark),
-                const SizedBox(height: 32),
-
-                _sectionLabel('PRIMARY COMMUNICATION'),
-                const SizedBox(height: 16),
-                _buildTextField('PRIMARY CONTACT PHONE', _phoneController, isDark),
-                const SizedBox(height: 12),
-                _buildTextField('ALTERNATE CONTACT', _altPhoneController, isDark),
-                if (_deliveryType == 'Home Delivery' || widget.isMandiMode) ...[
-                  const SizedBox(height: 12),
-                  _buildTextField('DELIVERY ADDRESS', _addressController, isDark),
-                  const SizedBox(height: 12),
-                  _buildTextField('DELIVERY LOCATION / AREA', _locationController, isDark),
-                ],
-                const SizedBox(height: 32),
-
-                if (widget.isMandiMode) ...[
-                  _sectionLabel('MANDI BOOKING CONFIG'),
-                  const SizedBox(height: 16),
-                  Row(
+                const VerticalDivider(width: 1, color: Colors.black12),
+                Expanded(
+                  flex: 5,
+                  child: Column(
                     children: [
-                      _toggleBtn('Domestic', _userType == 'domestic', () => setState(() => _userType = 'domestic')),
-                      const SizedBox(width: 12),
-                      _toggleBtn('Commercial', _userType == 'commercial', () => setState(() => _userType = 'commercial')),
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: _sectionLabel('CART INVENTORY'),
+                      ),
+                      Expanded(
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          children: [
+                            _buildCartItemsList(cart, isDark),
+                          ],
+                        ),
+                      ),
+                      _buildTotalSummary(cart, isDark),
+                      _buildAuthorizeButton(cart, isDark),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  _buildTextField('BOOKING ADVANCE PAYMENT (₹)', _advanceController, isDark),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      _bookingDate == null 
-                          ? 'SELECT BOOKING/CUTTING DATE' 
-                          : 'BOOKED DATE: ${DateFormat('yyyy-MM-dd').format(_bookingDate!)}',
-                      style: GoogleFonts.outfit(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13, fontWeight: FontWeight.bold),
-                    ),
-                    trailing: const Icon(Icons.calendar_today_rounded, color: Colors.indigoAccent),
-                    onTap: () async {
-                      final selected = await showDatePicker(
-                        context: context,
-                        initialDate: DateTime.now().add(const Duration(days: 1)),
-                        firstDate: DateTime.now(),
-                        lastDate: DateTime.now().add(const Duration(days: 30)),
-                      );
-                      if (selected != null) {
-                        setState(() => _bookingDate = selected);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 32),
-                ],
-
-                if (!widget.isMandiMode) ...[
-                  _sectionLabel('EMERGENCY CONTACT'),
-                  const SizedBox(height: 16),
-                  _buildTextField('PERSON NAME', _emergencyNameController, isDark),
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    Expanded(child: _buildTextField('RELATION', _emergencyRelationController, isDark)),
-                    const SizedBox(width: 12),
-                    Expanded(child: _buildTextField('PHONE NO', _emergencyPhoneController, isDark)),
-                  ]),
-                  const SizedBox(height: 32),
-                ],
-
-                _sectionLabel('SPECIAL INSTRUCTIONS'),
-                const SizedBox(height: 16),
-                _buildTextField('ORDER NOTES / INSTRUCTIONS', _instructionsController, isDark),
-                const SizedBox(height: 100),
+                ),
               ],
-            ),
-          ),
-          _buildTotalSummary(cart, isDark),
-          _buildAuthorizeButton(cart, isDark),
-        ],
+            );
+          }
+
+          // Mobile View: Single column layout
+          return Column(
+            children: [
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    _sectionLabel('DELIVERY METHOD'),
+                    const SizedBox(height: 16),
+                    Row(children: [_toggleBtn('Pickup', _deliveryType == 'Pickup', () => setState(() => _deliveryType = 'Pickup')), const SizedBox(width: 12), _toggleBtn('Home Delivery', _deliveryType == 'Home Delivery', () => setState(() => _deliveryType = 'Home Delivery'))]),
+                    const SizedBox(height: 32),
+                    
+                    _sectionLabel('PAYMENT METHOD'),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _paymentTile('Wallet', Icons.account_balance_wallet_outlined, _paymentMethod == 'Wallet', () => setState(() => _paymentMethod = 'Wallet'), isDark),
+                        const SizedBox(width: 10),
+                        _paymentTile('UPI / QR', Icons.qr_code_rounded, _paymentMethod == 'UPI', () => setState(() => _paymentMethod = 'UPI'), isDark),
+                        const SizedBox(width: 10),
+                        _paymentTile('Cash', Icons.payments_outlined, _paymentMethod == 'Cash', () => setState(() => _paymentMethod = 'Cash'), isDark),
+                      ],
+                    ),
+                    if (_paymentMethod == 'UPI') ...[const SizedBox(height: 24), _buildUPIUpload(isDark)],
+                    const SizedBox(height: 32),
+
+                    _sectionLabel('CART INVENTORY'),
+                    const SizedBox(height: 16),
+                    _buildCartItemsList(cart, isDark),
+                    const SizedBox(height: 32),
+
+                    _sectionLabel('PRIMARY COMMUNICATION'),
+                    const SizedBox(height: 16),
+                    _buildTextField('PRIMARY CONTACT PHONE', _phoneController, isDark),
+                    const SizedBox(height: 12),
+                    _buildTextField('ALTERNATE CONTACT', _altPhoneController, isDark),
+                    if (_deliveryType == 'Home Delivery' || widget.isMandiMode) ...[
+                      const SizedBox(height: 12),
+                      _buildTextField('DELIVERY ADDRESS', _addressController, isDark),
+                      const SizedBox(height: 12),
+                      _buildTextField('DELIVERY LOCATION / AREA', _locationController, isDark),
+                    ],
+                    const SizedBox(height: 32),
+
+                    if (widget.isMandiMode) ...[
+                      _sectionLabel('MANDI BOOKING CONFIG'),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          _toggleBtn('Domestic', _userType == 'domestic', () => setState(() => _userType = 'domestic')),
+                          const SizedBox(width: 12),
+                          _toggleBtn('Commercial', _userType == 'commercial', () => setState(() => _userType = 'commercial')),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField('BOOKING ADVANCE PAYMENT (₹)', _advanceController, isDark),
+                      const SizedBox(height: 16),
+                      ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          _bookingDate == null 
+                              ? 'SELECT BOOKING/CUTTING DATE' 
+                              : 'BOOKED DATE: ${DateFormat('yyyy-MM-dd').format(_bookingDate!)}',
+                          style: GoogleFonts.outfit(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13, fontWeight: FontWeight.bold),
+                        ),
+                        trailing: const Icon(Icons.calendar_today_rounded, color: Colors.indigoAccent),
+                        onTap: () async {
+                          final selected = await showDatePicker(
+                            context: context,
+                            initialDate: DateTime.now().add(const Duration(days: 1)),
+                            firstDate: DateTime.now(),
+                            lastDate: DateTime.now().add(const Duration(days: 30)),
+                          );
+                          if (selected != null) {
+                            setState(() => _bookingDate = selected);
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+
+                    if (!widget.isMandiMode) ...[
+                      _sectionLabel('EMERGENCY CONTACT'),
+                      const SizedBox(height: 16),
+                      _buildTextField('PERSON NAME', _emergencyNameController, isDark),
+                      const SizedBox(height: 12),
+                      Row(children: [
+                        Expanded(child: _buildTextField('RELATION', _emergencyRelationController, isDark)),
+                        const SizedBox(width: 12),
+                        Expanded(child: _buildTextField('PHONE NO', _emergencyPhoneController, isDark)),
+                      ]),
+                      const SizedBox(height: 32),
+                    ],
+
+                    _sectionLabel('SPECIAL INSTRUCTIONS'),
+                    const SizedBox(height: 16),
+                    _buildTextField('ORDER NOTES / INSTRUCTIONS', _instructionsController, isDark),
+                    const SizedBox(height: 100),
+                  ],
+                ),
+              ),
+              _buildTotalSummary(cart, isDark),
+              _buildAuthorizeButton(cart, isDark),
+            ],
+          );
+        },
       ),
     );
   }

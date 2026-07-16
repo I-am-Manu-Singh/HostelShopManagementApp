@@ -133,52 +133,100 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       backgroundColor: bgColor,
       body: Stack(
         children: [
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              _buildProductAppBar(context, isDark),
-              SliverToBoxAdapter(
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 20, offset: const Offset(0, -6))],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        if (constraints.maxWidth > 720) {
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 4,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildHeaderSection(isDark),
-                                    const SizedBox(height: 16),
-                                    _buildBarCodeArea(isDark),
-                                  ],
-                                ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              if (constraints.maxWidth > 800) {
+                // Desktop/Wide View: 2-column split layout
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Column(
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Row(
+                                children: [
+                                  _glassCircleBtn(icon: Icons.arrow_back_ios_new_rounded, onTap: () => Navigator.pop(context), isDark: isDark),
+                                  const Spacer(),
+                                  _glassCircleBtn(icon: Icons.edit_note_rounded, onTap: () async {
+                                    final updated = await Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: _currentProduct)));
+                                    if (updated == true) _fetchFreshProduct();
+                                  }, isDark: isDark),
+                                  const SizedBox(width: 12),
+                                  _glassCircleBtn(icon: _isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded, onTap: _toggleWishlist, isDark: isDark, active: _isWishlisted),
+                                ],
                               ),
-                              const SizedBox(width: 32),
-                              Expanded(
-                                flex: 6,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _buildDescriptionSection(cardColor, borderColor, isDark),
-                                    SizedBox(height: 40 + MediaQuery.of(context).padding.bottom),
-                                  ],
-                                ),
+                            ),
+                            const SizedBox(height: 24),
+                            Container(
+                              height: 340,
+                              margin: const EdgeInsets.symmetric(horizontal: 24),
+                              decoration: BoxDecoration(
+                                color: PlaceholderService.getProductColor(_currentProduct.id).withOpacity(isDark ? 0.05 : 0.08),
+                                borderRadius: BorderRadius.circular(24),
                               ),
-                            ],
-                          );
-                        }
-                        
-                        return Column(
+                              child: PageView.builder(
+                                onPageChanged: (v) => setState(() => _currentImageIndex = v),
+                                itemCount: 3,
+                                itemBuilder: (context, i) {
+                                  final img = _currentProduct.imageUrl;
+                                  return Hero(
+                                    tag: i == 0 ? 'prod_${_currentProduct.id}' : 'prod_slide_${_currentProduct.id}_$i',
+                                    child: Padding(
+                                      padding: const EdgeInsets.all(24),
+                                      child: img != null && img.startsWith('http') && !img.contains('vjmqvymkquj')
+                                          ? CachedNetworkImage(imageUrl: img, fit: BoxFit.contain, errorWidget: (c, e, s) => PlaceholderService.buildPlaceholder(_currentProduct.category, _currentProduct.id, isDark: isDark))
+                                          : PlaceholderService.buildPlaceholder(_currentProduct.category, _currentProduct.id, isDark: isDark),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const VerticalDivider(width: 1, color: Colors.black12),
+                    Expanded(
+                      flex: 5,
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildHeaderSection(isDark),
+                            const SizedBox(height: 20),
+                            _buildDescriptionSection(cardColor, borderColor, isDark),
+                            const SizedBox(height: 20),
+                            _buildBarCodeArea(isDark),
+                            const SizedBox(height: 100),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              // Mobile View: Single column layout
+              return CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  _buildProductAppBar(context, isDark),
+                  SliverToBoxAdapter(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).scaffoldBackgroundColor,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.12), blurRadius: 20, offset: const Offset(0, -6))],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 20, 16, 20),
+                        child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Center(child: Container(width: 40, height: 4, margin: const EdgeInsets.only(bottom: 20), decoration: BoxDecoration(color: isDark ? Colors.white12 : Colors.black12, borderRadius: BorderRadius.circular(10)))),
@@ -188,13 +236,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             _buildBarCodeArea(isDark),
                             SizedBox(height: 40 + MediaQuery.of(context).padding.bottom),
                           ],
-                        );
-                      }
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-            ],
+                ],
+              );
+            },
           ),
           _buildPurchaseMissionFooter(isDark),
           if (_isLoading) Container(color: Colors.black26, child: const Center(child: CircularProgressIndicator(color: Colors.pinkAccent))),

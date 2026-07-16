@@ -396,6 +396,7 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     final textColor = theme.textTheme.bodyLarge?.color ?? Colors.white;
+    final showSidebar = MediaQuery.of(context).size.width > 800;
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -443,39 +444,102 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
              if (d != null) { setState(() => _filterDate = d); _loadFinanceData(); }
           }),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          isScrollable: true,
-          indicatorColor: Colors.indigoAccent,
-          indicatorWeight: 3,
-          labelColor: Colors.indigoAccent,
-          unselectedLabelColor: textColor.withOpacity(0.3),
-          labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
-          tabs: const [
-            Tab(text: 'OVERVIEW'),
-            Tab(text: 'RENTALS'),
-            Tab(text: 'MESS CARDS'),
-            Tab(text: 'PAYROLL'),
-            Tab(text: 'SHOP'),
-            Tab(text: 'LEDGER', icon: Icon(Icons.menu_book_rounded, size: 16)),
-          ],
-        ),
+        bottom: showSidebar 
+          ? null 
+          : TabBar(
+              controller: _tabController,
+              isScrollable: true,
+              indicatorColor: Colors.indigoAccent,
+              indicatorWeight: 3,
+              labelColor: Colors.indigoAccent,
+              unselectedLabelColor: textColor.withOpacity(0.3),
+              labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
+              tabs: const [
+                Tab(text: 'OVERVIEW'),
+                Tab(text: 'RENTALS'),
+                Tab(text: 'MESS CARDS'),
+                Tab(text: 'PAYROLL'),
+                Tab(text: 'SHOP'),
+                Tab(text: 'LEDGER', icon: Icon(Icons.menu_book_rounded, size: 16)),
+              ],
+            ),
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-        : TabBarView(
-            controller: _tabController,
-            physics: const NeverScrollableScrollPhysics(), // 🛡️ PREVENT PARENT TAB BUBBLING
-            children: [
-               _buildOverviewTab(isDark),
-               _buildRentalsTab(isDark),
-               _buildMessCardsTab(isDark),
-               _buildPayrollTab(isDark),
-               _buildShopTab(isDark),
-               _buildLedgerTab(isDark),
-            ],
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              if (showSidebar) {
+                return Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
+                        ),
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          children: [
+                            _buildFinanceSidebarTile(0, 'OVERVIEW', Icons.dashboard_customize_rounded),
+                            _buildFinanceSidebarTile(1, 'RENTALS', Icons.bed_rounded),
+                            _buildFinanceSidebarTile(2, 'MESS CARDS', Icons.restaurant_rounded),
+                            _buildFinanceSidebarTile(3, 'PAYROLL', Icons.payments_rounded),
+                            _buildFinanceSidebarTile(4, 'SHOP', Icons.shopping_bag_rounded),
+                            _buildFinanceSidebarTile(5, 'LEDGER', Icons.menu_book_rounded),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 7,
+                      child: TabBarView(
+                        controller: _tabController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                           _buildOverviewTab(isDark),
+                           _buildRentalsTab(isDark),
+                           _buildMessCardsTab(isDark),
+                           _buildPayrollTab(isDark),
+                           _buildShopTab(isDark),
+                           _buildLedgerTab(isDark),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return TabBarView(
+                controller: _tabController,
+                physics: const NeverScrollableScrollPhysics(), // 🛡️ PREVENT PARENT TAB BUBBLING
+                children: [
+                   _buildOverviewTab(isDark),
+                   _buildRentalsTab(isDark),
+                   _buildMessCardsTab(isDark),
+                   _buildPayrollTab(isDark),
+                   _buildShopTab(isDark),
+                   _buildLedgerTab(isDark),
+                ],
+              );
+            },
           ),
     );
+  }
+
+  Widget _buildFinanceSidebarTile(int index, String label, IconData icon) {
+    final active = _tabController.index == index;
+    return ListTile(
+      selected: active,
+      selectedTileColor: Colors.indigoAccent.withOpacity(0.08),
+      leading: Icon(icon, color: active ? Colors.indigoAccent : Colors.grey),
+      title: Text(label, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11, color: active ? Colors.indigoAccent : Colors.grey)),
+      onTap: () {
+        setState(() {
+          _tabController.index = index;
+        });
+      },
+    );
+  }
   }
 
   Widget _buildOverviewTab(bool isDark) {

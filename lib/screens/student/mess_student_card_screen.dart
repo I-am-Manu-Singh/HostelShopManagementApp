@@ -77,24 +77,71 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
         : Stack(
             children: [
               _buildRefractionOrbs(),
-              SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    FadeInDown(child: _buildPhysicalCard(_card != null, isDark)),
-                    const SizedBox(height: 24),
-                    _buildStatsRow(isDark),
-                    const SizedBox(height: 32),
-                    _buildTodayMenuSection(isDark),
-                    const SizedBox(height: 32),
-                    _buildQuickAction(isDark),
-                    const SizedBox(height: 48),
-                    _buildSectionHeader('ATTENDANCE HISTORY', isDark),
-                    const SizedBox(height: 16),
-                    _buildAttendanceCalendar(isDark),
-                    const SizedBox(height: 100),
-                  ],
-                ),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 800) {
+                    // Desktop/Wide View: 2-column layout split
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 5,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              children: [
+                                FadeInDown(child: _buildPhysicalCard(_card != null, isDark)),
+                                const SizedBox(height: 24),
+                                _buildStatsRow(isDark),
+                                const SizedBox(height: 32),
+                                _buildQuickAction(isDark),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const VerticalDivider(width: 1, color: Colors.black12),
+                        Expanded(
+                          flex: 5,
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildTodayMenuSection(isDark),
+                                const SizedBox(height: 48),
+                                _buildSectionHeader('ATTENDANCE HISTORY', isDark),
+                                const SizedBox(height: 16),
+                                _buildAttendanceCalendar(isDark),
+                                const SizedBox(height: 100),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+
+                  // Mobile View: Single column layout
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.all(24),
+                    child: Column(
+                      children: [
+                        FadeInDown(child: _buildPhysicalCard(_card != null, isDark)),
+                        const SizedBox(height: 24),
+                        _buildStatsRow(isDark),
+                        const SizedBox(height: 32),
+                        _buildTodayMenuSection(isDark),
+                        const SizedBox(height: 32),
+                        _buildQuickAction(isDark),
+                        const SizedBox(height: 48),
+                        _buildSectionHeader('ATTENDANCE HISTORY', isDark),
+                        const SizedBox(height: 16),
+                        _buildAttendanceCalendar(isDark),
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
           ),

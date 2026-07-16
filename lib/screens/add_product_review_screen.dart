@@ -41,12 +41,12 @@ class _AddProductReviewScreenState extends State<AddProductReviewScreen> {
 
       if (mounted) {
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('MISSION FEEDBACK DEPLOYED SUCCESSFULLY'), backgroundColor: Colors.indigoAccent));
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('FEEDBACK SUBMITTED SUCCESSFULLY'), backgroundColor: Colors.indigoAccent));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('SYNC ERROR: $e'), backgroundColor: Colors.redAccent));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('ERROR SUBMITTING REVIEW: $e'), backgroundColor: Colors.redAccent));
       }
     }
   }
@@ -97,7 +97,7 @@ class _AddProductReviewScreenState extends State<AddProductReviewScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('MISSION TITLE', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                  Text('FEEDBACK TITLE', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _commentController,

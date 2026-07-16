@@ -44,11 +44,29 @@ class _ShopOrderStatusScreenState extends State<ShopOrderStatusScreen> {
               return Stack(
                 children: [
                   _buildBackgroundGlow(isDark),
-                  ListView.builder(
-                    padding: const EdgeInsets.all(24),
-                    physics: const BouncingScrollPhysics(),
-                    itemCount: orders.length,
-                    itemBuilder: (context, i) => _buildOrderTile(orders[i], textColor, isDark),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.maxWidth > 900) {
+                        return GridView.builder(
+                          padding: const EdgeInsets.all(24),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 20,
+                            mainAxisSpacing: 20,
+                            childAspectRatio: 1.6,
+                          ),
+                          itemCount: orders.length,
+                          itemBuilder: (context, i) => _buildOrderTile(orders[i], textColor, isDark),
+                        );
+                      }
+
+                      return ListView.builder(
+                        padding: const EdgeInsets.all(24),
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: orders.length,
+                        itemBuilder: (context, i) => _buildOrderTile(orders[i], textColor, isDark),
+                      );
+                    },
                   ),
                 ],
               );

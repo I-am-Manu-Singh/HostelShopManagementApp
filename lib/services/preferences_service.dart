@@ -6,34 +6,34 @@ class PreferencesService {
   factory PreferencesService() => _instance;
   PreferencesService._internal();
 
-  static const String _savedTreksKey = 'saved_treks';
+  static const String _savedItemsKey = 'saved_items';
   
-  // Trek Event Bus for Read Receipts
+  // Event Bus for Read Receipts
   final _readStreamController = StreamController<String>.broadcast();
   Stream<String> get readStream => _readStreamController.stream;
 
-  Future<List<String>> getSavedTreks() async {
+  Future<List<String>> getSavedItems() async {
     final prefs = await SharedPreferences.getInstance();
-    return prefs.getStringList(_savedTreksKey) ?? [];
+    return prefs.getStringList(_savedItemsKey) ?? [];
   }
 
-  Future<void> toggleSavedTrek(String trekId) async {
+  Future<void> toggleSavedItem(String itemId) async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTreks = prefs.getStringList(_savedTreksKey) ?? [];
+    final savedItems = prefs.getStringList(_savedItemsKey) ?? [];
     
-    if (savedTreks.contains(trekId)) {
-      savedTreks.remove(trekId);
+    if (savedItems.contains(itemId)) {
+      savedItems.remove(itemId);
     } else {
-      savedTreks.add(trekId);
+      savedItems.add(itemId);
     }
     
-    await prefs.setStringList(_savedTreksKey, savedTreks);
+    await prefs.setStringList(_savedItemsKey, savedItems);
   }
 
-  Future<bool> isTrekSaved(String trekId) async {
+  Future<bool> isItemSaved(String itemId) async {
     final prefs = await SharedPreferences.getInstance();
-    final savedTreks = prefs.getStringList(_savedTreksKey) ?? [];
-    return savedTreks.contains(trekId);
+    final savedItems = prefs.getStringList(_savedItemsKey) ?? [];
+    return savedItems.contains(itemId);
   }
 
   Future<void> setLastRead(String roomId) async {

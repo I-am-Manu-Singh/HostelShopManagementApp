@@ -63,7 +63,7 @@ class _GlobalUnreadBadgeState extends State<GlobalUnreadBadge> {
       int totalCount = 0;
       bool mentionFound = false;
 
-      // TREK CRITICAL: Batch Intel Processing
+      // Batch Intel Processing
       for (final roomId in roomIds) {
         final lastRead = await PreferencesService().getLastRead(roomId);
         
@@ -97,7 +97,7 @@ class _GlobalUnreadBadgeState extends State<GlobalUnreadBadge> {
         });
       }
     } catch (e) {
-      debugPrint('Trek Error calculating global unread: $e');
+      debugPrint('Error calculating global unread: $e');
     }
   }
 

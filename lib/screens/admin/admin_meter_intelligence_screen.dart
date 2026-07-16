@@ -165,22 +165,88 @@ class _AdminMeterIntelligenceScreenState extends State<AdminMeterIntelligenceScr
           : Stack(
               children: [
                 Positioned(top: -100, right: -50, child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(width: 300, height: 300, decoration: BoxDecoration(color: Colors.amberAccent.withOpacity(0.05), shape: BoxShape.circle)))),
-                ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    _buildOverviewDashboard(roomConsumption, isDark),
-                    const SizedBox(height: 24),
-                    _buildBillingPeriodForm(sortedFloors, floorGroups, isDark),
-                    const SizedBox(height: 32),
-                    Text('ROOM-WISE UTILITIES & CONSUMPTION', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.amberAccent, letterSpacing: 1.5)),
-                    const SizedBox(height: 16),
-                    ...roomConsumption.entries.map((e) => _buildConsumptionCard(e.key, e.value, roomReadingsCount[e.key] ?? 0, isDark)).toList(),
-                    const SizedBox(height: 32),
-                    Text('METER READINGS RECORDED LOG', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.blueAccent, letterSpacing: 1.5)),
-                    const SizedBox(height: 16),
-                    ..._readings.map((r) => _buildReadingLogTile(r, isDark)).toList(),
-                  ],
-                )
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 800) {
+                      // Desktop/Wide View: 2-column layout split
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                children: [
+                                  _buildOverviewDashboard(roomConsumption, isDark),
+                                  const SizedBox(height: 24),
+                                  _buildBillingPeriodForm(sortedFloors, floorGroups, isDark),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const VerticalDivider(width: 1, color: Colors.black12),
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                                  child: Text('ROOM-WISE UTILITIES & CONSUMPTION', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.amberAccent, letterSpacing: 1.5)),
+                                ),
+                                Expanded(
+                                  child: roomConsumption.isEmpty
+                                    ? Center(child: Text('NO ROOM CONSUMPTION DATA', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13, fontWeight: FontWeight.bold)))
+                                    : ListView.builder(
+                                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                                        itemCount: roomConsumption.length,
+                                        itemBuilder: (context, i) {
+                                          final key = roomConsumption.keys.elementAt(i);
+                                          return _buildConsumptionCard(key, roomConsumption[key]!, roomReadingsCount[key] ?? 0, isDark);
+                                        },
+                                      ),
+                                ),
+                                const Divider(height: 1),
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                                  child: Text('METER READINGS RECORDED LOG', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.blueAccent, letterSpacing: 1.5)),
+                                ),
+                                Expanded(
+                                  child: _readings.isEmpty
+                                    ? Center(child: Text('NO RECORDED LOGS FOUND', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13, fontWeight: FontWeight.bold)))
+                                    : ListView.builder(
+                                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                                        itemCount: _readings.length,
+                                        itemBuilder: (context, i) => _buildReadingLogTile(_readings[i], isDark),
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    // Mobile View: Single column scrolling list
+                    return ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        _buildOverviewDashboard(roomConsumption, isDark),
+                        const SizedBox(height: 24),
+                        _buildBillingPeriodForm(sortedFloors, floorGroups, isDark),
+                        const SizedBox(height: 32),
+                        Text('ROOM-WISE UTILITIES & CONSUMPTION', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.amberAccent, letterSpacing: 1.5)),
+                        const SizedBox(height: 16),
+                        ...roomConsumption.entries.map((e) => _buildConsumptionCard(e.key, e.value, roomReadingsCount[e.key] ?? 0, isDark)).toList(),
+                        const SizedBox(height: 32),
+                        Text('METER READINGS RECORDED LOG', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.blueAccent, letterSpacing: 1.5)),
+                        const SizedBox(height: 16),
+                        ..._readings.map((r) => _buildReadingLogTile(r, isDark)).toList(),
+                      ],
+                    );
+                  },
+                ),
               ],
             ),
     );

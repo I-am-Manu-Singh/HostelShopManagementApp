@@ -3,8 +3,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 
 class AddReviewScreen extends StatefulWidget {
-  final String trekId;
-  const AddReviewScreen({super.key, required this.trekId});
+  final String itemId;
+  const AddReviewScreen({super.key, required this.itemId});
 
   @override
   State<AddReviewScreen> createState() => _AddReviewScreenState();
@@ -31,7 +31,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
 
       final profile = await Supabase.instance.client.from('profiles').select('full_name, avatar_url').eq('id', user.id).maybeSingle();
       
-      String derivedName = 'Trekker';
+      String derivedName = 'Customer';
       if (profile != null && profile['full_name'] != null && profile['full_name'].toString().isNotEmpty) {
         derivedName = profile['full_name'];
       } else if (user.userMetadata?['full_name'] != null) {
@@ -41,7 +41,7 @@ class _AddReviewScreenState extends State<AddReviewScreen> {
       }
 
       await Supabase.instance.client.from('reviews').insert({
-        'trek_id': widget.trekId,
+        'product_id': widget.itemId,
         'user_id': user.id, // Added user_id
         'user_name': derivedName,
         'image_url': profile?['avatar_url'] ?? user.userMetadata?['avatar_url'] ?? 'https://i.pravatar.cc/150?img=1',

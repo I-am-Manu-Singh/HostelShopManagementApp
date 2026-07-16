@@ -184,21 +184,70 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
           : Stack(
               children: [
                 Positioned(top: -100, right: -50, child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(width: 300, height: 300, decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.05), shape: BoxShape.circle)))),
-                ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    _buildOverviewMetrics(totalCost, totalLiters, isDark),
-                    const SizedBox(height: 24),
-                    _buildRefuelingEntryForm(isDark),
-                    const SizedBox(height: 32),
-                    Text('REFUELING REGISTRY (${DateFormat('dd MMM yyyy').format(_selectedDate).toUpperCase()})', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
-                    const SizedBox(height: 16),
-                    if (dateFiltered.isEmpty)
-                      Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('NO ENTRIES REGISTERED TODAY', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13, fontWeight: FontWeight.bold))))
-                    else
-                      ...dateFiltered.map((l) => _buildLogCard(l, isDark)).toList(),
-                  ],
-                )
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 800) {
+                      // Desktop/Wide View: 2-column layout split
+                      return Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            flex: 5,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                children: [
+                                  _buildOverviewMetrics(totalCost, totalLiters, isDark),
+                                  const SizedBox(height: 24),
+                                  _buildRefuelingEntryForm(isDark),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const VerticalDivider(width: 1, color: Colors.black12),
+                          Expanded(
+                            flex: 5,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                                  child: Text('REFUELING REGISTRY (${DateFormat('dd MMM yyyy').format(_selectedDate).toUpperCase()})', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
+                                ),
+                                Expanded(
+                                  child: dateFiltered.isEmpty
+                                    ? Center(child: Text('NO ENTRIES REGISTERED TODAY', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13, fontWeight: FontWeight.bold)))
+                                    : ListView.builder(
+                                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                                        itemCount: dateFiltered.length,
+                                        itemBuilder: (context, i) => _buildLogCard(dateFiltered[i], isDark),
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+
+                    // Mobile View: Single column scrolling list
+                    return ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        _buildOverviewMetrics(totalCost, totalLiters, isDark),
+                        const SizedBox(height: 24),
+                        _buildRefuelingEntryForm(isDark),
+                        const SizedBox(height: 32),
+                        Text('REFUELING REGISTRY (${DateFormat('dd MMM yyyy').format(_selectedDate).toUpperCase()})', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
+                        const SizedBox(height: 16),
+                        if (dateFiltered.isEmpty)
+                          Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('NO ENTRIES REGISTERED TODAY', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13, fontWeight: FontWeight.bold))))
+                        else
+                          ...dateFiltered.map((l) => _buildLogCard(l, isDark)).toList(),
+                      ],
+                    );
+                  },
+                ),
               ],
             ),
     );

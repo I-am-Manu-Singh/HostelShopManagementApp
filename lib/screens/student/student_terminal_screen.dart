@@ -126,47 +126,122 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
         : Stack(
             children: [
               _buildRefractionOrbs(isDark),
-              RefreshIndicator(
-                onRefresh: _loadData,
-                backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
-                color: Colors.indigoAccent,
-                child: ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    FadeInDown(child: _buildIdentityHeader(isDark)),
-                    const SizedBox(height: 32),
-                    if (_profile?['role'] == 'hostel_student' || _profile?['role'] == 'mess_student' || _profile?['role'] == 'owner') ...[
-                       _buildAttendanceHero(cardColor, borderColor, isDark),
-                       const SizedBox(height: 16),
-                       if (_pendingApprovals.isNotEmpty) _buildVerificationStatus(isDark),
-                       const SizedBox(height: 32),
-                       _buildMissionPerformanceCard(isDark),
-                       const SizedBox(height: 32),
-                    ],
-                    _buildCommandLiquidity(cardColor, borderColor, isDark),
-                    const SizedBox(height: 32),
-                    _buildAnnouncementsSection(isDark),
-                    const SizedBox(height: 32),
-                    _buildSectionHeader('MISSION_CRITICAL'),
-                    const SizedBox(height: 16),
-                    _buildOperationalGrid(cardColor, borderColor, isDark),
-                    if (_profile?['role'] == 'admin' || _profile?['role'] == 'hostel_manager' || _profile?['role'] == 'hostel_student' || _profile?['role'] == 'owner') ...[
-                      const SizedBox(height: 32),
-                      _buildSectionHeader('UNIT_ASSIGNMENT'),
-                      const SizedBox(height: 16),
-                      _buildRoomUnitCard(cardColor, borderColor, isDark),
-                      if (_profile?['role'] == 'admin' || _profile?['role'] == 'hostel_manager' || _profile?['role'] == 'owner') ...[
-                        const SizedBox(height: 32),
-                        _buildSectionHeader('TACTICAL_METRICS'),
-                        const SizedBox(height: 16),
-                        _buildMetricsRow(isDark),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth > 800) {
+                    // Desktop/Wide View: 2-column layout split
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 5,
+                          child: RefreshIndicator(
+                            onRefresh: _loadData,
+                            backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
+                            color: Colors.indigoAccent,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(24),
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              child: Column(
+                                children: [
+                                  FadeInDown(child: _buildIdentityHeader(isDark)),
+                                  const SizedBox(height: 32),
+                                  if (_profile?['role'] == 'hostel_student' || _profile?['role'] == 'mess_student' || _profile?['role'] == 'owner') ...[
+                                     _buildAttendanceHero(cardColor, borderColor, isDark),
+                                     const SizedBox(height: 16),
+                                     if (_pendingApprovals.isNotEmpty) _buildVerificationStatus(isDark),
+                                     const SizedBox(height: 32),
+                                     _buildMissionPerformanceCard(isDark),
+                                     const SizedBox(height: 32),
+                                  ],
+                                  _buildCommandLiquidity(cardColor, borderColor, isDark),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const VerticalDivider(width: 1, color: Colors.black12),
+                        Expanded(
+                          flex: 5,
+                          child: RefreshIndicator(
+                            onRefresh: _loadData,
+                            backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
+                            color: Colors.indigoAccent,
+                            child: SingleChildScrollView(
+                              padding: const EdgeInsets.all(24),
+                              physics: const AlwaysScrollableScrollPhysics(),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _buildAnnouncementsSection(isDark),
+                                  const SizedBox(height: 32),
+                                  _buildSectionHeader('MISSION_CRITICAL'),
+                                  const SizedBox(height: 16),
+                                  _buildOperationalGrid(cardColor, borderColor, isDark),
+                                  if (_profile?['role'] == 'admin' || _profile?['role'] == 'hostel_manager' || _profile?['role'] == 'hostel_student' || _profile?['role'] == 'owner') ...[
+                                    const SizedBox(height: 32),
+                                    _buildSectionHeader('UNIT_ASSIGNMENT'),
+                                    const SizedBox(height: 16),
+                                    _buildRoomUnitCard(cardColor, borderColor, isDark),
+                                    if (_profile?['role'] == 'admin' || _profile?['role'] == 'hostel_manager' || _profile?['role'] == 'owner') ...[
+                                      const SizedBox(height: 32),
+                                      _buildSectionHeader('TACTICAL_METRICS'),
+                                      const SizedBox(height: 16),
+                                      _buildMetricsRow(isDark),
+                                    ],
+                                  ],
+                                  const SizedBox(height: 100),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       ],
-                    ],
-                    const SizedBox(height: 40),
-                    const SizedBox(height: 10),
-                    const SizedBox(height: 100),
-                  ],
-                ),
+                    );
+                  }
+
+                  // Mobile View: Single column scrolling list
+                  return RefreshIndicator(
+                    onRefresh: _loadData,
+                    backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
+                    color: Colors.indigoAccent,
+                    child: ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        FadeInDown(child: _buildIdentityHeader(isDark)),
+                        const SizedBox(height: 32),
+                        if (_profile?['role'] == 'hostel_student' || _profile?['role'] == 'mess_student' || _profile?['role'] == 'owner') ...[
+                           _buildAttendanceHero(cardColor, borderColor, isDark),
+                           const SizedBox(height: 16),
+                           if (_pendingApprovals.isNotEmpty) _buildVerificationStatus(isDark),
+                           const SizedBox(height: 32),
+                           _buildMissionPerformanceCard(isDark),
+                           const SizedBox(height: 32),
+                        ],
+                        _buildCommandLiquidity(cardColor, borderColor, isDark),
+                        const SizedBox(height: 32),
+                        _buildAnnouncementsSection(isDark),
+                        const SizedBox(height: 32),
+                        _buildSectionHeader('MISSION_CRITICAL'),
+                        const SizedBox(height: 16),
+                        _buildOperationalGrid(cardColor, borderColor, isDark),
+                        if (_profile?['role'] == 'admin' || _profile?['role'] == 'hostel_manager' || _profile?['role'] == 'hostel_student' || _profile?['role'] == 'owner') ...[
+                          const SizedBox(height: 32),
+                          _buildSectionHeader('UNIT_ASSIGNMENT'),
+                          const SizedBox(height: 16),
+                          _buildRoomUnitCard(cardColor, borderColor, isDark),
+                          if (_profile?['role'] == 'admin' || _profile?['role'] == 'hostel_manager' || _profile?['role'] == 'owner') ...[
+                            const SizedBox(height: 32),
+                            _buildSectionHeader('TACTICAL_METRICS'),
+                            const SizedBox(height: 16),
+                            _buildMetricsRow(isDark),
+                          ],
+                        ],
+                        const SizedBox(height: 100),
+                      ],
+                    ),
+                  );
+                },
               ),
               _buildSOSButton(),
             ],

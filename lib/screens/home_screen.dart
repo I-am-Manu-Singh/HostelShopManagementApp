@@ -182,8 +182,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: pages,
               ),
             ),
-            if (!(widget.isGuest && _currentIndex == pages.length - 1))
-              _buildWebFooter(context, isDark, MediaQuery.of(context).size.width > 800),
           ],
         ),
       );

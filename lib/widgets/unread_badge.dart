@@ -21,7 +21,7 @@ class _UnreadBadgeState extends State<UnreadBadge> {
   void initState() {
     super.initState();
     _fetchLastRead();
-    // Trek subscription to global read receipts
+    // subscription to global read receipts
     _readSubscription = PreferencesService().readStream.listen((roomId) {
       if (roomId == widget.roomId) {
         _fetchLastRead();
@@ -75,7 +75,7 @@ class _UnreadBadgeState extends State<UnreadBadge> {
             unreadCount++;
             final content = (msg['content'] ?? '').toString().toLowerCase();
             
-            // Trek Mention Detection: Case-insensitive check
+            // Mention Detection: Case-insensitive check
             bool isMe = lowerUserName.isNotEmpty && content.contains('@$lowerUserName') || 
                         lowerFirstName.isNotEmpty && content.contains('@$lowerFirstName');
             

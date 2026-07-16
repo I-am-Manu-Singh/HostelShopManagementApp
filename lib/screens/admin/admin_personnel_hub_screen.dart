@@ -181,6 +181,8 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
     final bgColor = isDark?const Color(0xFF0F172A):Colors.white;
     final textColor = isDark ? Colors.white : Colors.black;
 
+    final showSidebar = MediaQuery.of(context).size.width > 800;
+
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
@@ -199,23 +201,64 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
             onPressed: _exportProfilesToCSV,
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: Colors.indigoAccent,
-          indicatorWeight: 4, labelColor: Colors.indigoAccent, unselectedLabelColor: isDark?Colors.white24:Colors.black26,
-          labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5),
-          tabs: const [Tab(text: 'STAFF'), Tab(text: 'HOSTEL'), Tab(text: 'MESS')],
-        ),
+        bottom: showSidebar 
+          ? null 
+          : TabBar(
+              controller: _tabController,
+              indicatorColor: Colors.indigoAccent,
+              indicatorWeight: 4, labelColor: Colors.indigoAccent, unselectedLabelColor: isDark?Colors.white24:Colors.black26,
+              labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1.5),
+              tabs: const [Tab(text: 'STAFF'), Tab(text: 'HOSTEL'), Tab(text: 'MESS')],
+            ),
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-        : TabBarView(
-            controller: _tabController,
-            children: [
-              _buildDirectoryView('STAFF', ['warden', 'manager', 'cook', 'staff', 'guard', 'admin', 'owner'], isDark),
-              _buildDirectoryView('HOSTEL', ['hostel_student'], isDark),
-              _buildDirectoryView('MESS', ['mess_student'], isDark),
-            ],
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              if (showSidebar) {
+                return Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
+                        ),
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          children: [
+                            _buildPersonnelSidebarTile(0, 'STAFF REGISTER', Icons.badge_rounded),
+                            _buildPersonnelSidebarTile(1, 'HOSTEL STUDENTS', Icons.hotel_rounded),
+                            _buildPersonnelSidebarTile(2, 'MESS STUDENTS', Icons.local_dining_rounded),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 7,
+                      child: TabBarView(
+                        controller: _tabController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildDirectoryView('STAFF', ['warden', 'manager', 'cook', 'staff', 'guard', 'admin', 'owner'], isDark),
+                          _buildDirectoryView('HOSTEL', ['hostel_student'], isDark),
+                          _buildDirectoryView('MESS', ['mess_student'], isDark),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              return TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildDirectoryView('STAFF', ['warden', 'manager', 'cook', 'staff', 'guard', 'admin', 'owner'], isDark),
+                  _buildDirectoryView('HOSTEL', ['hostel_student'], isDark),
+                  _buildDirectoryView('MESS', ['mess_student'], isDark),
+                ],
+              );
+            },
           ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddStaffModal(isDark),
@@ -223,6 +266,21 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
         icon: const Icon(Icons.person_add_rounded, color: Colors.white, size: 20),
         label: Text('ADD STAFF', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1)),
       ),
+    );
+  }
+
+  Widget _buildPersonnelSidebarTile(int index, String label, IconData icon) {
+    final active = _tabController.index == index;
+    return ListTile(
+      selected: active,
+      selectedTileColor: Colors.indigoAccent.withOpacity(0.08),
+      leading: Icon(icon, color: active ? Colors.indigoAccent : Colors.grey),
+      title: Text(label, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11, color: active ? Colors.indigoAccent : Colors.grey)),
+      onTap: () {
+        setState(() {
+          _tabController.index = index;
+        });
+      },
     );
   }
 
