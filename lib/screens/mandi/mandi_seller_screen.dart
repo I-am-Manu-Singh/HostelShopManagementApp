@@ -1,5 +1,6 @@
 // lib/screens/mandi/mandi_seller_screen.dart
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -133,93 +134,89 @@ class _MandiSellerScreenState extends State<MandiSellerScreen> with SingleTicker
     final textColor = isDark ? Colors.white : Colors.black;
     final showSidebar = MediaQuery.of(context).size.width > 800;
 
+    final bgColor = theme.scaffoldBackgroundColor;
+
+    final bodyContent = _isLoading
+        ? const Center(child: CircularProgressIndicator(color: Colors.greenAccent))
+        : LayoutBuilder(
+            builder: (context, constraints) {
+              if (showSidebar) {
+                return Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
+                        ),
+                        child: ListView(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          children: [
+                            ListTile(
+                              selected: _tabController.index == 0,
+                              selectedTileColor: Colors.greenAccent.withOpacity(0.08),
+                              leading: const Icon(Icons.receipt_long_rounded),
+                              title: Text('PROCUREMENT ORDERS', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11)),
+                              onTap: () => setState(() => _tabController.index = 0),
+                            ),
+                            ListTile(
+                              selected: _tabController.index == 1,
+                              selectedTileColor: Colors.greenAccent.withOpacity(0.08),
+                              leading: const Icon(Icons.analytics_rounded),
+                              title: Text('MY DAILY RATES', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11)),
+                              onTap: () => setState(() => _tabController.index = 1),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 7,
+                      child: TabBarView(
+                        controller: _tabController,
+                        physics: const NeverScrollableScrollPhysics(),
+                        children: [
+                          _buildProcurementTab(isDark, textColor),
+                          _buildRatesTab(isDark, textColor),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }
+              return TabBarView(
+                controller: _tabController,
+                children: [
+                  _buildProcurementTab(isDark, textColor),
+                  _buildRatesTab(isDark, textColor),
+                ],
+              );
+            },
+          );
+
+    if (kIsWeb) return Material(color: bgColor, child: bodyContent);
     return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
+      backgroundColor: bgColor,
       appBar: AppBar(
         title: Text('SELLER PORTAL', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
-        bottom: showSidebar 
-          ? null 
-          : TabBar(
-              controller: _tabController,
-              indicatorColor: Colors.greenAccent,
-              labelColor: Colors.greenAccent,
-              unselectedLabelColor: isDark ? Colors.white24 : Colors.black26,
-              labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
-              tabs: const [
-                Tab(text: 'PROCUREMENT ORDERS'),
-                Tab(text: 'MY DAILY RATES'),
-              ],
-            ),
+        bottom: showSidebar
+            ? null
+            : TabBar(
+                controller: _tabController,
+                indicatorColor: Colors.greenAccent,
+                labelColor: Colors.greenAccent,
+                unselectedLabelColor: isDark ? Colors.white24 : Colors.black26,
+                labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+                tabs: const [
+                  Tab(text: 'PROCUREMENT ORDERS'),
+                  Tab(text: 'MY DAILY RATES'),
+                ],
+              ),
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.greenAccent))
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                if (showSidebar) {
-                  return Row(
-                    children: [
-                      Expanded(
-                        flex: 3,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
-                          ),
-                          child: ListView(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            children: [
-                              ListTile(
-                                selected: _tabController.index == 0,
-                                selectedTileColor: Colors.greenAccent.withOpacity(0.08),
-                                leading: const Icon(Icons.receipt_long_rounded),
-                                title: Text('PROCUREMENT ORDERS', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11)),
-                                onTap: () {
-                                  setState(() {
-                                    _tabController.index = 0;
-                                  });
-                                },
-                              ),
-                              ListTile(
-                                selected: _tabController.index == 1,
-                                selectedTileColor: Colors.greenAccent.withOpacity(0.08),
-                                leading: const Icon(Icons.analytics_rounded),
-                                title: Text('MY DAILY RATES', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11)),
-                                onTap: () {
-                                  setState(() {
-                                    _tabController.index = 1;
-                                  });
-                                },
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        flex: 7,
-                        child: TabBarView(
-                          controller: _tabController,
-                          physics: const NeverScrollableScrollPhysics(),
-                          children: [
-                            _buildProcurementTab(isDark, textColor),
-                            _buildRatesTab(isDark, textColor),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                }
-
-                return TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildProcurementTab(isDark, textColor),
-                    _buildRatesTab(isDark, textColor),
-                  ],
-                );
-              },
-            ),
+      body: bodyContent,
     );
   }
 

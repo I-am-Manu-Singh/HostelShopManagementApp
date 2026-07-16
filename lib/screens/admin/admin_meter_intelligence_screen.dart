@@ -95,6 +95,9 @@ class _AdminMeterIntelligenceScreenState extends State<AdminMeterIntelligenceScr
         final reading = double.tryParse(_controllers[roomId]!.text);
         
         if (reading != null && reading > lastR) {
+          final double units = reading - lastR;
+          final double electricityCharges = units * _unitRate;
+          final roomData = u['hostel_rooms'];
           await _client.from('meter_readings').upsert({
             'room_id': roomId,
             'student_id': studentId,
@@ -102,6 +105,8 @@ class _AdminMeterIntelligenceScreenState extends State<AdminMeterIntelligenceScr
             'latest_reading': reading,
             'month_period': monthStr,
             'reading_date': DateTime.now().toIso8601String().split('T')[0],
+            'electricity_charges': electricityCharges,
+            'building_name': roomData?['building_name'] ?? '',
           }, onConflict: 'room_id, month_period');
           anySuccess = true;
         }

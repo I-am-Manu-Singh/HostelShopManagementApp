@@ -174,14 +174,16 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isDesktop = screenWidth > 750;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = Theme.of(context).scaffoldBackgroundColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF08090A),
+      backgroundColor: bgColor,
       body: Stack(
         children: [
           // Background Gradient Orbs
-          Positioned(top: -100, right: -100, child: FadeIn(delay: const Duration(milliseconds: 500), child: _buildOrb(300, Colors.indigoAccent.withOpacity(0.1)))),
-          Positioned(bottom: -150, left: -100, child: FadeIn(delay: const Duration(milliseconds: 800), child: _buildOrb(400, Colors.purpleAccent.withOpacity(0.05)))),
+          Positioned(top: -100, right: -100, child: FadeIn(delay: const Duration(milliseconds: 500), child: _buildOrb(300, Colors.indigoAccent.withOpacity(isDark ? 0.1 : 0.04)))),
+          Positioned(bottom: -150, left: -100, child: FadeIn(delay: const Duration(milliseconds: 800), child: _buildOrb(400, Colors.purpleAccent.withOpacity(isDark ? 0.05 : 0.02)))),
           
           SafeArea(
             child: Center(
@@ -193,7 +195,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       const SizedBox(height: 20),
-                      _buildGlassCard(),
+                      _buildGlassCard(isDark),
                     ],
                   ),
                 ),
@@ -218,12 +220,14 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildGlassCard() {
+  Widget _buildGlassCard(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
-        color: const Color(0xFF16181A),
+        color: isDark ? const Color(0xFF16181A) : Colors.white,
         borderRadius: BorderRadius.circular(32),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+        boxShadow: isDark ? [] : [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -251,7 +255,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          _buildHeader(),
+          _buildHeader(isDark),
           const SizedBox(height: 24),
               if (_currentStatus == AuthFlowStatus.signup) ...[
                 _buildTextField(_nameController, 'FULL NAME', Icons.person_outline),
@@ -286,49 +290,50 @@ class _LoginScreenState extends State<LoginScreen> {
                       _buildToggleAuth(),
               if (_currentStatus == AuthFlowStatus.forgotPassword || _currentStatus == AuthFlowStatus.emailOtp) ...[
                 const SizedBox(height: 20),
-                TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.login), child: Text('BACK TO LOGIN', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white24, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
+                TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.login), child: Text('BACK TO LOGIN', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
               ],
             ],
         ),
       );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(bool isDark) {
     return Column(
       children: [
         Text(
           _currentStatus == AuthFlowStatus.login ? 'Welcome Back' : (_currentStatus == AuthFlowStatus.signup ? 'Create Account' : (_currentStatus == AuthFlowStatus.emailOtp ? 'Verify OTP' : 'Reset Password')),
-          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 32, letterSpacing: -1),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 32, letterSpacing: -1, color: isDark ? Colors.white : Colors.black),
         ),
         const SizedBox(height: 12),
         Text(
           _currentStatus == AuthFlowStatus.login ? 'Sign in to access your account' : (_currentStatus == AuthFlowStatus.signup ? 'Join our campus community portal' : (_currentStatus == AuthFlowStatus.emailOtp ? 'Enter the verification code sent to your email' : 'Enter your email to reset password')),
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white38),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: isDark ? Colors.white38 : Colors.black38),
         ),
       ],
     );
   }
 
   Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool isPassword = false}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         const SizedBox(height: 12),
         TextField(
           controller: controller,
           obscureText: isPassword && _obscurePassword,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w500),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: Colors.indigoAccent, size: 20),
             suffixIcon: isPassword ? IconButton(
-              icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: Colors.white24, size: 18),
+              icon: Icon(_obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined, color: isDark ? Colors.white24 : Colors.black26, size: 18),
               onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
             ) : null,
             filled: true,
-            fillColor: Colors.white.withOpacity(0.03),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: Colors.white.withOpacity(0.05))),
+            fillColor: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
             focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: const BorderSide(color: Colors.indigoAccent, width: 2)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
           ),
@@ -338,21 +343,22 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildRoleSelector() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('ROLE', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        Text('ROLE', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.05))),
+          decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: _selectedRole,
-              dropdownColor: const Color(0xFF16181A),
+              dropdownColor: isDark ? const Color(0xFF16181A) : Colors.white,
               icon: const Icon(Icons.unfold_more_rounded, color: Colors.indigoAccent, size: 20),
               isExpanded: true,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w500),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w500),
               onChanged: (val) => setState(() => _selectedRole = val!),
               items: _roles.map((r) => DropdownMenuItem(value: r['value'], child: Text(r['label']!))).toList(),
             ),
@@ -390,24 +396,26 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildGoogleButton() {
+     final isDark = Theme.of(context).brightness == Brightness.dark;
      return OutlinedButton.icon(
        onPressed: _isLoading ? null : _signInWithGoogle,
-       icon: const FaIcon(FontAwesomeIcons.google, color: Colors.white, size: 18),
-       label: Text('CONTINUE WITH GOOGLE', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1)),
+       icon: FaIcon(FontAwesomeIcons.google, color: isDark ? Colors.white : Colors.black87, size: 18),
+       label: Text('CONTINUE WITH GOOGLE', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: isDark ? Colors.white : Colors.black87, fontWeight: FontWeight.w900, letterSpacing: 1)),
        style: OutlinedButton.styleFrom(
          padding: const EdgeInsets.symmetric(vertical: 20),
-         side: BorderSide(color: Colors.white.withOpacity(0.1)),
+         side: BorderSide(color: isDark ? Colors.white.withOpacity(0.1) : Colors.black.withOpacity(0.1)),
          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-         backgroundColor: Colors.white.withOpacity(0.04),
+         backgroundColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.02),
        ),
      );
   }
 
   Widget _buildToggleAuth() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(_currentStatus == AuthFlowStatus.login ? "New to the campus?" : "Already verified?", style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white38)),
+        Text(_currentStatus == AuthFlowStatus.login ? "New to the campus?" : "Already verified?", style: Theme.of(context).textTheme.bodySmall?.copyWith(color: isDark ? Colors.white38 : Colors.black38)),
         TextButton(
           onPressed: () => setState(() => _currentStatus = _currentStatus == AuthFlowStatus.login ? AuthFlowStatus.signup : AuthFlowStatus.login),
           child: Text(_currentStatus == AuthFlowStatus.login ? "Sign Up" : "Sign In", style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.indigoAccent, fontWeight: FontWeight.bold)),

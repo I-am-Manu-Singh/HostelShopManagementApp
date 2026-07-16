@@ -8,10 +8,13 @@ import '../student/attendance_calendar_screen.dart';
 import '../employee/payroll_terminal_screen.dart';
 import '../employee/staff_dossier_screen.dart';
 import '../user/my_attendance_screen.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+import 'dart:convert';
+import 'dart:io' if (dart.library.html) 'dart:io';
+import '../../utils/csv_web_helper.dart';
 
 class AdminPersonnelHubScreen extends StatefulWidget {
   const AdminPersonnelHubScreen({super.key});
@@ -63,10 +66,19 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
         buffer.writeln(row.join(','));
       }
       
+      if (kIsWeb) {
+        try {
+          downloadCsvFile(buffer.toString(), 'central_registry_export.csv');
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export failed or not supported.'), backgroundColor: Colors.orangeAccent));
+          }
+        }
+        return;
+      }
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/central_registry_export.csv');
       await file.writeAsString(buffer.toString());
-      
       await Share.shareXFiles([XFile(file.path)], text: 'Central Biodata Registry Export');
     } catch (e) {
       if (mounted) {
@@ -82,10 +94,18 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
         allowedExtensions: ['csv'],
       );
       
-      if (result == null || result.files.single.path == null) return;
-      
-      final file = File(result.files.single.path!);
-      final List<String> lines = await file.readAsLines();
+      if (result == null) return;
+
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        final file = File(result.files.single.path!);
+        lines = await file.readAsLines();
+      }
       if (lines.length < 2) throw 'File is empty or missing headers';
       
       final headers = lines.first.split(',').map((h) => h.trim().toLowerCase()).toList();

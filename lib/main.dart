@@ -150,7 +150,7 @@ class _AuthGuardState extends State<AuthGuard> {
         final session = snapshot.data?.session;
 
         if (session != null) {
-          return const HomeScreen();
+          return const HomeScreen(key: ValueKey('home_authenticated'));
         }
         
         // Unauthenticated flow

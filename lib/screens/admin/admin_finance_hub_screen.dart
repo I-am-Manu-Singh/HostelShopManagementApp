@@ -13,6 +13,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AdminFinanceHubScreen extends StatefulWidget {
   final bool hideAppBar;
@@ -95,6 +96,10 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
           (c['temp_balance'] ?? 0.0).toString(),
         ];
         buffer.writeln(row.join(','));
+      }
+      if (kIsWeb) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CSV exports are available only on native Android/iOS apps.'), backgroundColor: Colors.orangeAccent));
+        return;
       }
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/mess_cards_export.csv');

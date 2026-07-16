@@ -1,5 +1,6 @@
 // lib/screens/mandi/mandi_delivery_screen.dart
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -122,53 +123,34 @@ class _MandiDeliveryScreenState extends State<MandiDeliveryScreen> {
     final isDark = theme.brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      appBar: AppBar(
-        title: Text('MY MISSIONS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-          : _assignedOrders.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.delivery_dining_outlined, size: 64, color: textColor.withOpacity(0.1)),
-                      const SizedBox(height: 16),
-                      Text('NO PENDING DISPATCHES', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w900, color: textColor.withOpacity(0.2))),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _fetchAssignedDeliveries,
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      if (constraints.maxWidth > 800) {
-                        return GridView.builder(
-                          padding: const EdgeInsets.all(24),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 16,
-                            mainAxisSpacing: 16,
-                            childAspectRatio: 1.8,
-                          ),
-                          itemCount: _assignedOrders.length,
-                          itemBuilder: (context, i) {
-                            final o = _assignedOrders[i];
-                            final status = o['order_status'] ?? 'Placed';
-                            final profile = o['profiles'];
-                            final isBooking = o['is_booking'] ?? false;
-                            return _buildDeliveryCard(o, status, profile, isBooking, isDark, textColor);
-                          },
-                        );
-                      }
+    final bgColor = theme.scaffoldBackgroundColor;
 
-                      return ListView.builder(
+    final bodyContent = _isLoading
+        ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+        : _assignedOrders.isEmpty
+            ? Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.delivery_dining_outlined, size: 64, color: textColor.withOpacity(0.1)),
+                    const SizedBox(height: 16),
+                    Text('NO PENDING DISPATCHES', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w900, color: textColor.withOpacity(0.2))),
+                  ],
+                ),
+              )
+            : RefreshIndicator(
+                onRefresh: _fetchAssignedDeliveries,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    if (constraints.maxWidth > 800) {
+                      return GridView.builder(
                         padding: const EdgeInsets.all(24),
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                          childAspectRatio: 1.8,
+                        ),
                         itemCount: _assignedOrders.length,
                         itemBuilder: (context, i) {
                           final o = _assignedOrders[i];
@@ -178,9 +160,32 @@ class _MandiDeliveryScreenState extends State<MandiDeliveryScreen> {
                           return _buildDeliveryCard(o, status, profile, isBooking, isDark, textColor);
                         },
                       );
-                    },
-                  ),
+                    }
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(24),
+                      itemCount: _assignedOrders.length,
+                      itemBuilder: (context, i) {
+                        final o = _assignedOrders[i];
+                        final status = o['order_status'] ?? 'Placed';
+                        final profile = o['profiles'];
+                        final isBooking = o['is_booking'] ?? false;
+                        return _buildDeliveryCard(o, status, profile, isBooking, isDark, textColor);
+                      },
+                    );
+                  },
                 ),
+              );
+
+    if (kIsWeb) return Material(color: bgColor, child: bodyContent);
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        title: Text('MY MISSIONS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
+      ),
+      body: bodyContent,
     );
   }
 

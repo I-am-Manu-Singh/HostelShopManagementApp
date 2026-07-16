@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
@@ -71,59 +72,58 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final textColor = isDark ? Colors.white : Colors.black;
 
-    if (_isLoading) return Scaffold(backgroundColor: bgColor, body: const Center(child: CircularProgressIndicator(color: Colors.indigoAccent)));
+    if (_isLoading) {
+      if (kIsWeb) return Material(color: bgColor, child: const Center(child: CircularProgressIndicator(color: Colors.indigoAccent)));
+      return Scaffold(backgroundColor: bgColor, body: const Center(child: CircularProgressIndicator(color: Colors.indigoAccent)));
+    }
 
     final name = _user?['full_name'] ?? 'User';
     final role = _user?['role'] ?? 'store_customer';
     final email = Supabase.instance.client.auth.currentUser?.email ?? 'N/A';
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: Stack(
-        children: [
-          _buildBackgroundOrbs(),
-          CustomScrollView(
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              _buildAppBar(textColor),
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      _buildProfileInfo(name, email, role, isDark),
-                    
-                      const SizedBox(height: 32),
-                      _buildQuickMetrics(isDark),
-                      const SizedBox(height: 32),
-                      
-                      if (role == 'hostel_student' || role == 'mess_student') ...[
-                        _buildSectionHeader('Student Information', isDark),
-                        const SizedBox(height: 16),
-                        _buildDynamicIdentityMatrix(role, isDark),
-                        const SizedBox(height: 32),
-                      ],
-                      
-                      _buildSectionHeader('Account Controls', isDark),
+    final bodyWidget = Stack(
+      children: [
+        _buildBackgroundOrbs(),
+        CustomScrollView(
+          physics: const BouncingScrollPhysics(),
+          slivers: [
+            _buildAppBar(textColor),
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    _buildProfileInfo(name, email, role, isDark),
+                    const SizedBox(height: 32),
+                    _buildQuickMetrics(isDark),
+                    const SizedBox(height: 32),
+                    if (role == 'hostel_student' || role == 'mess_student') ...[
+                      _buildSectionHeader('Student Information', isDark),
                       const SizedBox(height: 16),
-                      ..._buildRoleSpecificTiles(role, isDark),
-                      
+                      _buildDynamicIdentityMatrix(role, isDark),
                       const SizedBox(height: 32),
-                       _buildSectionHeader('System Settings', isDark),
-                       const SizedBox(height: 16),
-                       _buildActionItem(Icons.info_outline_rounded, 'App Info & Legal', 'Version details and legal documents', Colors.teal, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()))),
-                       _buildActionItem(Icons.settings_rounded, 'Settings', 'App preferences & notifications', Colors.blueGrey, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
-                       _buildActionItem(Icons.logout_rounded, 'Log Out', 'Signed out from session', Colors.redAccent, isDark, onTap: () => Supabase.instance.client.auth.signOut()),
-                       const SizedBox(height: 120),
                     ],
-                  ),
+                    _buildSectionHeader('Account Controls', isDark),
+                    const SizedBox(height: 16),
+                    ..._buildRoleSpecificTiles(role, isDark),
+                    const SizedBox(height: 32),
+                    _buildSectionHeader('System Settings', isDark),
+                    const SizedBox(height: 16),
+                    _buildActionItem(Icons.info_outline_rounded, 'App Info & Legal', 'Version details and legal documents', Colors.teal, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()))),
+                    _buildActionItem(Icons.settings_rounded, 'Settings', 'App preferences & notifications', Colors.blueGrey, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
+                    _buildActionItem(Icons.logout_rounded, 'Log Out', 'Signed out from session', Colors.redAccent, isDark, onTap: () => Supabase.instance.client.auth.signOut()),
+                    const SizedBox(height: 120),
+                  ],
                 ),
               ),
-            ],
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      ],
     );
+
+    if (kIsWeb) return Material(color: bgColor, child: bodyWidget);
+    return Scaffold(backgroundColor: bgColor, body: bodyWidget);
   }
 
   Widget _buildBackgroundOrbs() {

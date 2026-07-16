@@ -7,7 +7,10 @@ import 'admin_room_intelligence_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:convert';
+import 'dart:io' if (dart.library.html) 'dart:io';
+import '../../utils/csv_web_helper.dart';
 
 class AdminBlockManagementScreen extends StatefulWidget {
   const AdminBlockManagementScreen({super.key});
@@ -55,6 +58,17 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
         buffer.writeln(row.join(','));
       }
       
+      if (kIsWeb) {
+        try {
+          downloadCsvFile(buffer.toString(), 'hostel_rooms_export.csv');
+        } catch (_) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export failed or not supported.'), backgroundColor: Colors.orangeAccent));
+          }
+        }
+        return;
+      }
+      
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/hostel_rooms_export.csv');
       await file.writeAsString(buffer.toString());
@@ -74,10 +88,18 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
         allowedExtensions: ['csv'],
       );
       
-      if (result == null || result.files.single.path == null) return;
+      if (result == null) return;
       
-      final file = File(result.files.single.path!);
-      final List<String> lines = await file.readAsLines();
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        final file = File(result.files.single.path!);
+        lines = await file.readAsLines();
+      }
       if (lines.length < 2) throw 'File is empty or missing headers';
       
       final headers = lines.first.split(',').map((h) => h.trim().toLowerCase()).toList();

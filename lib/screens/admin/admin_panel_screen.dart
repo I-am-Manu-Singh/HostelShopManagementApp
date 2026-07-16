@@ -30,6 +30,7 @@ import '../central_attendance_log_screen.dart';
 import 'admin_room_inspection_screen.dart';
 import 'admin_fleet_console_screen.dart';
 import 'admin_meter_intelligence_screen.dart';
+import 'meter_reading_matrix_screen.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -372,6 +373,13 @@ Widget _buildHubGrid(bool isDark) {
             'value': 'STATISTICS',
             'color': Colors.amberAccent,
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminMeterIntelligenceScreen())),
+          },
+          {
+            'icon': Icons.grid_on_rounded,
+            'label': 'Meter Matrix',
+            'value': 'GRID EDIT',
+            'color': Colors.amberAccent,
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MeterReadingMatrixScreen())),
           },
         ],
         isDark,

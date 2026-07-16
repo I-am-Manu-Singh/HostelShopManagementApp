@@ -251,55 +251,49 @@ Future<void> _toggleWishlist(String pid) async {
       filtered.sort((a, b) => a.name.compareTo(b.name));
     }
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: Column(
-  children: [
-    _buildRefinedFixedHeader(isDark),
-
-    const SizedBox(height: 8), // 👈 spacing after curved header
-
-    _buildCategoryStrip(isDark),
-    _buildFilterAndSortBar(isDark),
-
-          
-          /// 🔥 SCROLLABLE PRODUCT GRID
-          Expanded(
-            child: _isLoading 
+    final bodyContent = Column(
+      children: [
+        _buildRefinedFixedHeader(isDark),
+        const SizedBox(height: 8),
+        _buildCategoryStrip(isDark),
+        _buildFilterAndSortBar(isDark),
+        Expanded(
+          child: _isLoading
               ? CustomScrollView(slivers: [_buildSliverSkeleton()])
-                  : CustomScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      cacheExtent: 3000.0,
-                      slivers: [
-                        SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                          sliver: SliverGrid(
-                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: MediaQuery.of(context).size.width > 900 ? 5 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
-                              mainAxisSpacing: 16,
-                              crossAxisSpacing: 16,
-                              childAspectRatio: 0.75,
-                            ),
-                            delegate: SliverChildBuilderDelegate(
-                              (context, i) {
-                                final item = filtered[i];
-                                return _buildPremiumProductCard(item, isDark);
-                              },
-                              childCount: filtered.length,
-                            ),
-                          ),
+              : CustomScrollView(
+                  physics: const BouncingScrollPhysics(),
+                  cacheExtent: 3000.0,
+                  slivers: [
+                    SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                      sliver: SliverGrid(
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: MediaQuery.of(context).size.width > 900 ? 5 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 16,
+                          childAspectRatio: 0.75,
                         ),
-                        // Renders footer only on web browser at scroll end
-                        if (kIsWeb)
-                          SliverToBoxAdapter(
-                            child: _buildScrollEndWebFooter(isDark),
-                          ),
-                      ],
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => _buildPremiumProductCard(filtered[i], isDark),
+                          childCount: filtered.length,
+                        ),
+                      ),
                     ),
-            ),
-          ],
+                    if (kIsWeb)
+                      SliverToBoxAdapter(child: _buildScrollEndWebFooter(isDark)),
+                  ],
+                ),
         ),
-      );
+      ],
+    );
+
+    // On web, the outer HomeScreen Scaffold provides the window frame.
+    // Returning a nested Scaffold on web causes blank screens.
+    if (kIsWeb) {
+      return Material(color: bgColor, child: bodyContent);
+    }
+
+    return Scaffold(backgroundColor: bgColor, body: bodyContent);
   }
 
 Widget _buildRefinedFixedHeader(bool isDark) {

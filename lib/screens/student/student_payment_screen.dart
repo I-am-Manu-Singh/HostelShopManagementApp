@@ -71,10 +71,10 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
       }
 
       // 4. Calculate latest power bill
-      final lastReading = await _client.from('meter_readings').select().eq('user_id', user.id).order('reading_date', ascending: false).limit(1).maybeSingle();
+      final lastReading = await _client.from('meter_readings').select('electricity_charges').eq('student_id', user.id).order('month_period', ascending: false).limit(1).maybeSingle();
       double power = 0;
       if (lastReading != null) {
-        power = ((lastReading['latest_reading'] ?? 0) - (lastReading['previous_reading'] ?? 0)) * powerRate;
+        power = (lastReading['electricity_charges'] as num? ?? 0.0).toDouble();
       }
 
       if (mounted) {

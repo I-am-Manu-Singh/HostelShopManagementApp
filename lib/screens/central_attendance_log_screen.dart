@@ -4,8 +4,14 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io' if (dart.library.html) 'dart:io';
 import '../services/database_service.dart';
 import 'mess_gate_terminal_screen.dart';
+import '../utils/csv_web_helper.dart';
 
 class CentralAttendanceLogScreen extends StatefulWidget {
   const CentralAttendanceLogScreen({super.key});
@@ -92,6 +98,11 @@ class _CentralAttendanceLogScreenState extends State<CentralAttendanceLogScreen>
         backgroundColor: Colors.transparent, elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent, size: 22),
+            onPressed: _exportAttendanceMonthly,
+            tooltip: 'Export Monthly CSV',
+          ),
           IconButton(icon: const Icon(Icons.calendar_today_rounded, color: Colors.indigoAccent, size: 20), onPressed: _pickDate),
         ],
       ),
@@ -139,6 +150,133 @@ class _CentralAttendanceLogScreenState extends State<CentralAttendanceLogScreen>
     if (d != null) {
       setState(() => _selectedDate = d);
       _loadAttendanceData();
+    }
+  }
+
+  Future<void> _exportAttendanceMonthly() async {
+    // 1. Month Picker dialog
+    final DateTime? pickedMonth = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime.now(),
+      initialDatePickerMode: DatePickerMode.year,
+    );
+    if (pickedMonth == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final startOfMonth = DateTime(pickedMonth.year, pickedMonth.month, 1);
+      final endOfMonth = DateTime(pickedMonth.year, pickedMonth.month + 1, 0);
+      final daysInMonth = endOfMonth.day;
+
+      final startStr = DateFormat('yyyy-MM-dd').format(startOfMonth);
+      final endStr = DateFormat('yyyy-MM-dd').format(endOfMonth);
+
+      // Fetch ALL profiles (students, staff, etc.)
+      final profilesRes = await _client.from('profiles').select().order('role').order('full_name');
+      final List<dynamic> allProfiles = profilesRes as List;
+
+      // Fetch ALL monthly attendance logs
+      final attRes = await _client.from('attendance')
+          .select()
+          .gte('date', startStr)
+          .lte('date', endStr);
+      final List<dynamic> monthlyAttendance = attRes as List;
+
+      // Make CSV Headers: Name, Role, User ID, Attendance Type (Mess/Gate/Night/Staff), {Day 1}, ...
+      final buffer = StringBuffer();
+      final headers = ['Name', 'Role', 'User ID', 'Log Type'];
+      for (int day = 1; day <= daysInMonth; day++) {
+        headers.add('Day $day');
+      }
+      buffer.writeln(headers.join(','));
+
+      // Loop types for each profile to show detailed breakdown (mess punches, gate entry, night rolls, staff shifts)
+      final types = ['mess', 'gate', 'night', 'staff'];
+
+      for (final p in allProfiles) {
+        final role = p['role']?.toString().toLowerCase() ?? '';
+        
+        for (final type in types) {
+          // Skip irrelevant combinations (e.g. staff only logs staff shifts, students don't have staff logs)
+          if (type == 'staff' && role != 'staff') continue;
+          if (type != 'staff' && role == 'staff') continue;
+
+          final row = [
+            '"${(p['full_name'] ?? '').toString().replaceAll('"', '""')}"',
+            p['role'] ?? '',
+            p['id'] ?? '',
+            type.toUpperCase(),
+          ];
+
+          // Check attendance status for each day of the month
+          bool hasAnyRecordThisMonth = false;
+
+          for (int day = 1; day <= daysInMonth; day++) {
+            final targetDateStr = DateFormat('yyyy-MM-dd').format(DateTime(pickedMonth.year, pickedMonth.month, day));
+            final punches = monthlyAttendance.where((a) => 
+              a['user_id'] == p['id'] && 
+              a['attendance_type'] == type && 
+              a['date'] == targetDateStr
+            ).toList();
+
+            if (punches.isEmpty) {
+              row.add('A');
+            } else {
+              hasAnyRecordThisMonth = true;
+              if (type == 'mess') {
+                final meals = punches.map((a) => a['meal_type']?.toString() ?? 'Present').join(';');
+                row.add('"$meals"');
+              } else {
+                row.add('P');
+              }
+            }
+          }
+
+          // Only include rows in the CSV if the person actually belongs to this log type 
+          // or has logged attendance for this type to avoid unnecessary blank rows.
+          if (hasAnyRecordThisMonth || 
+              (type == 'mess' && (role == 'hostel_student' || role == 'mess_student')) ||
+              (type == 'gate' && role == 'hostel_student') ||
+              (type == 'night' && role == 'hostel_student') ||
+              (type == 'staff' && role == 'staff')) {
+            buffer.writeln(row.join(','));
+          }
+        }
+      }
+
+      final monthStr = DateFormat('MMM_yyyy').format(pickedMonth);
+      final filename = 'comprehensive_attendance_$monthStr.csv';
+      final csvContent = buffer.toString();
+
+      if (kIsWeb) {
+        downloadCsvFile(csvContent, filename);
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsString(csvContent);
+        await Share.shareXFiles([XFile(file.path)], text: 'Comprehensive Attendance Export');
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('✅ Monthly attendance exported to $filename'),
+          backgroundColor: Colors.greenAccent.shade700,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Failed to export comprehensive log: $e'),
+          backgroundColor: Colors.redAccent,
+        ));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 

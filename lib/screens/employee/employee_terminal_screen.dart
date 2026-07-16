@@ -5,13 +5,13 @@ import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../payment_ledger_screen.dart';
-import '../my_attendance_screen.dart';
-import '../policy_handbook_screen.dart';
-import '../attendance_calendar_screen.dart';
-import '../staff_task_hub_screen.dart';
+import '../user/my_attendance_screen.dart';
+import 'policy_handbook_screen.dart';
+import '../student/attendance_calendar_screen.dart';
+import 'staff_task_hub_screen.dart';
 import '../notifications_screen.dart';
 import '../admin/admin_fleet_console_screen.dart';
-import '../payroll_terminal_screen.dart';
+import 'payroll_terminal_screen.dart';
 import '../../services/database_service.dart';
 
 class EmployeeTerminalScreen extends StatefulWidget {

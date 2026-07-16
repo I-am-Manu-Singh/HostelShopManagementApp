@@ -7,10 +7,13 @@ import 'package:google_fonts/google_fonts.dart';
 import 'admin_edit_product_screen.dart';
 import '../inventory_scanner_screen.dart';
 import '../../models/shop.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+import 'dart:convert';
+import 'dart:io' if (dart.library.html) 'dart:io';
+import '../../utils/csv_web_helper.dart';
 
 class AdminInventoryManagementScreen extends StatefulWidget {
   const AdminInventoryManagementScreen({super.key});
@@ -73,10 +76,17 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         buffer.writeln(row.join(','));
       }
       
+      if (kIsWeb) {
+        try {
+          downloadCsvFile(buffer.toString(), 'mandi_products_export.csv');
+        } catch (_) {
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export not supported on this browser.'), backgroundColor: Colors.orangeAccent));
+        }
+        return;
+      }
       final tempDir = await getTemporaryDirectory();
       final file = File('${tempDir.path}/mandi_products_export.csv');
       await file.writeAsString(buffer.toString());
-      
       await Share.shareXFiles([XFile(file.path)], text: 'Mandi & Shop Products Inventory Export');
     } catch (e) {
       if (mounted) {
@@ -92,10 +102,19 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         allowedExtensions: ['csv'],
       );
       
-      if (result == null || result.files.single.path == null) return;
-      
-      final file = File(result.files.single.path!);
-      final List<String> lines = await file.readAsLines();
+      if (result == null) return;
+
+      // Web uses bytes; native uses path
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        final file = File(result.files.single.path!);
+        lines = await file.readAsLines();
+      }
       if (lines.length < 2) {
         throw 'File is empty or missing content rows';
       }

@@ -133,7 +133,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     ];
                     return cardList[index];
                   },
-                ),),
+                ),
                 const SizedBox(height: 40),
                 const Text('GLOBAL BROADCAST CONTROL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 2, color: Colors.blueGrey)),
                 const SizedBox(height: 16),
