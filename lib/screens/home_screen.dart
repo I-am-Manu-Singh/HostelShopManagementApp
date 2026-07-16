@@ -57,6 +57,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   List<Widget> _getPages(String role) {
+    if (widget.isGuest) {
+      return [
+        const ShopBrowseScreen(isMandiMode: false),
+        const ShopBrowseScreen(isMandiMode: true),
+        const LoginScreen(),
+      ];
+    }
     if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
       return [
         AdminPanelScreen(),
@@ -99,15 +106,6 @@ class _HomeScreenState extends State<HomeScreen> {
         const ShopBrowseScreen(isMandiMode: true),
         CampusChatListScreen(),
         const ProfileScreen(),
-      ];
-    }
-    
-    // Guest Mode Pages
-    if (widget.isGuest) {
-      return [
-        const ShopBrowseScreen(isMandiMode: false),
-        const ShopBrowseScreen(isMandiMode: true),
-        const LoginScreen(),
       ];
     }
     

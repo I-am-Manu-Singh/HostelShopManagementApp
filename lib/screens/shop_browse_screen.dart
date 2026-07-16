@@ -18,7 +18,7 @@ import 'shop_order_status_screen.dart'; // Still needed for profile/menu links
 import 'shop_checkout_screen.dart';
 import 'legal/privacy_policy_screen.dart';
 import 'legal/terms_of_service_screen.dart';
-import 'legal/app_info_screen.dart';
+import 'app_info_screen.dart';
 
 class ShopBrowseScreen extends StatefulWidget {
   final bool isMandiMode;
@@ -1060,7 +1060,7 @@ Widget _circleBtn({
           Navigator.push(context, MaterialPageRoute(builder: (_) => TermsOfServiceScreen()));
         }, isDark),
         _footerLink('Support', () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => AppInfoScreen()));
         }, isDark),
       ],
     );
