@@ -13,7 +13,31 @@ class DatabaseService {
     try {
       final user = _client.auth.currentUser;
       if (user == null) return null;
-      return await _client.from('profiles').select().eq('id', user.id).maybeSingle();
+      
+      final profile = await _client.from('profiles').select().eq('id', user.id).maybeSingle();
+      if (profile != null) {
+        return profile;
+      }
+
+      // If profile is missing in the database table, insert it dynamically
+      final meta = user.userMetadata ?? {};
+      final String fullName = meta['full_name'] ?? user.email?.split('@').first ?? 'New User';
+      final String role = meta['role'] ?? 'store_customer';
+
+      final newProfile = {
+        'id': user.id,
+        'full_name': fullName,
+        'role': role,
+        'balance': 0.0,
+        'xp': 0,
+        'created_at': DateTime.now().toIso8601String(),
+        'is_verified': false,
+        'loyalty_rank': 1,
+        'student_level': 1,
+      };
+
+      await _client.from('profiles').insert(newProfile);
+      return await _client.from('profiles').select().eq('id', user.id).maybeSingle() ?? newProfile;
     } catch (e) {
       debugPrint('Error fetching profile: $e');
       return null;
