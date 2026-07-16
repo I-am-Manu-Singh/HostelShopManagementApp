@@ -125,39 +125,69 @@ class CartProvider with ChangeNotifier {
         'weight_unit': _weightUnits[e.key] ?? _itemDetails[e.key]?.unit ?? 'pcs',
       }).toList();
 
-      if (isBooking) {
-        // Direct insertion for booking to avoid RPC restrictions
+      try {
+        if (isBooking) {
+          // Direct insertion for booking to avoid RPC restrictions
+          await _supabase.from('shop_orders').insert({
+            'user_id': user.id,
+            'items': itemsJson,
+            'total_price': total,
+            'payment_status': paymentMethod == 'Wallet' ? 'Paid' : 'Pending',
+            'order_status': 'Placed',
+            'is_booking': true,
+            'booking_date': bookingDate?.toIso8601String(),
+            'advance_paid': advancePaid,
+            'user_type': userType,
+            'delivery_address': deliveryAddress,
+            'delivery_location': deliveryLocation,
+            'phone_no': phoneNo,
+          });
+        } else {
+          // Try atomic checkout RPC
+          await _supabase.rpc('place_shop_order', params: {
+            'input_user_id': user.id,
+            'input_total': total,
+            'input_items': itemsJson,
+            'input_delivery_type': deliveryType,
+            'input_payment_method': paymentMethod,
+            'input_address': deliveryAddress,
+            'input_phone': phoneNo,
+            'input_alt_phone': altPhoneNo,
+            'input_screenshot': upiScreenshotUrl,
+            'input_emergency_name': emergencyName,
+            'input_emergency_relation': emergencyRelation,
+            'input_emergency_phone': emergencyPhone,
+            'input_instructions': instructions,
+          });
+        }
+      } catch (rpcErr) {
+        // Fallback: If RPC place_shop_order is not defined, execute direct database transaction insert
+        debugPrint('RPC place_shop_order not found. Executing client-side fallback insert. Error: $rpcErr');
         await _supabase.from('shop_orders').insert({
           'user_id': user.id,
           'items': itemsJson,
           'total_price': total,
+          'payment_method': paymentMethod,
           'payment_status': paymentMethod == 'Wallet' ? 'Paid' : 'Pending',
           'order_status': 'Placed',
-          'is_booking': true,
-          'booking_date': bookingDate?.toIso8601String(),
-          'advance_paid': advancePaid,
-          'user_type': userType,
+          'is_booking': false,
           'delivery_address': deliveryAddress,
-          'delivery_location': deliveryLocation,
           'phone_no': phoneNo,
+          'upi_screenshot_url': upiScreenshotUrl,
+          'instructions': instructions,
         });
-      } else {
-        // Call ENHANCED ATOMIC Checkout RPC
-        await _supabase.rpc('place_shop_order', params: {
-          'input_user_id': user.id,
-          'input_total': total,
-          'input_items': itemsJson,
-          'input_delivery_type': deliveryType,
-          'input_payment_method': paymentMethod,
-          'input_address': deliveryAddress,
-          'input_phone': phoneNo,
-          'input_alt_phone': altPhoneNo,
-          'input_screenshot': upiScreenshotUrl,
-          'input_emergency_name': emergencyName,
-          'input_emergency_relation': emergencyRelation,
-          'input_emergency_phone': emergencyPhone,
-          'input_instructions': instructions,
-        });
+
+        // Deduct wallet balance client-side if payment method is Wallet
+        if (paymentMethod == 'Wallet') {
+          final profileRes = await _supabase.from('profiles').select('balance').eq('id', user.id).single();
+          final currentBalance = (profileRes['balance'] as num? ?? 0.0).toDouble();
+          if (currentBalance < total) {
+            throw 'INSUFFICIENT_FUNDS';
+          }
+          await _supabase.from('profiles').update({
+            'balance': currentBalance - total
+          }).eq('id', user.id);
+        }
       }
 
       _weightQuantities.clear();
