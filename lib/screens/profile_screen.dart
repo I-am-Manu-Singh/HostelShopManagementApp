@@ -134,7 +134,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return SliverAppBar(
       backgroundColor: Colors.transparent,
       elevation: 0, pinned: true, centerTitle: true,
-      title: Text('PROFILE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2.5)),
+      title: Text('PROFILE', style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w900, color: textColor, letterSpacing: 2.5)),
     );
   }
 
@@ -151,20 +151,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
               radius: 54, 
               backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), 
               backgroundImage: avatar != null && avatar.toString().startsWith('http') ? NetworkImage(avatar.toString()) : null,
-              child: avatar == null || !avatar.toString().startsWith('http') ? Text(name[0], style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.bold, color: textColor)) : null
+              child: avatar == null || !avatar.toString().startsWith('http') ? Text(name[0], style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 32, color: textColor)) : null
             ),
           ),
           const SizedBox(height: 20),
-          Text(name.toUpperCase(), style: GoogleFonts.outfit(fontSize: 22, fontWeight: FontWeight.w900, color: textColor, letterSpacing: 1)),
-          Text(email.toLowerCase(), style: GoogleFonts.outfit(fontSize: 11, color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.w600)),
+          Text(name.toUpperCase(), style: Theme.of(context).textTheme.titleLarge?.copyWith(color: textColor, letterSpacing: 1)),
+          Text(email.toLowerCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: Colors.indigoAccent, borderRadius: BorderRadius.circular(12)), child: Text(role.replaceAll('_', ' ').toUpperCase(), style: GoogleFonts.outfit(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8), decoration: BoxDecoration(color: Colors.indigoAccent, borderRadius: BorderRadius.circular(12)), child: Text(role.replaceAll('_', ' ').toUpperCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
               if (_user?['is_verified'] == true) ...[
                 const SizedBox(width: 8),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.greenAccent.withOpacity(0.2))), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 12), SizedBox(width: 6), Text('VERIFIED', style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1))])),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.greenAccent.withOpacity(0.2))), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 12), const SizedBox(width: 6), Text('VERIFIED', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.greenAccent, fontWeight: FontWeight.w900, letterSpacing: 1))])),
               ],
             ],
           ),
@@ -188,10 +188,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(20)), child: Icon(icon, color: color, size: 32)),
           const SizedBox(width: 20),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+            Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: color, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
             const SizedBox(height: 4),
-            Text(title, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 22, fontWeight: FontWeight.w900)),
-            Text(subtitle, style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold)),
+            Text(title, style: Theme.of(context).textTheme.titleLarge?.copyWith(color: isDark ? Colors.white : Colors.black)),
+            Text(subtitle, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.bold)),
           ])),
         ],
       ),
@@ -217,7 +217,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
      ]);
   }
 
-  Widget _metricBox(String l, String v, IconData i, Color c, bool isDark) => Expanded(child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(i, color: c, size: 18), const SizedBox(height: 12), Text(v, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 16, fontWeight: FontWeight.w900)), Text(l, style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1))])));
+  Widget _metricBox(String l, String v, IconData i, Color c, bool isDark) => Expanded(child: Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(i, color: c, size: 18), const SizedBox(height: 12), Text(v, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900)), Text(l, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.w900, letterSpacing: 1))])));
 
   Widget _buildDynamicIdentityMatrix(String role, bool isDark) {
     bool isStudent = role.contains('student');
@@ -246,7 +246,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _matrixRow(String l, String v, IconData i, bool isDark) => Row(children: [Icon(i, color: Colors.indigoAccent, size: 16), const SizedBox(width: 16), Expanded(child: Text(l, style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1))), Text(v.toString().toUpperCase(), style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.bold))]);
+  Widget _matrixRow(String l, String v, IconData i, bool isDark) => Row(children: [Icon(i, color: Colors.indigoAccent, size: 16), const SizedBox(width: 16), Expanded(child: Text(l, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.w900, letterSpacing: 1))), Text(v.toString().toUpperCase(), style: Theme.of(context).textTheme.bodySmall?.copyWith(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold))]);
 
   List<Widget> _buildRoleSpecificTiles(String role, bool isDark) {
      if (role == 'admin' || role == 'hostel_manager' || role == 'owner' || role == 'hostel_owner') {
@@ -286,7 +286,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildSectionHeader(String title, bool isDark) {
-    return Row(children: [Text(title.toUpperCase(), style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)), const Spacer(), Container(height: 1, width: 40, color: Colors.indigoAccent.withOpacity(0.1))]);
+    return Row(children: [Text(title.toUpperCase(), style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.indigoAccent, fontWeight: FontWeight.w900, letterSpacing: 2)), const Spacer(), Container(height: 1, width: 40, color: Colors.indigoAccent.withOpacity(0.1))]);
   }
 
   Widget _buildActionItem(IconData icon, String title, String subtitle, Color color, bool isDark, {VoidCallback? onTap}) {
@@ -303,8 +303,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: color, size: 18)),
               const SizedBox(width: 16),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(title, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 13)),
-                Text(subtitle, style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.w600)),
+                Text(title, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold)),
+                Text(subtitle, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.w600)),
               ])),
               Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white12 : Colors.black12, size: 16),
             ],

@@ -273,8 +273,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   Wrap(
                     alignment: WrapAlignment.spaceBetween,
                     children: [
-                      TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.emailOtp), child: Text('LOGIN WITH OTP', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1))),
-                      TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.forgotPassword), child: Text('FORGOT PASSWORD?', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1))),
+                      TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.emailOtp), child: Text('LOGIN WITH OTP', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.indigoAccent, fontWeight: FontWeight.w900))),
+                      TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.forgotPassword), child: Text('FORGOT PASSWORD?', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.indigoAccent, fontWeight: FontWeight.w900))),
                     ],
                   ),
                 const SizedBox(height: 28),
@@ -286,7 +286,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       _buildToggleAuth(),
               if (_currentStatus == AuthFlowStatus.forgotPassword || _currentStatus == AuthFlowStatus.emailOtp) ...[
                 const SizedBox(height: 20),
-                TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.login), child: Text('BACK TO LOGIN', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
+                TextButton(onPressed: () => setState(() => _currentStatus = AuthFlowStatus.login), child: Text('BACK TO LOGIN', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white24, fontWeight: FontWeight.bold, letterSpacing: 1.5))),
               ],
             ],
         ),
@@ -298,13 +298,13 @@ class _LoginScreenState extends State<LoginScreen> {
       children: [
         Text(
           _currentStatus == AuthFlowStatus.login ? 'Welcome Back' : (_currentStatus == AuthFlowStatus.signup ? 'Create Account' : (_currentStatus == AuthFlowStatus.emailOtp ? 'Verify OTP' : 'Reset Password')),
-          style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: -1),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 32, letterSpacing: -1),
         ),
         const SizedBox(height: 12),
         Text(
           _currentStatus == AuthFlowStatus.login ? 'Sign in to access your account' : (_currentStatus == AuthFlowStatus.signup ? 'Join our campus community portal' : (_currentStatus == AuthFlowStatus.emailOtp ? 'Enter the verification code sent to your email' : 'Enter your email to reset password')),
           textAlign: TextAlign.center,
-          style: GoogleFonts.outfit(fontSize: 14, color: Colors.white38, fontWeight: FontWeight.w400),
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white38),
         ),
       ],
     );
@@ -314,12 +314,12 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        Text(label, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         const SizedBox(height: 12),
         TextField(
           controller: controller,
           obscureText: isPassword && _obscurePassword,
-          style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
             prefixIcon: Icon(icon, color: Colors.indigoAccent, size: 20),
             suffixIcon: isPassword ? IconButton(
@@ -341,7 +341,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('ROLE', style: GoogleFonts.outfit(color: Colors.white24, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        Text('ROLE', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.white24, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -352,7 +352,7 @@ class _LoginScreenState extends State<LoginScreen> {
               dropdownColor: const Color(0xFF16181A),
               icon: const Icon(Icons.unfold_more_rounded, color: Colors.indigoAccent, size: 20),
               isExpanded: true,
-              style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w500),
               onChanged: (val) => setState(() => _selectedRole = val!),
               items: _roles.map((r) => DropdownMenuItem(value: r['value'], child: Text(r['label']!))).toList(),
             ),
@@ -384,7 +384,7 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         child: _isLoading 
             ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) 
-            : Text(_currentStatus == AuthFlowStatus.login ? 'SIGN IN' : (_currentStatus == AuthFlowStatus.signup ? 'CREATE ACCOUNT' : (_currentStatus == AuthFlowStatus.emailOtp ? 'VERIFY CODE' : 'RESET PASSWORD')), style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5)),
+            : Text(_currentStatus == AuthFlowStatus.login ? 'SIGN IN' : (_currentStatus == AuthFlowStatus.signup ? 'CREATE ACCOUNT' : (_currentStatus == AuthFlowStatus.emailOtp ? 'VERIFY CODE' : 'RESET PASSWORD')), style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
       ),
     );
   }
@@ -393,7 +393,7 @@ class _LoginScreenState extends State<LoginScreen> {
      return OutlinedButton.icon(
        onPressed: _isLoading ? null : _signInWithGoogle,
        icon: const FaIcon(FontAwesomeIcons.google, color: Colors.white, size: 18),
-       label: Text('CONTINUE WITH GOOGLE', style: GoogleFonts.outfit(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1)),
+       label: Text('CONTINUE WITH GOOGLE', style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1)),
        style: OutlinedButton.styleFrom(
          padding: const EdgeInsets.symmetric(vertical: 20),
          side: BorderSide(color: Colors.white.withOpacity(0.1)),
@@ -407,10 +407,10 @@ class _LoginScreenState extends State<LoginScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Text(_currentStatus == AuthFlowStatus.login ? "New to the campus?" : "Already verified?", style: GoogleFonts.outfit(color: Colors.white38, fontSize: 14)),
+        Text(_currentStatus == AuthFlowStatus.login ? "New to the campus?" : "Already verified?", style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.white38)),
         TextButton(
           onPressed: () => setState(() => _currentStatus = _currentStatus == AuthFlowStatus.login ? AuthFlowStatus.signup : AuthFlowStatus.login),
-          child: Text(_currentStatus == AuthFlowStatus.login ? "Sign Up" : "Sign In", style: GoogleFonts.outfit(color: Colors.indigoAccent, fontWeight: FontWeight.bold, fontSize: 14)),
+          child: Text(_currentStatus == AuthFlowStatus.login ? "Sign Up" : "Sign In", style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.indigoAccent, fontWeight: FontWeight.bold)),
         ),
       ],
     );

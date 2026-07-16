@@ -1064,7 +1064,7 @@ Widget _circleBtn({
           Navigator.push(context, MaterialPageRoute(builder: (_) => TermsOfServiceScreen()));
         }, isDark),
         _footerLink('Support', () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => AppInfoScreen()));
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
         }, isDark),
       ],
     );

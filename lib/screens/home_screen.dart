@@ -235,8 +235,7 @@ Widget _buildWebHeader(BuildContext context) {
                   },
                   child: Text(
                     labels[index],
-                    style: GoogleFonts.outfit(
-                      fontSize: 13,
+                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: active
                           ? Colors.indigoAccent
@@ -274,9 +273,8 @@ Widget _buildHeaderBrand(bool isDark) {
       const SizedBox(width: 12),
       Text(
         'CAMPUS CONNECT',
-        style: GoogleFonts.outfit(
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(
           fontWeight: FontWeight.w900,
-          fontSize: 16,
           letterSpacing: 1,
           color: isDark ? Colors.white : Colors.black,
         ),
@@ -295,10 +293,9 @@ Widget _buildHeaderActions(
       if (!widget.isGuest) ...[
         Text(
           profileName.toString().toUpperCase(),
-          style: GoogleFonts.outfit(
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
             color: isDark ? Colors.white70 : Colors.black87,
             fontWeight: FontWeight.w900,
-            fontSize: 11,
             letterSpacing: 0.5,
           ),
         ),

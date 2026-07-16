@@ -85,7 +85,7 @@ isDark
               const SizedBox(width: 12),
               Text(
                 'CAMPUS CONNECT',
-                style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1.5, color: isDark ? Colors.white : Colors.black),
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1.5, color: isDark ? Colors.white : Colors.black),
               ),
             ],
           ),
@@ -93,7 +93,7 @@ isDark
             children: [
               TextButton(
                 onPressed: _openGoogleForm,
-                child: Text('ENQUIRY FORM', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.indigoAccent)),
+                child: Text('ENQUIRY FORM', style: Theme.of(context).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold, color: Colors.indigoAccent)),
               ),
               const SizedBox(width: 16),
               ElevatedButton(
@@ -103,7 +103,7 @@ isDark
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
-                child: Text('LAUNCH APP', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                child: Text('LAUNCH APP', style: Theme.of(context).textTheme.labelMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           )
@@ -139,14 +139,14 @@ decoration: BoxDecoration(
             ? Row(
                 children: [
                   Expanded(child: _buildHeroLeft(context, isDark)),
-                  Expanded(child: FadeInRight(child: _buildHeroRight(isDark))),
+                  Expanded(child: FadeInRight(child: _buildHeroRight(context, isDark))),
                 ],
               )
             : Column(
                 children: [
                   _buildHeroLeft(context, isDark),
                   const SizedBox(height: 48),
-                  _buildHeroRight(isDark),
+                  _buildHeroRight(context, isDark),
                 ],
               ),
         ),
@@ -166,18 +166,18 @@ decoration: BoxDecoration(
           ),
           child: Text(
           'THE ALL-IN-ONE HOSTEL & CAMPUS SUPER APP',
-            style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1),
+            style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.indigoAccent, fontWeight: FontWeight.w900, letterSpacing: 1),
           ),
         ),
         const SizedBox(height: 24),
         Text(
          'Hostel Life.\nReimagined.',
-          style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 48, height: 1.1, color: isDark ? Colors.white : Colors.black),
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontSize: 48, height: 1.1, color: isDark ? Colors.white : Colors.black),
         ),
         const SizedBox(height: 20),
         Text(
           'Campus Connect brings together Boys Hostels, Girls Hostels, Mess Cards, Campus Stores, Mandi Supermarkets, Room Delivery, Hostel Inventory, Order Tracking, Student Productivity, Digital Payments, and Real-Time Campus Operations into one seamless platform.',
-          style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 16, height: 1.5),
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: isDark ? Colors.white54 : Colors.black54, height: 1.5),
         ),
         const SizedBox(height: 36),
         Row(
@@ -189,7 +189,7 @@ decoration: BoxDecoration(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
               ),
-              child: Text('GET STARTED', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+              child: Text('GET STARTED', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
             const SizedBox(width: 16),
             OutlinedButton(
@@ -199,14 +199,14 @@ decoration: BoxDecoration(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 20),
               ),
-              child: Text('BOOK A DEMO', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontWeight: FontWeight.bold, fontSize: 14)),
+              child: Text('BOOK A DEMO', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.indigoAccent, fontWeight: FontWeight.bold)),
             ),
           ],
         )
       ],
     );
   }
-Widget _statCard(String value, String label) {
+Widget _statCard(BuildContext context, String value, String label) {
   return Container(
     width: 170,
     padding: const EdgeInsets.all(24),
@@ -218,7 +218,7 @@ Widget _statCard(String value, String label) {
       children: [
         Text(
           value,
-          style: GoogleFonts.outfit(
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontSize: 34,
             fontWeight: FontWeight.w900,
           ),
@@ -229,7 +229,7 @@ Widget _statCard(String value, String label) {
     ),
   );
 }
-  Widget _buildHeroRight(bool isDark) {
+  Widget _buildHeroRight(BuildContext context, bool isDark) {
     return Container(
       height: 400,
       decoration: BoxDecoration(
@@ -245,7 +245,7 @@ Widget _statCard(String value, String label) {
             const SizedBox(height: 24),
             Text(
              'One App. Every Campus Service.',
-              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 20, color: isDark ? Colors.white : Colors.black),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: isDark ? Colors.white : Colors.black),
             ),
             const SizedBox(height: 12),
             Text(
