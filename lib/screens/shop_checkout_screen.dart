@@ -75,7 +75,7 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cart = Provider.of<CartProvider>(context);
-
+    final textColor = isDark ? Colors.white : Colors.black;
     if (cart.items.isEmpty) {
       return Scaffold(
         appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, leading: IconButton(icon: const Icon(Icons.close_rounded), onPressed: () => Navigator.pop(context))),
@@ -86,7 +86,7 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('CHECKOUT CONFIG', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2.5)),
+        title: Text('CHECKOUT CONFIG', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18), onPressed: () => Navigator.pop(context)),
