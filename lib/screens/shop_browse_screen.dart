@@ -334,19 +334,17 @@ Widget _buildRefinedFixedHeader(bool isDark) {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        widget.isMandiMode ? 'MANDI FRESH MART' : 'CAMPUS MARKETPLACE',
-                        style: GoogleFonts.outfit(
+                        widget.isMandiMode ? 'MANDI FRESH MART' : 'CAMPUS MART',
+                        style: Theme.of(context).textTheme.labelSmall?.copyWith(
                           color: Colors.white70,
-                          fontSize: 7,
                           fontWeight: FontWeight.w900,
                           letterSpacing: 1.4,
                         ),
                       ),
                       Text(
                         widget.isMandiMode ? 'Fruits & Sabji' : 'Provisions',
-                        style: GoogleFonts.outfit(
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
                           color: Colors.white,
-                          fontSize: 16,
                           fontWeight: FontWeight.w900,
                           height: 1,
                         ),
@@ -404,9 +402,8 @@ Widget _buildBalanceBadge(String val, Color color) {
         const SizedBox(width: 6),
         Text(
           val,
-          style: GoogleFonts.outfit(
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
             color: badgeColor,
-            fontSize: 13,
             fontWeight: FontWeight.w900,
           ),
         ),
@@ -575,13 +572,12 @@ Widget _buildCategoryStrip(bool isDark) {
                   cat['name'],
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: GoogleFonts.outfit(
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
                     color: isSelected
                         ? Colors.indigoAccent
                         : (isDark
                             ? Colors.white60
                             : Colors.black45),
-                    fontSize: 8,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -676,18 +672,18 @@ Widget _buildCategoryStrip(bool isDark) {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w700, fontSize: 13)),
+                        Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 2),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text('${item.brand ?? 'Campus'} • ${item.weightMl ?? ''}', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 9, fontWeight: FontWeight.w600)),
+                            Text('${item.brand ?? 'Campus'} • ${item.weightMl ?? ''}', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.w600)),
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 const Icon(Icons.star_rounded, color: Colors.amber, size: 8),
                                 const SizedBox(width: 4),
-                                Text('${item.rating}', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 8, fontWeight: FontWeight.w900)),
+                                Text('${item.rating}', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.w900)),
                               ],
                             ),
                           ],
@@ -699,8 +695,8 @@ Widget _buildCategoryStrip(bool isDark) {
                             Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(children: [Text('₹${price.toInt()}', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 18)), if (hasDiscount) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(6)), child: Text('-${(((item.price - price) / item.price) * 100).toInt()}%', style: const TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.w900)))]]),
-                                if (hasDiscount) Text('₹${item.price.toInt()}', style: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 11, decoration: TextDecoration.lineThrough)),
+                                Row(children: [Text('₹${price.toInt()}', style: Theme.of(context).textTheme.titleMedium?.copyWith(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900)), if (hasDiscount) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(6)), child: Text('-${(((item.price - price) / item.price) * 100).toInt()}%', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: Colors.greenAccent, fontWeight: FontWeight.w900)))]]),
+                                if (hasDiscount) Text('₹${item.price.toInt()}', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: isDark ? Colors.white30 : Colors.black38, decoration: TextDecoration.lineThrough)),
                               ],
                             ),
                             _buildAddButton(item, qty),
