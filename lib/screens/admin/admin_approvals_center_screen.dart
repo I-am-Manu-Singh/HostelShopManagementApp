@@ -117,5 +117,4 @@ class _AdminApprovalsCenterScreenState extends State<AdminApprovalsCenterScreen>
       },
     );
   }
-  }
 }

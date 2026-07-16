@@ -37,9 +37,9 @@ class NotificationService {
     required String roomId,
   }) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'trek_chats',
-      'Trek Group Chats',
-      channelDescription: 'Notifications for group messages',
+      'campus_chats',
+      'Campus Group Chats',
+      channelDescription: 'Notifications for campus group messages',
       importance: Importance.max,
       priority: Priority.high,
     );
@@ -72,9 +72,9 @@ class NotificationService {
     int? maxProgress,
   }) async {
     final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'trek_workouts',
-      'Trek Conditioning',
-      channelDescription: 'Active workout progress and instructions',
+      'campus_conditioning',
+      'Campus Conditioning',
+      channelDescription: 'Active conditioning progress and instructions',
       importance: Importance.low,
       priority: Priority.low,
       showProgress: progress != null,

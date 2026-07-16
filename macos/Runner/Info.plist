@@ -35,7 +35,7 @@
 			<string>Editor</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>io.supabase.trekbooking</string>
+				<string>io.supabase.campus_connect</string>
 			</array>
 		</dict>
 	</array>

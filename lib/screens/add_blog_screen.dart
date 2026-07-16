@@ -44,7 +44,7 @@ class _AddBlogScreenState extends State<AddBlogScreen> {
         'read_time': _readTimeCtrl.text.trim(),
         'gallery': _imageUrls.where((u) => u.isNotEmpty).toList(),
         'tags': _tags,
-        'category': _tags.isNotEmpty ? _tags.first : 'Trekking',
+        'category': _tags.isNotEmpty ? _tags.first : 'CampusLife',
       });
       if (mounted) {
         Navigator.pop(context, true);

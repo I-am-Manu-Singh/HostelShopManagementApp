@@ -540,7 +540,6 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
       },
     );
   }
-  }
 
   Widget _buildOverviewTab(bool isDark) {
     return ListView(
