@@ -181,22 +181,11 @@ class _HomeScreenState extends State<HomeScreen> {
             Expanded(
               child: IndexedStack(
                 index: _currentIndex,
-                children: pages.map((page) => SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: MediaQuery.of(context).size.height - 108, // Subtract only header height (48) + topbar (60) offset
-                        ),
-                        child: page,
-                      ),
-                      if (!(widget.isGuest && _currentIndex == pages.length - 1))
-                        _buildWebFooter(context, isDark, MediaQuery.of(context).size.width > 800),
-                    ],
-                  ),
-                )).toList(),
+                children: pages,
               ),
             ),
+            if (!(widget.isGuest && _currentIndex == pages.length - 1))
+              _buildWebFooter(context, isDark, MediaQuery.of(context).size.width > 800),
           ],
         ),
       );
