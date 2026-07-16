@@ -9,12 +9,16 @@ import 'package:local_auth/local_auth.dart';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/cart_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shimmer/shimmer.dart';
 import '../models/shop.dart';
 import '../services/placeholder_service.dart';
 import 'product_detail_screen.dart';
 import 'shop_order_status_screen.dart'; // Still needed for profile/menu links
 import 'shop_checkout_screen.dart';
+import 'legal/privacy_policy_screen.dart';
+import 'legal/terms_of_service_screen.dart';
+import 'legal/app_info_screen.dart';
 
 class ShopBrowseScreen extends StatefulWidget {
   final bool isMandiMode;
@@ -263,36 +267,39 @@ Future<void> _toggleWishlist(String pid) async {
           Expanded(
             child: _isLoading 
               ? CustomScrollView(slivers: [_buildSliverSkeleton()])
-              : filtered.isEmpty 
-                ? CustomScrollView(slivers: [_buildEmptyState(isDark)])
-                : CustomScrollView(
-                    physics: const BouncingScrollPhysics(),
-                    cacheExtent: 3000.0,
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
-                        sliver: SliverGrid(
-                          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: MediaQuery.of(context).size.width > 900 ? 5 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
-                            mainAxisSpacing: 16,
-                            crossAxisSpacing: 16,
-                            childAspectRatio: 0.75,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, i) {
-                              final item = filtered[i];
-                              return _buildPremiumProductCard(item, isDark);
-                            },
-                            childCount: filtered.length,
+                  : CustomScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      cacheExtent: 3000.0,
+                      slivers: [
+                        SliverPadding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                          sliver: SliverGrid(
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: MediaQuery.of(context).size.width > 900 ? 5 : (MediaQuery.of(context).size.width > 600 ? 3 : 2),
+                              mainAxisSpacing: 16,
+                              crossAxisSpacing: 16,
+                              childAspectRatio: 0.75,
+                            ),
+                            delegate: SliverChildBuilderDelegate(
+                              (context, i) {
+                                final item = filtered[i];
+                                return _buildPremiumProductCard(item, isDark);
+                              },
+                              childCount: filtered.length,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-          ),
-        ],
-      ),
-    );
+                        // Renders footer only on web browser at scroll end
+                        if (kIsWeb)
+                          SliverToBoxAdapter(
+                            child: _buildScrollEndWebFooter(isDark),
+                          ),
+                      ],
+                    ),
+            ),
+          ],
+        ),
+      );
   }
 
 Widget _buildRefinedFixedHeader(bool isDark) {
@@ -943,9 +950,184 @@ Widget _circleBtn({
     );
   }
 
-  Widget _buildSliverSkeleton() => SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 20), sliver: SliverGrid(gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 16, crossAxisSpacing: 16, childAspectRatio: 0.78), delegate: SliverChildBuilderDelegate((context, index) => Shimmer.fromColors(baseColor: Colors.white.withOpacity(0.05), highlightColor: Colors.white.withOpacity(0.1), child: Container(decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(28)))), childCount: 6)));
+  Widget _buildScrollEndWebFooter(bool isDark) {
+    final width = MediaQuery.of(context).size.width;
+    final isDesktop = width > 800;
+    
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 80),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF08090A) : const Color(0xFFF1F5F9),
+        border: Border(
+          top: BorderSide(
+            color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+          ),
+        ),
+      ),
+      child: Column(
+        children: [
+          isDesktop
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: _footerAbout(isDark),
+                    ),
+                    const SizedBox(width: 40),
+                    Expanded(
+                      child: _footerPlatform(isDark),
+                    ),
+                    Expanded(
+                      child: _footerContact(isDark),
+                    ),
+                  ],
+                )
+              : Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _footerAbout(isDark),
+                    const SizedBox(height: 30),
+                    _footerPlatform(isDark),
+                    const SizedBox(height: 30),
+                    _footerContact(isDark),
+                  ],
+                ),
+        ],
+      ),
+    );
+  }
 
-//   Widget _buildEmptyState(bool isDark) => SliverFillRemaining(child: Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shopping_basket_outlined, color: isDark ? Colors.white12 : Colors.black12, size: 90), const SizedBox(height: 20), Text('NO PROVISIONS IN SECTOR', style: GoogleFonts.outfit(color: isDark ? Colors.white24 : Colors.black26, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 2))])));
+  Widget _footerAbout(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'CAMPUS CONNECT',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          "Campus Connect is India's next-generation Hostel & Campus Super App designed for students, wardens, administrators, stores, mess facilities, farmers, and delivery partners. From room allocation and digital mess cards to campus shopping, mandi marketplace, inventory management, order tracking, and room delivery, everything works together in one intelligent platform.",
+          style: TextStyle(
+            color: isDark ? Colors.white60 : Colors.black54,
+            fontSize: 13,
+            height: 1.6,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          '© ${DateTime.now().year} Campus Connect Operations Platform.',
+          style: TextStyle(
+            color: isDark ? Colors.white38 : Colors.black45,
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Developed by Manpreet Singh',
+          style: TextStyle(
+            color: isDark ? Colors.white30 : Colors.black38,
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _footerPlatform(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Platform',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 12),
+        _footerLink('Privacy Policy', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => PrivacyPolicyScreen()));
+        }, isDark),
+        _footerLink('Terms & Conditions', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => TermsOfServiceScreen()));
+        }, isDark),
+        _footerLink('Support', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => AppInfoScreen()));
+        }, isDark),
+      ],
+    );
+  }
+
+  Widget _footerLink(String text, VoidCallback onTap, bool isDark) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4.0),
+        child: Text(
+          text,
+          style: TextStyle(
+            color: isDark ? Colors.white60 : Colors.black54,
+            fontSize: 12,
+            decoration: TextDecoration.underline,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _footerContact(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Get In Touch',
+          style: TextStyle(
+            color: isDark ? Colors.white : Colors.black,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'support@campusconnect.com',
+          style: TextStyle(
+            color: isDark ? Colors.white60 : Colors.black54,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '+91 XXXXX XXXXX',
+          style: TextStyle(
+            color: isDark ? Colors.white60 : Colors.black54,
+            fontSize: 12,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'India',
+          style: TextStyle(
+            color: isDark ? Colors.white60 : Colors.black54,
+            fontSize: 12,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSliverSkeleton() => SliverPadding(padding: const EdgeInsets.symmetric(horizontal: 20), sliver: SliverGrid(gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2, mainAxisSpacing: 16, crossAxisSpacing: 16, childAspectRatio: 0.78), delegate: SliverChildBuilderDelegate((context, index) => Shimmer.fromColors(baseColor: Colors.white.withOpacity(0.05), highlightColor: Colors.white.withOpacity(0.1), child: Container(decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(28)))), childCount: 6)));
 }
 class HalfCirclePainter extends CustomPainter {
   @override
