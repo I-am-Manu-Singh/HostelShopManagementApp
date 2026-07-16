@@ -1,9 +1,18 @@
+import 'dart:convert';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io' if (dart.library.html) 'dart:io';
+import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
+import '../add_procurement_screen.dart';
 
 class AdminProcurementScreen extends StatefulWidget {
   final bool isMandiPOFilter;
@@ -13,12 +22,20 @@ class AdminProcurementScreen extends StatefulWidget {
   State<AdminProcurementScreen> createState() => _AdminProcurementScreenState();
 }
 
+extension StringExtension on String {
+  String capitalize() {
+    if (isEmpty) return this;
+    return "${this[0].toUpperCase()}${substring(1)}";
+  }
+}
+
 class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
   final _client = Supabase.instance.client;
   bool _isLoading = true;
   String _filterStatus = 'ALL';
   String? _filterEmployeeId;
   DateTime? _filterDate;
+  late bool _isMandiPOFilter;
   
   List<dynamic> _procurements = [];
   List<dynamic> _staffList = [];
@@ -26,6 +43,7 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
   @override
   void initState() {
     super.initState();
+    _isMandiPOFilter = widget.isMandiPOFilter;
     _loadInitialData();
   }
 
@@ -36,7 +54,7 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
 
   Future<void> _fetchStaff() async {
     try {
-      final roleFilter = widget.isMandiPOFilter ? ['farmer_seller'] : ['staff', 'admin', 'hostel_manager'];
+      final roleFilter = _isMandiPOFilter ? ['farmer_seller'] : ['staff', 'admin', 'hostel_manager'];
       final res = await _client.from('profiles').select().inFilter('role', roleFilter);
       if (mounted) setState(() => _staffList = res);
     } catch (_) {}
@@ -46,8 +64,8 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      if (widget.isMandiPOFilter) {
-        var query = _client.from('mandi_purchase_orders').select('*, profiles:seller_id(*)');
+      if (_isMandiPOFilter) {
+        var query = _client.from('mandi_purchase_orders').select();
         if (_filterStatus != 'ALL') {
           String s = _filterStatus.toLowerCase();
           if (s == 'requested') s = 'sent';
@@ -61,10 +79,22 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
           final dateStr = DateFormat('yyyy-MM-dd').format(_filterDate!);
           query = query.gte('created_at', '${dateStr}T00:00:00').lte('created_at', '${dateStr}T23:59:59');
         }
-        final res = await query.order('created_at', ascending: false);
+        final List<dynamic> res = await query.order('created_at', ascending: false);
+        
+        final ids = res.map((item) => item['seller_id']).where((id) => id != null).toSet().toList();
+        List<dynamic> profilesList = [];
+        if (ids.isNotEmpty) {
+          profilesList = await _client.from('profiles').select().inFilter('id', ids);
+        }
+        final profilesMap = {for (var prof in profilesList) prof['id']: prof};
+        for (var item in res) {
+          final id = item['seller_id'];
+          item['profiles'] = profilesMap[id];
+        }
+
         if (mounted) setState(() { _procurements = res; _isLoading = false; });
       } else {
-        var query = _client.from('procurements').select('*, profiles:requester_id(*)');
+        var query = _client.from('procurements').select();
         if (_filterStatus != 'ALL') {
           query = query.eq('status', _filterStatus.toLowerCase().capitalize());
         }
@@ -75,7 +105,19 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
           final dateStr = DateFormat('yyyy-MM-dd').format(_filterDate!);
           query = query.gte('created_at', '${dateStr}T00:00:00').lte('created_at', '${dateStr}T23:59:59');
         }
-        final res = await query.order('created_at', ascending: false);
+        final List<dynamic> res = await query.order('created_at', ascending: false);
+        
+        final ids = res.map((item) => item['requester_id']).where((id) => id != null).toSet().toList();
+        List<dynamic> profilesList = [];
+        if (ids.isNotEmpty) {
+          profilesList = await _client.from('profiles').select().inFilter('id', ids);
+        }
+        final profilesMap = {for (var prof in profilesList) prof['id']: prof};
+        for (var item in res) {
+          final id = item['requester_id'];
+          item['profiles'] = profilesMap[id];
+        }
+
         if (mounted) setState(() { _procurements = res; _isLoading = false; });
       }
     } catch (e) {
@@ -85,10 +127,140 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
 
   Future<void> _updateStatus(String id, String status) async {
     try {
-      final table = widget.isMandiPOFilter ? 'mandi_purchase_orders' : 'procurements';
+      final table = _isMandiPOFilter ? 'mandi_purchase_orders' : 'procurements';
       await _client.from(table).update({'status': status}).eq('id', id);
       _fetchProcurements();
     } catch (_) {}
+  }
+
+  // ── CSV Export ─────────────────────────────────────────────────────────────
+
+  Future<void> _exportProcurementsToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: _isMandiPOFilter ? 'Mandi PO' : 'Canteen/Mess Procurements',
+      isImport: false,
+    );
+    if (range == null) return;
+
+    try {
+      final buffer = StringBuffer();
+      final headers = _isMandiPOFilter
+          ? ['PO ID', 'Seller Name', 'Item Name', 'Qty', 'Rate', 'Total', 'Status', 'Date']
+          : ['Procurement ID', 'Requester Name', 'Item Name', 'Qty', 'Estimated Price', 'Status', 'Date'];
+      buffer.writeln(headers.join(','));
+
+      final filtered = _procurements.where((p) {
+        if (p['created_at'] != null) {
+          final dt = DateTime.tryParse(p['created_at'].toString());
+          if (dt != null) {
+            return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+          }
+        }
+        return true;
+      }).toList();
+
+      for (var p in filtered) {
+        final profile = p['profiles'] ?? {};
+        final List<String> row = _isMandiPOFilter
+            ? [
+                p['id']?.toString() ?? '',
+                '"${(profile['full_name'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+                '"${(p['item_name'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+                (p['quantity'] ?? 0).toString(),
+                (p['agreed_rate'] ?? 0.0).toString(),
+                (p['total_amount'] ?? 0.0).toString(),
+                p['status']?.toString() ?? 'Pending',
+                p['created_at']?.toString() ?? '',
+              ]
+            : [
+                p['id']?.toString() ?? '',
+                '"${(profile['full_name'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+                '"${(p['item_name'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+                (p['quantity'] ?? 0).toString(),
+                (p['estimated_price'] ?? 0.0).toString(),
+                p['status']?.toString() ?? 'Pending',
+                p['created_at']?.toString() ?? '',
+              ];
+        buffer.writeln(row.join(','));
+      }
+
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = '${_isMandiPOFilter ? "mandi_po" : "procurements"}_$dateLabel.csv';
+
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsString(buffer.toString());
+        await Share.shareXFiles([XFile(file.path)], text: 'Procurement CSV Export');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
+  // ── CSV Import ─────────────────────────────────────────────────────────────
+
+  Future<void> _importProcurementsFromCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: _isMandiPOFilter ? 'Mandi PO' : 'Canteen/Mess Procurements',
+      isImport: true,
+    );
+    if (range == null) return;
+
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      if (result == null) return;
+
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        lines = await File(result.files.single.path!).readAsLines();
+      }
+
+      if (lines.length < 2) return;
+
+      final table = _isMandiPOFilter ? 'mandi_purchase_orders' : 'procurements';
+      int successCount = 0;
+      for (int i = 1; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.isEmpty) continue;
+
+        final cells = line.split(',');
+        if (cells.length < 5) continue;
+
+        final id = cells[0].trim();
+        final status = cells[6].trim();
+
+        if (id.isNotEmpty && id.length > 5) {
+          await _client.from(table).update({
+            'status': status.toLowerCase(),
+          }).eq('id', id);
+          successCount++;
+        }
+      }
+
+      _fetchProcurements();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Updated $successCount procurements from CSV successfully.'), backgroundColor: Colors.greenAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
   @override
@@ -102,122 +274,179 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text(widget.isMandiPOFilter ? 'MANDI PROCUREMENTS' : 'PURCHASE REQUESTS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
-        backgroundColor: Colors.transparent, elevation: 0,
+        title: Text('PROCUREMENT CENTER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(icon: Icon(Icons.refresh_rounded, color: textColor), onPressed: _fetchProcurements),
+          IconButton(icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent), onPressed: _importProcurementsFromCSV, tooltip: 'Import CSV'),
+          IconButton(icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent), onPressed: _exportProcurementsToCSV, tooltip: 'Export CSV'),
+          IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.indigoAccent), onPressed: () {
+            Navigator.push(context, MaterialPageRoute(builder: (_) => const AddProcurementScreen())).then((_) => _fetchProcurements());
+          }),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showCreateRequestModal,
-        backgroundColor: Colors.indigoAccent,
-        icon: Icon(widget.isMandiPOFilter ? Icons.receipt_long_rounded : Icons.add_shopping_cart_rounded, color: Colors.white),
-        label: Text(widget.isMandiPOFilter ? 'CREATE PO' : 'NEW REQUEST', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 2)),
-      ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-        : Column(
-            children: [
-              _buildAnalyticsHeader(isDark),
-              _buildFilterSection(isDark),
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _fetchProcurements,
-                  child: _procurements.isEmpty 
-                  ? _emptyState(isDark)
-                  : ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                      itemCount: _procurements.length,
-                      itemBuilder: (context, i) => FadeInUp(
-                        delay: Duration(milliseconds: i * 50),
-                        child: _buildProcurementCard(_procurements[i], cardColor, borderColor, isDark),
+      body: Column(
+        children: [
+          // Toggle filter slider between Campus Shop/Mess and Mandi Procurements
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+            child: Container(
+              height: 46,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _isMandiPOFilter = false;
+                          _filterEmployeeId = null;
+                        });
+                        _loadInitialData();
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: !_isMandiPOFilter ? Colors.indigoAccent : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          'CANTEEN & MESS',
+                          style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            color: !_isMandiPOFilter ? Colors.white : (isDark ? Colors.white38 : Colors.black45),
+                            letterSpacing: 1,
+                          ),
+                        ),
                       ),
                     ),
-                ),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Widget _buildAnalyticsHeader(bool isDark) {
-    int requested = _procurements.where((p) => (p['status']?.toString().toLowerCase() ?? '') == 'requested').length;
-    int procured = _procurements.where((p) => (p['status']?.toString().toLowerCase() ?? '') == 'procured').length;
-    
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-      child: Row(children: [
-        _analyticBox('PENDING', '$requested', Colors.orangeAccent, isDark),
-        const SizedBox(width: 12),
-        _analyticBox('PROCURED', '$procured', Colors.greenAccent, isDark),
-        const SizedBox(width: 12),
-        _analyticBox('TICKETS', '${_procurements.length}', Colors.indigoAccent, isDark),
-      ]),
-    );
-  }
-
-  Widget _analyticBox(String l, String v, Color c, bool isDark) {
-    return Expanded(child: Container(padding: const EdgeInsets.symmetric(vertical: 24), decoration: BoxDecoration(color: isDark?Colors.white.withOpacity(0.02):Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark?Colors.white.withOpacity(0.05):Colors.black.withOpacity(0.05))), child: Column(children: [Text(v, style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w900, color: c)), Text(l, style: TextStyle(color: isDark?Colors.white24:Colors.black.withOpacity(0.24), fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1))])));
-  }
-
-  Widget _buildFilterSection(bool isDark) {
-    final statuses = ['ALL', 'REQUESTED', 'PROCURED', 'CANCELLED'];
-    return Column(
-      children: [
-        Container(
-          height: 48,
-          margin: const EdgeInsets.only(bottom: 16),
-          child: ListView.builder( scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 24), itemCount: statuses.length, itemBuilder: (ctx, i) {
-            final s = statuses[i];
-            final sel = _filterStatus == s;
-            return GestureDetector(
-              onTap: () => setState(() { _filterStatus = s; _fetchProcurements(); }),
-              child: Container(margin: const EdgeInsets.only(right: 12), padding: const EdgeInsets.symmetric(horizontal: 20), decoration: BoxDecoration(color: sel?Colors.indigoAccent:(isDark?Colors.white.withOpacity(0.05):Colors.black.withOpacity(0.05)), borderRadius: BorderRadius.circular(15)), alignment: Alignment.center, child: Text(s, style: GoogleFonts.outfit(color: sel?Colors.white:(isDark?Colors.white24:Colors.black26), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)))
-            );
-          }),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container( padding: const EdgeInsets.symmetric(horizontal: 16), decoration: BoxDecoration(color: isDark?Colors.white.withOpacity(0.04):Colors.black.withOpacity(0.04), borderRadius: BorderRadius.circular(15)), 
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String?>(
-                    value: _filterEmployeeId, dropdownColor: isDark?const Color(0xFF16181A):Colors.white, hint: Text('STAFF_FILTER', style: TextStyle(color: isDark?Colors.white24:Colors.black26, fontSize: 10, fontWeight: FontWeight.bold)),
-                    items: [
-                      const DropdownMenuItem(value: null, child: Text('ALL_REQUESTERS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))),
-                      ..._staffList.map((s) => DropdownMenuItem(value: s['id'], child: Text(s['full_name']?.toString().toUpperCase() ?? 'STAFF', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold))))
-                    ],
-                    onChanged: (v) { setState(() => _filterEmployeeId = v); _fetchProcurements(); }
                   ),
-                ))),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () async {
-                     final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2024), lastDate: DateTime(2026));
-                     if (d != null) { setState(() => _filterDate = d); _fetchProcurements(); }
-                  },
-                  child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: _filterDate!=null?Colors.indigoAccent:(isDark?Colors.white.withOpacity(0.04):Colors.black.withOpacity(0.04)), borderRadius: BorderRadius.circular(15)), child: Icon(Icons.calendar_month_rounded, color: _filterDate!=null?Colors.white:Colors.indigoAccent, size: 20))
-                ),
-            ],
+                  Expanded(
+                    child: InkWell(
+                      onTap: () {
+                        setState(() {
+                          _isMandiPOFilter = true;
+                          _filterEmployeeId = null;
+                        });
+                        _loadInitialData();
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: _isMandiPOFilter ? Colors.indigoAccent : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Text(
+                          'MANDI PO',
+                          style: GoogleFonts.outfit(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                            color: _isMandiPOFilter ? Colors.white : (isDark ? Colors.white38 : Colors.black45),
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-      ],
+          _buildFilterRow(isDark, cardColor, borderColor),
+          Expanded(
+            child: _isLoading 
+              ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+              : _procurements.isEmpty
+                ? _emptyState(isDark)
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    itemCount: _procurements.length,
+                    itemBuilder: (context, index) => _procurementCard(_procurements[index], isDark, cardColor, borderColor),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildProcurementCard(dynamic data, Color cardColor, Color borderColor, bool isDark) {
-    if (widget.isMandiPOFilter) {
-      final profile = data['profiles'];
-      final status = data['status']?.toString().toUpperCase() ?? 'SENT';
-      bool isPending = status == 'SENT' || status == 'DRAFT';
-      final textColor = isDark ? Colors.white : Colors.black;
+  Widget _buildFilterRow(bool isDark, Color cardColor, Color borderColor) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+      child: Row(
+        children: [
+          _statusChip('ALL', isDark),
+          const SizedBox(width: 8),
+          _statusChip('REQUESTED', isDark),
+          const SizedBox(width: 8),
+          _statusChip('APPROVED', isDark),
+          const SizedBox(width: 8),
+          _statusChip('PROCURED', isDark),
+          const SizedBox(width: 8),
+          _statusChip('REJECTED', isDark),
+          const SizedBox(width: 16),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(12), border: Border.all(color: borderColor)),
+            child: DropdownButton<String>(
+              value: _filterEmployeeId,
+              hint: const Text('BY PERSON', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+              underline: const SizedBox(),
+              style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 11, fontWeight: FontWeight.bold),
+              dropdownColor: isDark ? const Color(0xFF16181A) : Colors.white,
+              onChanged: (val) {
+                setState(() => _filterEmployeeId = val);
+                _fetchProcurements();
+              },
+              items: [
+                const DropdownMenuItem(value: null, child: Text('ALL STAFF')),
+                ..._staffList.map((s) => DropdownMenuItem(value: s['id']?.toString(), child: Text((s['full_name'] ?? 'Staff').toString().toUpperCase()))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
-      return Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(24),
+  Widget _statusChip(String label, bool isDark) {
+    final active = _filterStatus == label;
+    return ChoiceChip(
+      label: Text(label, style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.bold, color: active ? Colors.white : (isDark ? Colors.white30 : Colors.black45))),
+      selected: active,
+      selectedColor: Colors.indigoAccent,
+      backgroundColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+      onSelected: (sel) {
+        if (sel) {
+          setState(() => _filterStatus = label);
+          _fetchProcurements();
+        }
+      },
+    );
+  }
+
+  Widget _procurementCard(dynamic p, bool isDark, Color cardColor, Color borderColor) {
+    final name = p['item_name'] ?? 'Procurement Item';
+    final qty = p['quantity'] ?? 0;
+    final status = p['status']?.toString().toUpperCase() ?? 'PENDING';
+    
+    final cost = _isMandiPOFilter 
+      ? (p['total_amount'] ?? 0.0)
+      : (p['estimated_price'] ?? 0.0);
+
+    final requester = p['profiles']?['full_name'] ?? 'Requester';
+
+    return FadeInUp(
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(24), border: Border.all(color: borderColor)),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,315 +454,63 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Expanded(
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text((data['product_name'] ?? 'ITEM').toString().toUpperCase(), style: GoogleFonts.outfit(color: textColor, fontWeight: FontWeight.w900, fontSize: 18)),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        const Icon(Icons.agriculture_rounded, color: Colors.green, size: 14),
-                        const SizedBox(width: 8),
-                        Text('Seller: ${data['seller_name'] ?? 'Farmer'}', style: const TextStyle(color: Colors.green, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
-                      ],
-                    ),
-                  ]),
-                ),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Text('MANDI PO', style: TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1))),
-              ],
-            ),
-            const SizedBox(height: 20),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text('QUANTITY', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.bold)),
-                Text('${data['quantity']} ${data['unit'] ?? 'kg'}', style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text(name.toString().toUpperCase(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('₹${cost.toStringAsFixed(0)}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: Colors.greenAccent, fontSize: 16)),
               ],
             ),
             const SizedBox(height: 8),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('RATE PER UNIT', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.bold)),
-                Text('₹${data['rate_per_unit']}', style: TextStyle(color: textColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                Text('Qty: $qty', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                Text(_isMandiPOFilter ? 'Seller: $requester' : 'By: $requester', style: const TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
-            const SizedBox(height: 8),
+            const Divider(height: 24, color: Colors.white10),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('TOTAL VALUATION', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.bold)),
-                Text('₹${data['total_amount']}', style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.w900)),
-              ],
-            ),
-            if (data['notes'] != null && data['notes'].toString().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Text(data['notes'], style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 12, height: 1.5, fontWeight: FontWeight.w500)),
-            ],
-            if (data['photo_url'] != null) ...[
-              const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  data['photo_url'],
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (c,e,s) => const SizedBox.shrink(),
-                ),
-              ),
-            ],
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(DateFormat('dd MMM yyyy').format(DateTime.parse(data['created_at'])), style: TextStyle(color: isDark?Colors.white12:Colors.black12, fontSize: 9, fontWeight: FontWeight.bold)),
-                if (isPending) Row(children: [
-                  _miniActionBtn('CANCEL PO', Colors.redAccent.withOpacity(0.1), Colors.redAccent, () => _updateStatus(data['id'], 'cancelled')),
-                ]) else Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: status=='RECEIVED'?Colors.greenAccent.withOpacity(0.1):Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(status, style: TextStyle(color: status=='RECEIVED'?Colors.greenAccent:Colors.redAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    final profile = data['profiles'];
-    final status = data['status']?.toString().toUpperCase() ?? 'REQUESTED';
-    final priority = data['priority']?.toString().toUpperCase() ?? 'NORMAL';
-    bool isPending = status == 'REQUESTED';
-    final textColor = isDark ? Colors.white : Colors.black;
-    
-    return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(24), border: Border.all(color: borderColor)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Expanded(
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(data['item_name'].toString().toUpperCase(), style: GoogleFonts.outfit(color: textColor, fontWeight: FontWeight.w900, fontSize: 18)),
-                  const SizedBox(height: 4),
+                _statusBadge(status),
+                if (status == 'PENDING' || status == 'REQUESTED' || status == 'SENT')
                   Row(
                     children: [
-                      CircleAvatar(radius: 8, backgroundColor: Colors.indigoAccent.withOpacity(0.1), backgroundImage: profile?['avatar_url']!=null?NetworkImage(profile['avatar_url']):null),
-                      const SizedBox(width: 8),
-                      Text('By: ${profile?['full_name'] ?? 'Personnel'}', style: const TextStyle(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                      IconButton(icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.greenAccent, size: 20), onPressed: () => _updateStatus(p['id'], _isMandiPOFilter ? 'received' : 'Approved')),
+                      IconButton(icon: const Icon(Icons.cancel_outlined, color: Colors.redAccent, size: 20), onPressed: () => _updateStatus(p['id'], 'Rejected')),
                     ],
-                  ),
-                ]),
-              ),
-              _priorityBadge(priority),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Text(data['description'] ?? 'No operational specifics provided.', style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 12, height: 1.5, fontWeight: FontWeight.w500)),
-          const SizedBox(height: 24),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(DateFormat('dd MMM yyyy').format(DateTime.parse(data['created_at'])), style: TextStyle(color: isDark?Colors.white12:Colors.black12, fontSize: 9, fontWeight: FontWeight.bold)),
-              if (isPending) Row(children: [
-                _miniActionBtn('DECLINE', Colors.redAccent.withOpacity(0.1), Colors.redAccent, () => _updateStatus(data['id'], 'Cancelled')),
-                const SizedBox(width: 8),
-                _miniActionBtn('APPROVE', Colors.greenAccent.withOpacity(0.1), Colors.greenAccent, () => _updateStatus(data['id'], 'Procured')),
-              ]) else Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: status=='PROCURED'?Colors.greenAccent.withOpacity(0.1):Colors.redAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(status, style: TextStyle(color: status=='PROCURED'?Colors.greenAccent:Colors.redAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.5))),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _priorityBadge(String p) {
-    Color color = Colors.blue;
-    if (p == 'URGENT') color = Colors.orange;
-    if (p == 'EMERGENCY') color = Colors.redAccent;
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Text(p, style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)));
-  }
-
-  Widget _miniActionBtn(String label, Color bg, Color text, VoidCallback onTap) {
-    return GestureDetector( onTap: onTap, child: Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(14)), child: Text(label, style: GoogleFonts.outfit(color: text, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1))));
-  }
-
-  void _showCreateRequestModal() {
-    if (widget.isMandiPOFilter) {
-      _showMandiPOCreationModal();
-      return;
-    }
-     final itemCtrl = TextEditingController();
-     final descCtrl = TextEditingController();
-     String priority = 'Normal';
-     
-     showModalBottomSheet(
-       context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-       builder: (ctx) => StatefulBuilder(
-         builder: (ctx, setModalState) {
-           final isDark = Theme.of(context).brightness == Brightness.dark;
-           return Container(
-             padding: EdgeInsets.fromLTRB(32, 32, 32, MediaQuery.of(ctx).viewInsets.bottom + 32),
-             decoration: BoxDecoration(color: isDark?const Color(0xFF16181A):Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(40))),
-             child: Column(
-               mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
-               children: [
-                 Text('NEW PROCUREMENT REQUEST', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                 const SizedBox(height: 24),
-                 _modalField(itemCtrl, 'ITEM_NAME', isDark),
-                 const SizedBox(height: 16),
-                 _modalField(descCtrl, 'SPECIFICATIONS_&_REASON', isDark, lines: 3),
-                 const SizedBox(height: 24),
-                 _priorityPicker(priority, (v) => setModalState(() => priority = v), isDark),
-                 const SizedBox(height: 40),
-                  SizedBox(width: double.infinity, height: 65, child: ElevatedButton(onPressed: () async {
-                     try {
-                       final user = _client.auth.currentUser;
-                       if (user == null) throw 'Authentication Protocol Failure: No Active Session';
-                       
-                       await _client.from('procurements').insert({
-                         'item_name': itemCtrl.text, 
-                         'description': descCtrl.text, 
-                         'priority': priority, 
-                         'requester_id': user.id, 
-                         'status': 'Requested'
-                       });
-                       
-                       if (mounted) {
-                         Navigator.pop(ctx);
-                         _fetchProcurements();
-                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('PROCUREMENT_REQUEST_SUBMITTED'), backgroundColor: Colors.indigoAccent));
-                       }
-                     } catch (e) {
-                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('SUBMISSION_ERROR: $e'), backgroundColor: Colors.redAccent));
-                     }
-                  }, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))), child: Text('SUBMIT_REQUEST', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2))))
-               ],
-             ),
-           );
-         }
-       )
-     );
-  }
-
-  void _showMandiPOCreationModal() async {
-    // Dynamically retrieve sellers and mandi items to initialize dropdown lists
-    List<dynamic> sellers = [];
-    List<dynamic> products = [];
-    try {
-      final sRes = await _client.from('profiles').select('id, full_name, phone_no').eq('role', 'farmer_seller');
-      final pRes = await _client.from('shop_items').select().eq('is_mandi', true);
-      sellers = sRes as List;
-      products = pRes as List;
-    } catch (_) {}
-
-    if (!mounted) return;
-
-    String? selSellerId;
-    String? selProductId;
-    final qtyCtrl = TextEditingController();
-    final rateCtrl = TextEditingController();
-    final notesCtrl = TextEditingController();
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModalState) {
-          final isDark = Theme.of(context).brightness == Brightness.dark;
-          return Container(
-            padding: EdgeInsets.fromLTRB(32, 32, 32, MediaQuery.of(ctx).viewInsets.bottom + 32),
-            decoration: BoxDecoration(color: isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(40))),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('NEW PURCHASE ORDER', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
-                const SizedBox(height: 24),
-                DropdownButtonFormField<String>(
-                  value: selSellerId,
-                  hint: const Text('SELECT SELLER'),
-                  dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
-                  items: sellers.map((s) => DropdownMenuItem<String>(value: s['id'], child: Text((s['full_name'] ?? 'Seller').toString().toUpperCase()))).toList(),
-                  onChanged: (val) => setModalState(() => selSellerId = val),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selProductId,
-                  hint: const Text('SELECT ITEM'),
-                  dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
-                  items: products.map((p) => DropdownMenuItem<String>(value: p['id'], child: Text((p['name'] ?? 'Item').toString().toUpperCase()))).toList(),
-                  onChanged: (val) => setModalState(() => selProductId = val),
-                ),
-                const SizedBox(height: 16),
-                _modalField(qtyCtrl, 'QUANTITY (kg/pcs)', isDark),
-                const SizedBox(height: 16),
-                _modalField(rateCtrl, 'PROPOSED RATE (₹)', isDark),
-                const SizedBox(height: 16),
-                _modalField(notesCtrl, 'ADDITIONAL NOTES', isDark),
-                const SizedBox(height: 32),
-                SizedBox(
-                  width: double.infinity,
-                  height: 55,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (selSellerId == null || selProductId == null || qtyCtrl.text.isEmpty || rateCtrl.text.isEmpty) return;
-                      try {
-                        final user = _client.auth.currentUser;
-                        final s = sellers.firstWhere((element) => element['id'] == selSellerId);
-                        final p = products.firstWhere((element) => element['id'] == selProductId);
-                        final double q = double.tryParse(qtyCtrl.text) ?? 0.0;
-                        final double r = double.tryParse(rateCtrl.text) ?? 0.0;
-                        
-                        await _client.from('mandi_purchase_orders').insert({
-                          'created_by': user!.id,
-                          'seller_id': selSellerId,
-                          'seller_name': s['full_name'],
-                          'seller_phone': s['phone_no'],
-                          'product_id': selProductId,
-                          'product_name': p['name'],
-                          'quantity': q,
-                          'unit': p['unit'] ?? 'kg',
-                          'rate_per_unit': r,
-                          'total_amount': q * r,
-                          'notes': notesCtrl.text,
-                          'status': 'sent',
-                        });
-                        Navigator.pop(ctx);
-                        _fetchProcurements();
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Purchase order created successfully'), backgroundColor: Colors.green));
-                      } catch (err) {
-                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PO SUBMISSION ERROR: $err'), backgroundColor: Colors.redAccent));
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.green, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))),
-                    child: const Text('SEND ORDER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                  ),
-                ),
+                  )
               ],
-            ),
-          );
-        },
+            )
+          ],
+        ),
       ),
     );
   }
 
-  Widget _modalField(TextEditingController ctrl, String hint, bool isDark, {int lines = 1}) {
-    return TextField(controller: ctrl, maxLines: lines, style: const TextStyle(fontSize: 14), decoration: InputDecoration(hintText: hint, hintStyle: TextStyle(color: isDark ? Colors.white10 : Colors.black12, fontSize: 14, fontWeight: FontWeight.bold), filled: true, fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), contentPadding: const EdgeInsets.all(20), border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))), enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)))));
-  }
+  Widget _statusBadge(String status) {
+    Color bg = Colors.amberAccent.withOpacity(0.12);
+    Color fg = Colors.amberAccent;
+    if (status == 'APPROVED' || status == 'RECEIVED') { bg = Colors.greenAccent.withOpacity(0.12); fg = Colors.greenAccent; }
+    if (status == 'REJECTED') { bg = Colors.redAccent.withOpacity(0.12); fg = Colors.redAccent; }
 
-  Widget _priorityPicker(String selected, Function(String) onSelect, bool isDark) {
-    final ps = ['Normal', 'Urgent', 'Emergency'];
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('PRIORITY', style: TextStyle(color: isDark?Colors.white24:Colors.black26, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.5)), const SizedBox(height: 12), Row(children: ps.map((p) => Expanded(child: GestureDetector(onTap: () => onSelect(p), child: Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: selected == p ? Colors.indigoAccent : (isDark?Colors.white.withOpacity(0.04):Colors.black.withOpacity(0.04)), borderRadius: BorderRadius.circular(12)), child: Center(child: Text(p.toUpperCase(), style: TextStyle(color: selected == p?Colors.white : (isDark?Colors.white24:Colors.black26), fontSize: 8, fontWeight: FontWeight.w900))))))).toList())]);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(10)),
+      child: Text(status, style: TextStyle(color: fg, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+    );
   }
 
   Widget _emptyState(bool isDark) {
-     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.inventory_2_outlined, size: 48, color: isDark?Colors.white10:Colors.black12), const SizedBox(height: 16), Text('NO PURCHASING LOGS FOUND', style: GoogleFonts.outfit(color: isDark?Colors.white10:Colors.black12, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 2))]));
+    return Center(
+      child: FadeIn(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.receipt_long_rounded, size: 48, color: isDark ? Colors.white10 : Colors.black12),
+            const SizedBox(height: 12),
+            Text('NO TRANSACTIONS RECORDED', style: GoogleFonts.outfit(color: isDark ? Colors.white24 : Colors.black26, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+          ],
+        ),
+      ),
+    );
   }
-}
-
-extension StringExtension on String {
-  String capitalize() => this.isNotEmpty ? '${this[0].toUpperCase()}${this.substring(1)}' : '';
 }

@@ -51,6 +51,18 @@ class _AdminBiometricSyncScreenState extends State<AdminBiometricSyncScreen> {
     }
   }
 
+  Future<void> _toggleVerification(String userId, bool currentStatus) async {
+    try {
+      await Supabase.instance.client.from('profiles').update({
+        'is_verified': !currentStatus
+      }).eq('id', userId);
+      _loadStudents();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('ID verification status updated.'), backgroundColor: Colors.green));
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Verification update failed: $e'), backgroundColor: Colors.redAccent));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -59,7 +71,7 @@ class _AdminBiometricSyncScreenState extends State<AdminBiometricSyncScreen> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF08090A) : Colors.white,
       appBar: AppBar(
-        title: Text('BIOMETRIC SETTINGS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2)),
+        title: Text('PROFILE SECURITY & BIOMETRICS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -102,6 +114,9 @@ class _AdminBiometricSyncScreenState extends State<AdminBiometricSyncScreen> {
   Widget _studentTile(Map<String, dynamic> s, bool isDark) {
     final hasFace = s['face_embedding'] != null;
     final hasFinger = s['biometric_id'] != null;
+    final isVerified = s['is_verified'] == true;
+    final hasDocs = s['id_document_url'] != null || s['document_url'] != null || s['avatar_url'] != null;
+    final docUrl = s['id_document_url'] ?? s['document_url'] ?? s['avatar_url'];
     final room = s['room_id']?.toString().split('-').first ?? 'N/A';
 
     return Container(
@@ -121,19 +136,79 @@ class _AdminBiometricSyncScreenState extends State<AdminBiometricSyncScreen> {
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(s['full_name'] ?? 'Unknown Student', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text('ROOM: $room • BATCH: ${s['batch_year'] ?? '2024'}', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.bold)),
+                  Text('ROOM: $room • ROLE: ${(s['role'] ?? 'student').toString().toUpperCase()}', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.bold)),
                 ]),
               ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          // ID documents checklist and verified state
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  if (docUrl != null) {
+                    showDialog(
+                      context: context,
+                      builder: (_) => Dialog(
+                        backgroundColor: Colors.transparent,
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(color: isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: BorderRadius.circular(16)),
+                          child: docUrl.toString().startsWith('http') 
+                            ? Image.network(docUrl.toString(), fit: BoxFit.contain)
+                            : const Padding(
+                                padding: EdgeInsets.all(32),
+                                child: Text('Local Document Path (Cannot view on Web)', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
+                              ),
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: hasDocs ? Colors.teal.withOpacity(0.1) : Colors.redAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(hasDocs ? Icons.attach_file_rounded : Icons.money_off_csred_rounded, size: 10, color: hasDocs ? Colors.teal : Colors.redAccent),
+                      const SizedBox(width: 6),
+                      Text(hasDocs ? 'DOC ATTACHED' : 'NO DOCS ATTACHED', style: GoogleFonts.outfit(fontSize: 8, fontWeight: FontWeight.w900, color: hasDocs ? Colors.teal : Colors.redAccent)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: () => _toggleVerification(s['id'], isVerified),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: isVerified ? Colors.greenAccent.withOpacity(0.1) : Colors.orangeAccent.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(isVerified ? Icons.verified_rounded : Icons.cancel_outlined, size: 10, color: isVerified ? Colors.greenAccent : Colors.orangeAccent),
+                      const SizedBox(width: 6),
+                      Text(isVerified ? 'VERIFIED' : 'NOT VERIFIED', style: GoogleFonts.outfit(fontSize: 8, fontWeight: FontWeight.w900, color: isVerified ? Colors.greenAccent : Colors.orangeAccent)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Row(
             children: [
               _statusBadge('FACE_ID', hasFace, Colors.greenAccent, isDark, () => _resetBiometrics(s['id'], 'face')),
               const SizedBox(width: 12),
               _statusBadge('FINGER_PT', hasFinger, Colors.orangeAccent, isDark, () => _resetBiometrics(s['id'], 'fingerprint')),
               const Spacer(),
-              const Icon(Icons.verified_user_outlined, color: Colors.indigoAccent, size: 14),
+              const Icon(Icons.verified_user_rounded, color: Colors.indigoAccent, size: 14),
             ],
           ),
         ],

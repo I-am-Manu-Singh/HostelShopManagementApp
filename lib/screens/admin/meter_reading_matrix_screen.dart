@@ -10,6 +10,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
+import 'dart:ui';
 
 class MeterReadingMatrixScreen extends StatefulWidget {
   const MeterReadingMatrixScreen({super.key});
@@ -19,8 +21,12 @@ class MeterReadingMatrixScreen extends StatefulWidget {
       _MeterReadingMatrixScreenState();
 }
 
-class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
+class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
+    with SingleTickerProviderStateMixin {
   final _client = Supabase.instance.client;
+
+  // --- Tab ---
+  late TabController _tabController;
 
   bool _isLoading = true;
   bool _isSaving = false;
@@ -46,18 +52,150 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
 
   double _unitRate = 12.0;
 
+  // Synchronized scroll controllers for 2D Sticky Matrix
+  final ScrollController _horizHeader = ScrollController();
+  final ScrollController _horizBody = ScrollController();
+  final ScrollController _vertRooms = ScrollController();
+  final ScrollController _vertBody = ScrollController();
+
+  // --- Intelligence tab data ---
+  List<dynamic> _intelReadings = [];
+  List<dynamic> _intelUnits = [];
+  final Map<String, TextEditingController> _intelControllers = {};
+  final Map<String, double> _intelLastReadings = {};
+  DateTime _selectedMonth = DateTime(DateTime.now().year, DateTime.now().month, 1);
+  bool _intelLoading = false;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+    _tabController.addListener(() { if (mounted) setState(() {}); });
+    _setupScrollSynchronization();
     _fetchBuildings();
+    _fetchIntelligenceData();
+  }
+
+  void _setupScrollSynchronization() {
+    _horizHeader.addListener(() {
+      if (_horizBody.hasClients && _horizBody.offset != _horizHeader.offset) {
+        _horizBody.jumpTo(_horizHeader.offset);
+      }
+    });
+    _horizBody.addListener(() {
+      if (_horizHeader.hasClients && _horizHeader.offset != _horizBody.offset) {
+        _horizHeader.jumpTo(_horizBody.offset);
+      }
+    });
+    _vertRooms.addListener(() {
+      if (_vertBody.hasClients && _vertBody.offset != _vertRooms.offset) {
+        _vertBody.jumpTo(_vertRooms.offset);
+      }
+    });
+    _vertBody.addListener(() {
+      if (_vertRooms.hasClients && _vertRooms.offset != _vertBody.offset) {
+        _vertRooms.jumpTo(_vertBody.offset);
+      }
+    });
   }
 
   @override
   void dispose() {
+    _tabController.dispose();
     for (final c in _controllers.values) {
       c.dispose();
     }
+    for (final c in _intelControllers.values) {
+      c.dispose();
+    }
+    _horizHeader.dispose();
+    _horizBody.dispose();
+    _vertRooms.dispose();
+    _vertBody.dispose();
     super.dispose();
+  }
+
+  // ── Intelligence Data ──────────────────────────────────────────────────────
+
+  Future<void> _fetchIntelligenceData() async {
+    setState(() => _intelLoading = true);
+    try {
+      final rateRes = await _client.from('fee_structure').select('price').eq('service_name', 'Power').maybeSingle();
+      if (rateRes != null) _unitRate = (rateRes['price'] as num).toDouble();
+
+      final enrollmentsRes = await _client.from('hostel_enrollments').select('*, hostel_rooms(*), profiles(*)').eq('status', 'Active');
+      final List<dynamic> units = enrollmentsRes;
+      for (var u in units) {
+        final roomId = u['hostel_rooms']['id'];
+        if (!_intelControllers.containsKey(roomId)) {
+          _intelControllers[roomId] = TextEditingController();
+        }
+        final lastReadingRes = await _client.from('meter_readings').select('latest_reading').eq('room_id', roomId).order('reading_date', ascending: false).limit(1).maybeSingle();
+        _intelLastReadings[roomId] = (lastReadingRes?['latest_reading'] as num?)?.toDouble() ?? 0.0;
+      }
+
+      final List<dynamic> readingsRes = await _client.from('meter_readings').select('*, hostel_rooms(*)').order('reading_date', ascending: false);
+      final studentIds = readingsRes.map((r) => r['student_id']).where((id) => id != null).toSet().toList();
+      List<dynamic> studentProfiles = [];
+      if (studentIds.isNotEmpty) {
+        studentProfiles = await _client.from('profiles').select('id, full_name').inFilter('id', studentIds);
+      }
+      final studentMap = {for (var p in studentProfiles) p['id']: p};
+      for (var r in readingsRes) {
+        final sid = r['student_id'];
+        r['profiles'] = studentMap[sid];
+      }
+
+      if (mounted) {
+        setState(() {
+          _intelUnits = units;
+          _intelReadings = readingsRes;
+          _intelLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _intelLoading = false);
+    }
+  }
+
+  Future<void> _submitAllIntelReadings() async {
+    setState(() => _intelLoading = true);
+    bool anySuccess = false;
+    String monthStr = DateFormat('yyyy-MM-01').format(_selectedMonth);
+    try {
+      for (var u in _intelUnits) {
+        final roomId = u['hostel_rooms']['id'];
+        final studentId = u['user_id'];
+        final double lastR = _intelLastReadings[roomId] ?? 0.0;
+        final reading = double.tryParse(_intelControllers[roomId]?.text ?? '');
+        if (reading != null && reading > lastR) {
+          final double units = reading - lastR;
+          final double electricityCharges = units * _unitRate;
+          final roomData = u['hostel_rooms'];
+          await _client.from('meter_readings').upsert({
+            'room_id': roomId,
+            'student_id': studentId,
+            'previous_reading': lastR,
+            'latest_reading': reading,
+            'month_period': monthStr,
+            'reading_date': DateTime.now().toIso8601String().split('T')[0],
+            'electricity_charges': electricityCharges,
+            'building_name': roomData?['building_name'] ?? '',
+          }, onConflict: 'room_id, month_period');
+          anySuccess = true;
+        }
+      }
+      _fetchIntelligenceData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(anySuccess ? 'Power audit synced and bills dispatched.' : 'No new readings detected.'),
+          backgroundColor: anySuccess ? Colors.greenAccent : Colors.orangeAccent,
+        ));
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
+      setState(() => _intelLoading = false);
+    }
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -139,16 +277,15 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
         readingsRes = await _client
             .from('meter_readings')
             .select()
-            .inFilter('room_id', roomIds)
-            .gte('month_period', fromStr)
-            .lte('month_period', toStr);
+            .inFilter('room_id', roomIds);
       }
 
       // Build lookup map
       final readingMap = <String, Map<String, Map<String, dynamic>>>{};
       for (final r in readingsRes) {
         final rid = r['room_id'].toString();
-        final mp = r['month_period'].toString().substring(0, 7); // yyyy-MM
+        final rawPeriod = r['month_period'].toString();
+        final mp = rawPeriod.length >= 7 ? rawPeriod.substring(0, 7) : rawPeriod;
         readingMap[rid] ??= {};
         readingMap[rid]![mp] = {
           'latest_reading': (r['latest_reading'] as num?)?.toDouble(),
@@ -205,6 +342,7 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
       for (final room in _rooms) {
         final rid = room['id'].toString();
         final buildingName = room['building_name']?.toString() ?? '';
+        final double startingMeter = (_readings[rid]?['INITIAL']?['latest_reading'] as num? ?? 0.0).toDouble();
 
         // Get active student in this room for student_id field
         final enrollRes = await _client
@@ -231,7 +369,7 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
               ? DateTime(month.year - 1, 12, 1)
               : DateTime(month.year, month.month - 1, 1);
           final prevMp = _monthStr(prevMonth).substring(0, 7);
-          double prevR = _readings[rid]?[prevMp]?['latest_reading'] ?? 0.0;
+          double prevR = _readings[rid]?[prevMp]?['latest_reading'] ?? startingMeter;
 
           // Also check if existing reading for this room/month already has a previous_reading
           final existingPrev = _readings[rid]?[mp]?['previous_reading'];
@@ -266,6 +404,9 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Save error: $e'), backgroundColor: Colors.redAccent));
+      }
+    } finally {
+      if (mounted) {
         setState(() => _isSaving = false);
       }
     }
@@ -274,6 +415,13 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
   // ── CSV Export ─────────────────────────────────────────────────────────────
 
   Future<void> _exportCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: '${_selectedBuilding ?? "Building"} Matrix',
+      isImport: false,
+    );
+    if (range == null) return;
+
     try {
       final buffer = StringBuffer();
 
@@ -304,12 +452,11 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
         buffer.writeln(row.join(','));
       }
 
-      final filename =
-          '${_selectedBuilding?.replaceAll(' ', '_') ?? 'all'}_meter_readings.csv';
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = '${_selectedBuilding?.replaceAll(' ', '_') ?? 'all'}_meter_matrix_$dateLabel.csv';
       final csvContent = buffer.toString();
 
       if (kIsWeb) {
-        // Real browser download via dart:html
         downloadCsvFile(csvContent, filename);
       } else {
         final tempDir = await getTemporaryDirectory();
@@ -335,11 +482,18 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
   // ── CSV Import ─────────────────────────────────────────────────────────────
 
   Future<void> _importCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: '${_selectedBuilding ?? "Building"} Matrix',
+      isImport: true,
+    );
+    if (range == null) return;
+
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
-        withData: true, // ensures bytes are available on web
+        withData: true,
       );
       if (result == null) return;
 
@@ -362,14 +516,12 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
         return;
       }
 
-      // Parse header: Room, Building, Floor, {MonthLabel}, {MonthLabel Bill (₹)}, ...
+      // Parse header
       final rawHeaders = lines.first.split(',').map((h) => h.trim().replaceAll('"', '')).toList();
 
-      // Identify month columns (skip Room, Building, Floor)
-      // Month col pairs: (reading col index, bill col index, monthStr)
+      // Identify month columns
       final monthCols = <Map<String, dynamic>>[];
       for (int i = 3; i < rawHeaders.length - 1; i += 2) {
-        // Try to parse header as 'MMM yyyy'
         try {
           final dt = DateFormat('MMM yyyy').parse(rawHeaders[i]);
           monthCols.add({
@@ -389,7 +541,6 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
         final line = lines[i].trim();
         if (line.isEmpty) continue;
 
-        // Simple quoted CSV parse
         final cells = _parseCsvLine(line);
         if (cells.length < 4) continue;
 
@@ -397,15 +548,17 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
         final buildingName = cells[1].trim();
         if (roomNumber.isEmpty) continue;
 
-        // Find room_id
+        // Find room
         final roomRes = await _client
             .from('hostel_rooms')
-            .select('id, floor')
+            .select()
             .eq('room_number', roomNumber)
             .eq('building_name', buildingName)
             .maybeSingle();
         if (roomRes == null) continue;
         final rid = roomRes['id'].toString();
+        final initialRes = await _client.from('meter_readings').select('latest_reading').eq('room_id', rid).eq('month_period', 'INITIAL').maybeSingle();
+        final double startingMeter = (initialRes?['latest_reading'] as num? ?? 0.0).toDouble();
 
         // Get active student
         final enrollRes = await _client
@@ -426,7 +579,7 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
           final currR = double.tryParse(rawReading);
           if (currR == null) continue;
 
-          // Fetch previous reading from DB
+          // Fetch previous reading from DB or starting reading
           final prevRes = await _client
               .from('meter_readings')
               .select('latest_reading')
@@ -435,7 +588,7 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
               .order('month_period', ascending: false)
               .limit(1)
               .maybeSingle();
-          final prevR = (prevRes?['latest_reading'] as num?)?.toDouble() ?? 0.0;
+          final prevR = (prevRes?['latest_reading'] as num?)?.toDouble() ?? startingMeter;
           final units = (currR - prevR).clamp(0.0, double.infinity);
           final bill = units * _unitRate;
 
@@ -487,7 +640,144 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
     return cells;
   }
 
-  // ── Build UI ───────────────────────────────────────────────────────────────
+  // ── Tapping Room Details & Starting Meter Modal ───────────────────────────
+
+  Future<void> _showRoomDetailsModal(Map<String, dynamic> room) async {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textStyle = GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 13);
+    final headingStyle = GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1);
+
+    final rid = room['id'].toString();
+
+    // Query active occupants (students) in this room
+    final List<dynamic> occupants = await _client
+        .from('hostel_enrollments')
+        .select('*, profiles(*)')
+        .eq('room_id', rid)
+        .eq('status', 'Active');
+
+    final initialRes = await _client.from('meter_readings').select('latest_reading').eq('room_id', rid).eq('month_period', 'INITIAL').maybeSingle();
+    final double initialReadingVal = (initialRes?['latest_reading'] as num? ?? 0.0).toDouble();
+
+    final ctrl = TextEditingController(text: initialReadingVal.toString());
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (c, setS) => AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text(
+            'ROOM ${room['room_number']} INTEL',
+            style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 15, letterSpacing: 1.5),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Archetype Cost
+                Text('ARCHETYPE & BASE COST', style: headingStyle),
+                const SizedBox(height: 4),
+                Text('Type: ${room['room_type'] ?? "Standard"}', style: textStyle),
+                Text('Base Price: ₹${room['base_price'] ?? "6500"}/month', style: textStyle),
+                const SizedBox(height: 20),
+
+                // Starting Meter Input
+                Text('INITIAL/STARTING METER READING (kWh)', style: headingStyle),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: ctrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    hintText: '0.00',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Occupant details
+                Text('ROOM OCCUPANTS', style: headingStyle),
+                const SizedBox(height: 6),
+                if (occupants.isEmpty)
+                  Text('Vacant (No Active Residents)', style: textStyle.copyWith(color: Colors.grey))
+                else
+                  ...occupants.map((occ) {
+                    final prof = occ['profiles'] ?? {};
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 6),
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.person_rounded, color: Colors.indigoAccent, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(prof['full_name'] ?? 'Resident', style: textStyle.copyWith(fontWeight: FontWeight.bold)),
+                                Text('Role: ${prof['role']?.toString().replaceAll("_", " ").toUpperCase() ?? "Student"}', style: textStyle.copyWith(fontSize: 10, color: Colors.grey)),
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    );
+                  }),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('CLOSE', style: GoogleFonts.outfit(color: Colors.grey, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final double? val = double.tryParse(ctrl.text);
+                if (val != null) {
+                  await _client
+                      .from('meter_readings')
+                      .upsert({
+                        'room_id': rid,
+                        'month_period': 'INITIAL',
+                        'latest_reading': val,
+                        'previous_reading': 0.0,
+                        'reading_date': DateTime.now().toIso8601String().split('T')[0],
+                        'electricity_charges': 0.0,
+                        'building_name': room['building_name'] ?? '',
+                      }, onConflict: 'room_id, month_period');
+                  
+                  // Reload grid readings calculation
+                  Navigator.pop(ctx);
+                  _fetchData();
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Starting meter reading updated successfully.'),
+                    backgroundColor: Colors.greenAccent,
+                  ));
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigoAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text('SAVE INTEL', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Build UI ────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -504,55 +794,292 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
           icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text('METER READING MATRIX',
-            style: GoogleFonts.outfit(
-                fontWeight: FontWeight.w900, fontSize: 14, color: textColor, letterSpacing: 1.5)),
+        title: Text(
+          _tabController.index == 0 ? 'METER MATRIX' : 'POWER INTELLIGENCE',
+          style: GoogleFonts.outfit(
+              fontWeight: FontWeight.w900, fontSize: 14, color: textColor, letterSpacing: 1.5)),
         actions: [
-          // Export
-          Tooltip(
-            message: 'Export CSV',
-            child: IconButton(
-              icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent),
-              onPressed: _exportCSV,
+          if (_tabController.index == 0) ...[
+            Tooltip(
+              message: 'Export CSV',
+              child: IconButton(
+                icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent),
+                onPressed: _exportCSV,
+              ),
             ),
-          ),
-          // Import
-          Tooltip(
-            message: 'Import CSV',
-            child: IconButton(
-              icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent),
-              onPressed: _importCSV,
+            Tooltip(
+              message: 'Import CSV',
+              child: IconButton(
+                icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent),
+                onPressed: _importCSV,
+              ),
             ),
-          ),
-          // Save all
-          Tooltip(
-            message: 'Save All Readings',
-            child: IconButton(
-              icon: _isSaving
-                  ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amberAccent))
-                  : const Icon(Icons.save_rounded, color: Colors.amberAccent),
-              onPressed: _isSaving ? null : _submitReadings,
+            Tooltip(
+              message: 'Save All Readings',
+              child: IconButton(
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 20, height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amberAccent))
+                    : const Icon(Icons.save_rounded, color: Colors.amberAccent),
+                onPressed: _isSaving ? null : _submitReadings,
+              ),
             ),
-          ),
+          ] else ...[
+            IconButton(
+              icon: const Icon(Icons.calendar_month_rounded, color: Colors.amberAccent),
+              tooltip: 'Select Month',
+              onPressed: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _selectedMonth,
+                  firstDate: DateTime(2024),
+                  lastDate: DateTime(2030),
+                  initialDatePickerMode: DatePickerMode.year,
+                );
+                if (picked != null) setState(() => _selectedMonth = DateTime(picked.year, picked.month, 1));
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.refresh_rounded, color: Colors.amberAccent),
+              tooltip: 'Refresh',
+              onPressed: _fetchIntelligenceData,
+            ),
+          ],
         ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.amberAccent,
+          indicatorWeight: 3,
+          labelColor: Colors.amberAccent,
+          unselectedLabelColor: textColor.withOpacity(0.4),
+          labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5),
+          tabs: const [
+            Tab(icon: Icon(Icons.grid_on_rounded, size: 14), text: 'MATRIX'),
+            Tab(icon: Icon(Icons.flash_on_rounded, size: 14), text: 'INTELLIGENCE'),
+          ],
+        ),
       ),
-      body: Column(
+      body: TabBarView(
+        controller: _tabController,
+        physics: const NeverScrollableScrollPhysics(),
         children: [
-          _buildFilterBar(isDark),
-          const Divider(height: 1),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator(color: Colors.amberAccent))
-                : _rooms.isEmpty
-                    ? _buildEmptyState(isDark)
-                    : _buildMatrix(isDark, textColor),
+          // Tab 0: Matrix Grid
+          Column(
+            children: [
+              _buildFilterBar(isDark),
+              const Divider(height: 1),
+              Expanded(
+                child: _isLoading
+                    ? const Center(child: CircularProgressIndicator(color: Colors.amberAccent))
+                    : _rooms.isEmpty
+                        ? _buildEmptyState(isDark)
+                        : _buildMatrix(isDark, textColor),
+              ),
+              _buildLegend(isDark),
+            ],
           ),
-          _buildLegend(isDark),
+          // Tab 1: Intelligence
+          _buildIntelligenceTab(isDark),
         ],
       ),
     );
+  }
+
+  // ── Intelligence Tab UI ─────────────────────────────────────────────────────
+
+  Widget _buildIntelligenceTab(bool isDark) {
+    final textColor = isDark ? Colors.white : Colors.black;
+    Map<String, double> roomConsumption = {};
+    Map<String, int> roomReadingsCount = {};
+    for (var r in _intelReadings) {
+      final roomNo = r['hostel_rooms']?['room_number'] ?? 'N/A';
+      final double delta = (r['latest_reading'] as num? ?? 0.0).toDouble() -
+          (r['previous_reading'] as num? ?? 0.0).toDouble();
+      roomConsumption[roomNo] = (roomConsumption[roomNo] ?? 0.0) + delta;
+      roomReadingsCount[roomNo] = (roomReadingsCount[roomNo] ?? 0) + 1;
+    }
+
+    final floorGroups = <int, List<dynamic>>{};
+    for (var u in _intelUnits) {
+      final roomNo = u['hostel_rooms']['room_number']?.toString() ?? '0';
+      int floor = int.tryParse(roomNo.length > 0 ? roomNo[0] : '0') ?? 0;
+      if (roomNo.length == 4) floor = int.tryParse(roomNo.substring(0, 2)) ?? 0;
+      floorGroups[floor] = (floorGroups[floor] ?? [])..add(u);
+    }
+    final sortedFloors = floorGroups.keys.toList()..sort();
+
+    double totalUnits = 0.0;
+    roomConsumption.values.forEach((v) => totalUnits += v);
+
+    return _intelLoading
+        ? const Center(child: CircularProgressIndicator(color: Colors.amberAccent))
+        : ListView(
+            padding: const EdgeInsets.all(20),
+            children: [
+              // Overview Card
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('POWER AUDIT — ${DateFormat('MMM yyyy').format(_selectedMonth).toUpperCase()}',
+                        style: GoogleFonts.outfit(color: Colors.amberAccent, fontSize: 12, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('${totalUnits.toStringAsFixed(1)} U',
+                              style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, color: textColor)),
+                          Text('TOTAL CONSUMPTION', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ]),
+                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                          Text('₹${(totalUnits * _unitRate).toStringAsFixed(0)}',
+                              style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, color: Colors.amberAccent)),
+                          Text('EST. BILLING', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ]),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Billing input form
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: Colors.amberAccent.withOpacity(0.2)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('DISPATCH BILLS FOR MONTH', style: GoogleFonts.outfit(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                    const SizedBox(height: 16),
+                    ...sortedFloors.map((f) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('FLOOR 0$f', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontWeight: FontWeight.bold, fontSize: 11)),
+                        const SizedBox(height: 8),
+                        ...(floorGroups[f] ?? []).map((u) {
+                          final room = u['hostel_rooms'];
+                          final profile = u['profiles'];
+                          final roomId = room['id'];
+                          final double lastReading = _intelLastReadings[roomId] ?? 0.0;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 6),
+                            child: Row(
+                              children: [
+                                Expanded(flex: 2, child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('UNIT ${room['room_number']}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 12)),
+                                    Text(profile?['full_name'] ?? 'VACANT', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10)),
+                                  ],
+                                )),
+                                Expanded(child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text('PREV', style: TextStyle(fontSize: 9, color: isDark ? Colors.white24 : Colors.black26)),
+                                    Text(lastReading.toStringAsFixed(1), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13)),
+                                  ],
+                                )),
+                                Expanded(child: TextField(
+                                  controller: _intelControllers[roomId],
+                                  keyboardType: TextInputType.number,
+                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                  decoration: const InputDecoration(
+                                    hintText: '000.0',
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    border: OutlineInputBorder(),
+                                  ),
+                                )),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                        const SizedBox(height: 12),
+                      ],
+                    )).toList(),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: _submitAllIntelReadings,
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.amberAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        child: Text('AUTHORIZE & DISPATCH BILLS', style: GoogleFonts.outfit(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Room-wise consumption
+              if (roomConsumption.isNotEmpty) ...[
+                Text('ROOM-WISE CONSUMPTION', style: GoogleFonts.outfit(color: Colors.amberAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                const SizedBox(height: 12),
+                ...roomConsumption.entries.map((e) => Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text('ROOM ${e.key}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                        Text('${roomReadingsCount[e.key] ?? 0} logs', style: TextStyle(fontSize: 10, color: isDark ? Colors.white24 : Colors.black38)),
+                      ]),
+                      Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                        Text('${e.value.toStringAsFixed(1)} U', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, color: Colors.amberAccent)),
+                        Text('₹${(e.value * _unitRate).toStringAsFixed(0)}', style: TextStyle(fontSize: 10, color: isDark ? Colors.white60 : Colors.black54)),
+                      ]),
+                    ],
+                  ),
+                )),
+              ],
+              const SizedBox(height: 20),
+              // Readings log
+              if (_intelReadings.isNotEmpty) ...[
+                Text('METER LOG HISTORY', style: GoogleFonts.outfit(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                const SizedBox(height: 12),
+                ..._intelReadings.take(20).map((r) {
+                  final room = r['hostel_rooms'];
+                  final delta = (r['latest_reading'] as num? ?? 0.0) - (r['previous_reading'] as num? ?? 0.0);
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('ROOM ${room?['room_number'] ?? 'N/A'}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13)),
+                          Text(r['reading_date']?.toString() ?? '', style: TextStyle(fontSize: 10, color: isDark ? Colors.white24 : Colors.black38)),
+                        ]),
+                        Text('+${delta.toStringAsFixed(1)} U', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blueAccent)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ],
+            ],
+          );
   }
 
   // ── Filter bar ─────────────────────────────────────────────────────────────
@@ -566,7 +1093,6 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
         color: cardColor,
         child: Row(
           children: [
-            // Building selector
             Expanded(
               flex: 3,
               child: _buildDropdown(
@@ -583,7 +1109,6 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            // Month count selector
             Expanded(
               flex: 2,
               child: _buildDropdown(
@@ -600,7 +1125,6 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            // Refresh
             Container(
               decoration: BoxDecoration(
                 color: Colors.amberAccent.withOpacity(0.1),
@@ -668,82 +1192,129 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
     final altRowBg = isDark ? const Color(0xFF12141A) : const Color(0xFFFAFBFF);
     final borderColor = isDark ? Colors.white10 : Colors.black.withOpacity(0.06);
 
-    return Scrollbar(
-      thumbVisibility: true,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.vertical,
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Header row ──
-              Container(
-                color: headerBg,
-                child: Row(
+    return Row(
+      children: [
+        // Left Column: Sticky room labels
+        Column(
+          children: [
+            // Top-Left corner: Room title header
+            _headerCell('Room', roomColWidth, headerHeight, isDark, textColor),
+            Container(height: 1, color: borderColor, width: roomColWidth),
+            // Scrollable room labels column
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _vertRooms,
+                scrollDirection: Axis.vertical,
+                physics: const NeverScrollableScrollPhysics(), // Synced from _vertBody
+                child: Column(
                   children: [
-                    // Sticky room column header
-                    _headerCell('Room', roomColWidth, headerHeight, isDark, textColor,
-                        sticky: true),
-                    // Month + bill pair headers
-                    for (final month in _months) ...[
-                      _headerCell(
-                          _monthLabel(month), colWidth, headerHeight, isDark, Colors.indigoAccent),
-                      _headerCell(
-                          '₹ Bill', billColWidth, headerHeight, isDark, Colors.greenAccent.shade400,
-                          fontSize: 10),
-                    ],
-                  ],
-                ),
-              ),
-              Container(height: 1, color: borderColor),
-
-              // ── Data rows ──
-              for (int ri = 0; ri < _rooms.length; ri++) ...[
-                Builder(builder: (context) {
-                  final room = _rooms[ri];
-                  final rid = room['id'].toString();
-                  final bg = ri.isOdd ? altRowBg : rowBg;
-
-                  return Container(
-                    color: bg,
-                    child: Row(
-                      children: [
-                        // Room label
-                        Container(
+                    for (int ri = 0; ri < _rooms.length; ri++) ...[
+                      InkWell(
+                        onTap: () => _showRoomDetailsModal(_rooms[ri]),
+                        child: Container(
                           width: roomColWidth,
                           height: rowHeight,
                           decoration: BoxDecoration(
-                            color: bg,
+                            color: ri.isOdd ? altRowBg : rowBg,
                             border: Border(right: BorderSide(color: borderColor)),
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            room['room_number']?.toString() ?? '-',
+                            _rooms[ri]['room_number']?.toString() ?? '-',
                             style: GoogleFonts.outfit(
-                                fontWeight: FontWeight.bold, fontSize: 12, color: textColor),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Colors.indigoAccent,
+                                decoration: TextDecoration.underline),
                           ),
                         ),
-                        // Month cells
-                        for (final month in _months) ...[
-                          _readingCell(rid, month, colWidth, rowHeight, borderColor, isDark),
-                          _billCell(rid, month, billColWidth, rowHeight, borderColor, isDark),
-                        ],
+                      ),
+                      Container(height: 0.5, color: borderColor, width: roomColWidth),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+
+        // Right Area: Columns and data cells
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Month header row (scrolls horizontally, sticky vertically)
+              SingleChildScrollView(
+                controller: _horizHeader,
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(), // Synced from _horizBody
+                child: Container(
+                  color: headerBg,
+                  child: Row(
+                    children: [
+                      for (final month in _months) ...[
+                        _headerCell(_monthLabel(month), colWidth, headerHeight, isDark, Colors.indigoAccent),
+                        _headerCell('₹ Bill', billColWidth, headerHeight, isDark, Colors.greenAccent.shade400, fontSize: 10),
                       ],
+                    ],
+                  ),
+                ),
+              ),
+              Container(height: 1, color: borderColor),
+
+              // Grid cells (scrolls vertically and horizontally)
+              Expanded(
+                child: Scrollbar(
+                  controller: _vertBody,
+                  thumbVisibility: true,
+                  child: SingleChildScrollView(
+                    controller: _vertBody,
+                    scrollDirection: Axis.vertical,
+                    child: Scrollbar(
+                      controller: _horizBody,
+                      thumbVisibility: true,
+                      child: SingleChildScrollView(
+                        controller: _horizBody,
+                        scrollDirection: Axis.horizontal,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (int ri = 0; ri < _rooms.length; ri++) ...[
+                              Builder(builder: (context) {
+                                final room = _rooms[ri];
+                                final rid = room['id'].toString();
+                                final bg = ri.isOdd ? altRowBg : rowBg;
+
+                                return Container(
+                                  color: bg,
+                                  child: Row(
+                                    children: [
+                                      for (final month in _months) ...[
+                                        _readingCell(rid, month, colWidth, rowHeight, borderColor, isDark),
+                                        _billCell(rid, month, billColWidth, rowHeight, borderColor, isDark),
+                                      ],
+                                    ],
+                                  ),
+                                );
+                              }),
+                              Container(height: 0.5, color: borderColor),
+                            ],
+                          ],
+                        ),
+                      ),
                     ),
-                  );
-                }),
-                Container(height: 0.5, color: borderColor),
-              ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
-      ),
+      ],
     );
   }
 
   Widget _headerCell(String label, double width, double height, bool isDark, Color color,
-      {bool sticky = false, double fontSize = 11}) {
+      {double fontSize = 11}) {
     return Container(
       width: width,
       height: height,
@@ -843,7 +1414,7 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen> {
           _legendDot(Colors.greenAccent.shade700, '₹ Bill = units × ₹${_unitRate.toStringAsFixed(0)}'),
           const Spacer(),
           Text(
-            'Tap a cell to edit • Save icon to submit all',
+            'Tap Room No for Starting Meter/Occupant Intel • Save icon to submit all',
             style: GoogleFonts.outfit(fontSize: 10, color: isDark ? Colors.white38 : Colors.black38),
           ),
         ],

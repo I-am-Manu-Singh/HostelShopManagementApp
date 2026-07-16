@@ -1,8 +1,17 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io';
+import '../../utils/csv_range_dialog.dart';
+import '../../utils/csv_web_helper.dart';
 
 class AdminFeePackageScreen extends StatefulWidget {
   const AdminFeePackageScreen({super.key});
@@ -32,6 +41,92 @@ class _AdminFeePackageScreenState extends State<AdminFeePackageScreen> {
     }
   }
 
+  Future<void> _exportFeesToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Fee Plans',
+      isImport: false,
+    );
+    if (range == null) return;
+    try {
+      final buffer = StringBuffer();
+      buffer.writeln('id,service_name,price,category,unit,description');
+      for (var f in _fees) {
+        final dt = DateTime.tryParse(f['created_at']?.toString() ?? '');
+        if (dt != null && (dt.isBefore(range.startDate) || dt.isAfter(range.endDate))) continue;
+        buffer.writeln([
+          f['id']?.toString() ?? '',
+          '"${(f['service_name'] ?? '').toString().replaceAll('"', '""')}"',
+          (f['price'] ?? 0).toString(),
+          f['category']?.toString() ?? '',
+          f['unit']?.toString() ?? 'Month',
+          '"${(f['description'] ?? '').toString().replaceAll('"', '""')}"',
+        ].join(','));
+      }
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'fee_plans_$dateLabel.csv';
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+        return;
+      }
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/$filename');
+      await file.writeAsString(buffer.toString());
+      await Share.shareXFiles([XFile(file.path)], text: 'Fee Plans Export');
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+    }
+  }
+
+  Future<void> _importFeesFromCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Fee Plans',
+      isImport: true,
+    );
+    if (range == null) return;
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      if (result == null) return;
+      final bytes = result.files.single.bytes ?? (kIsWeb ? null : await File(result.files.single.path!).readAsBytes());
+      if (bytes == null) return;
+      final lines = utf8.decode(bytes).split('\n');
+      if (lines.length < 2) return;
+      final headers = lines.first.split(',').map((h) => h.trim().toLowerCase()).toList();
+      int count = 0;
+      for (int i = 1; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.isEmpty) continue;
+        final cells = line.split(',');
+        final Map<String, dynamic> row = {};
+        String? existingId;
+        for (int ci = 0; ci < cells.length && ci < headers.length; ci++) {
+          final val = cells[ci].replaceAll(RegExp(r'^"|"\$'), '').replaceAll('""', '"').trim();
+          if (headers[ci] == 'id' && val.isNotEmpty) existingId = val;
+          else if (headers[ci] == 'service_name') row['service_name'] = val;
+          else if (headers[ci] == 'price') row['price'] = double.tryParse(val) ?? 0.0;
+          else if (headers[ci] == 'category') row['category'] = val;
+          else if (headers[ci] == 'unit') row['unit'] = val;
+          else if (headers[ci] == 'description') row['description'] = val;
+        }
+        if (row['service_name'] == null || (row['service_name'] as String).isEmpty) continue;
+        if (existingId != null) {
+          await _client.from('fee_structure').update(row).eq('id', existingId);
+        } else {
+          await _client.from('fee_structure').insert(row);
+        }
+        count++;
+      }
+      _fetchFees();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported $count fee plans successfully.'), backgroundColor: Colors.greenAccent));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.redAccent));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -53,6 +148,8 @@ class _AdminFeePackageScreenState extends State<AdminFeePackageScreen> {
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
+          IconButton(icon: const Icon(Icons.file_upload_rounded, color: Colors.indigoAccent), tooltip: 'Import CSV', onPressed: () => _importFeesFromCSV()),
+          IconButton(icon: const Icon(Icons.file_download_rounded, color: Colors.indigoAccent), tooltip: 'Export CSV', onPressed: () => _exportFeesToCSV()),
           IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.indigoAccent), onPressed: () => _showAddFeeModal(isDark)),
         ],
       ),

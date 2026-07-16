@@ -70,16 +70,13 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
     }
   }
 
-  Future<void> _markAttendance() async {
+  Future<void> _markAttendanceStatus(String status) async {
     if (_hasCheckedIn) return;
     setState(() => _isLoading = true);
     try {
-      final now = DateTime.now();
-      final dateStr = DateFormat('yyyy-MM-dd').format(now);
-
-      final ok = await DatabaseService().markAttendance(type: 'staff');
+      final ok = await DatabaseService().markAttendance(type: 'staff', status: status);
       if (ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Marked Present for today.'), backgroundColor: Colors.indigoAccent));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Marked $status for today.'), backgroundColor: Colors.indigoAccent));
         _loadData();
       }
     } catch (e) {
@@ -88,6 +85,10 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
       }
     }
+  }
+
+  Future<void> _markAttendance() async {
+    await _markAttendanceStatus('Present');
   }
 
   @override
@@ -207,15 +208,42 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
             Text(_hasCheckedIn ? 'CHECKED IN' : 'READY TO START?', style: GoogleFonts.outfit(color: textColor, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1)),
             const SizedBox(height: 8),
             Text(_hasCheckedIn ? "You are marked present for today" : "Tap below to mark your attendance", style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 11, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity, height: 60,
-              child: ElevatedButton(
-                onPressed: _hasCheckedIn ? null : _markAttendance,
-                style: ElevatedButton.styleFrom(backgroundColor: _hasCheckedIn ? Colors.greenAccent.withOpacity(0.1) : Colors.indigoAccent, disabledBackgroundColor: Colors.greenAccent.withOpacity(0.1), elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
-                child: Text(_hasCheckedIn ? "PRESENT" : "MARK ATTENDANCE", style: GoogleFonts.outfit(color: _hasCheckedIn ? Colors.greenAccent : Colors.white, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
+            if (!_hasCheckedIn) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: () => _markAttendanceStatus('Present'),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        child: Text("MARK PRESENT", style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 54,
+                      child: ElevatedButton(
+                        onPressed: () => _markAttendanceStatus('Leave'),
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrangeAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                        child: Text("REQUEST LEAVE", style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
+            ] else ...[
+              SizedBox(
+                width: double.infinity, height: 60,
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(20)),
+                  child: Text("MARKED PRESENT / ON LEAVE", style: GoogleFonts.outfit(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 13, letterSpacing: 1)),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -300,8 +328,8 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
         const SizedBox(height: 16),
         SizedBox(
           height: 140,
-          child: StreamBuilder(
-            stream: Supabase.instance.client.from('global_announcements').stream(primaryKey: ['id']).order('created_at').limit(5),
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: Supabase.instance.client.from('global_announcements').select().order('created_at', ascending: false).limit(10),
             builder: (context, snapshot) {
               if (!snapshot.hasData || snapshot.data!.isEmpty) return _emptyIntel();
               final data = snapshot.data!.where((b) => b['target_audience'] == 'ALL' || b['target_audience'] == 'STAFF').toList();

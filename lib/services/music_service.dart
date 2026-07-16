@@ -46,19 +46,22 @@ class MusicService {
 
   Future<void> playSong(SongModel song) async {
     try {
-      // Use song.data (file path) or valid URI
       final String? source = song.data ?? song.uri;
       if (source == null) return;
 
+      final Uri uri = (source.startsWith('http') || source.startsWith('content'))
+          ? Uri.parse(source)
+          : Uri.file(source);
+
       await _player.setAudioSource(
         AudioSource.uri(
-          Uri.parse(source),
+          uri,
           tag: MediaItem(
             id: song.id.toString(),
             album: song.album ?? "Storage",
             title: song.title,
             artist: song.artist ?? "Local Track",
-            artUri: null, // We use QueryArtworkWidget in UI
+            artUri: null,
           ),
         ),
       );

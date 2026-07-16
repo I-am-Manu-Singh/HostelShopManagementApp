@@ -12,6 +12,7 @@ import 'dart:io' if (dart.library.html) 'dart:io';
 import '../services/database_service.dart';
 import 'mess_gate_terminal_screen.dart';
 import '../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
 
 class CentralAttendanceLogScreen extends StatefulWidget {
   const CentralAttendanceLogScreen({super.key});
@@ -154,101 +155,76 @@ class _CentralAttendanceLogScreenState extends State<CentralAttendanceLogScreen>
   }
 
   Future<void> _exportAttendanceMonthly() async {
-    // 1. Month Picker dialog
-    final DateTime? pickedMonth = await showDatePicker(
+    final range = await showCsvRangeDialog(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2024),
-      lastDate: DateTime.now(),
-      initialDatePickerMode: DatePickerMode.year,
+      title: '$_activeTab Attendance',
+      isImport: false,
     );
-    if (pickedMonth == null) return;
+    if (range == null) return;
 
     setState(() => _isLoading = true);
 
     try {
-      final startOfMonth = DateTime(pickedMonth.year, pickedMonth.month, 1);
-      final endOfMonth = DateTime(pickedMonth.year, pickedMonth.month + 1, 0);
-      final daysInMonth = endOfMonth.day;
+      final startStr = DateFormat('yyyy-MM-dd').format(range.startDate);
+      final endStr = DateFormat('yyyy-MM-dd').format(range.endDate);
 
-      final startStr = DateFormat('yyyy-MM-dd').format(startOfMonth);
-      final endStr = DateFormat('yyyy-MM-dd').format(endOfMonth);
+      final daysList = <DateTime>[];
+      for (int i = 0; i <= range.endDate.difference(range.startDate).inDays; i++) {
+        daysList.add(range.startDate.add(Duration(days: i)));
+      }
 
-      // Fetch ALL profiles (students, staff, etc.)
-      final profilesRes = await _client.from('profiles').select().order('role').order('full_name');
-      final List<dynamic> allProfiles = profilesRes as List;
+      // Fetch profiles matching current active tab type
+      final String roleFilter = _activeTab == 'staff' ? 'staff' : (_activeTab == 'mess' ? 'mess_student' : 'hostel_student');
+      var profileQuery = _client.from('profiles').select().eq('role', roleFilter);
+      if (_activeTab == 'mess') {
+        profileQuery = _client.from('profiles').select().inFilter('role', ['hostel_student', 'mess_student', 'HOSTEL_STUDENT', 'MESS_STUDENT']);
+      }
+      final profiles = await profileQuery.order('full_name');
+      final List<dynamic> targetProfiles = profiles as List;
 
-      // Fetch ALL monthly attendance logs
+      // Fetch attendance logs for this type and date range
       final attRes = await _client.from('attendance')
           .select()
+          .eq('attendance_type', _activeTab == 'staff' ? 'staff' : _activeTab)
           .gte('date', startStr)
           .lte('date', endStr);
-      final List<dynamic> monthlyAttendance = attRes as List;
+      final List<dynamic> rangeAttendance = attRes as List;
 
-      // Make CSV Headers: Name, Role, User ID, Attendance Type (Mess/Gate/Night/Staff), {Day 1}, ...
+      // Make CSV Headers: Name, Role, User ID, Date 1, Date 2, ...
       final buffer = StringBuffer();
-      final headers = ['Name', 'Role', 'User ID', 'Log Type'];
-      for (int day = 1; day <= daysInMonth; day++) {
-        headers.add('Day $day');
+      final headers = ['Name', 'Role', 'User ID'];
+      for (final day in daysList) {
+        headers.add(DateFormat('yyyy-MM-dd').format(day));
       }
       buffer.writeln(headers.join(','));
 
-      // Loop types for each profile to show detailed breakdown (mess punches, gate entry, night rolls, staff shifts)
-      final types = ['mess', 'gate', 'night', 'staff'];
+      for (final p in targetProfiles) {
+        final row = [
+          '"${(p['full_name'] ?? '').toString().replaceAll('"', '""')}"',
+          p['role'] ?? '',
+          p['id'] ?? '',
+        ];
 
-      for (final p in allProfiles) {
-        final role = p['role']?.toString().toLowerCase() ?? '';
-        
-        for (final type in types) {
-          // Skip irrelevant combinations (e.g. staff only logs staff shifts, students don't have staff logs)
-          if (type == 'staff' && role != 'staff') continue;
-          if (type != 'staff' && role == 'staff') continue;
-
-          final row = [
-            '"${(p['full_name'] ?? '').toString().replaceAll('"', '""')}"',
-            p['role'] ?? '',
-            p['id'] ?? '',
-            type.toUpperCase(),
-          ];
-
-          // Check attendance status for each day of the month
-          bool hasAnyRecordThisMonth = false;
-
-          for (int day = 1; day <= daysInMonth; day++) {
-            final targetDateStr = DateFormat('yyyy-MM-dd').format(DateTime(pickedMonth.year, pickedMonth.month, day));
-            final punches = monthlyAttendance.where((a) => 
-              a['user_id'] == p['id'] && 
-              a['attendance_type'] == type && 
-              a['date'] == targetDateStr
-            ).toList();
-
-            if (punches.isEmpty) {
-              row.add('A');
+        for (final day in daysList) {
+          final targetDateStr = DateFormat('yyyy-MM-dd').format(day);
+          final dayPunches = rangeAttendance.where((a) => a['user_id'] == p['id'] && a['date'] == targetDateStr).toList();
+          
+          if (dayPunches.isEmpty) {
+            row.add('A'); // Absent
+          } else {
+            if (_activeTab == 'mess') {
+              final meals = dayPunches.map((a) => a['meal_type']?.toString() ?? 'Present').join(';');
+              row.add('"$meals"');
             } else {
-              hasAnyRecordThisMonth = true;
-              if (type == 'mess') {
-                final meals = punches.map((a) => a['meal_type']?.toString() ?? 'Present').join(';');
-                row.add('"$meals"');
-              } else {
-                row.add('P');
-              }
+              row.add('P'); // Present
             }
           }
-
-          // Only include rows in the CSV if the person actually belongs to this log type 
-          // or has logged attendance for this type to avoid unnecessary blank rows.
-          if (hasAnyRecordThisMonth || 
-              (type == 'mess' && (role == 'hostel_student' || role == 'mess_student')) ||
-              (type == 'gate' && role == 'hostel_student') ||
-              (type == 'night' && role == 'hostel_student') ||
-              (type == 'staff' && role == 'staff')) {
-            buffer.writeln(row.join(','));
-          }
         }
+        buffer.writeln(row.join(','));
       }
 
-      final monthStr = DateFormat('MMM_yyyy').format(pickedMonth);
-      final filename = 'comprehensive_attendance_$monthStr.csv';
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = '${_activeTab}_attendance_$dateLabel.csv';
       final csvContent = buffer.toString();
 
       if (kIsWeb) {
@@ -257,7 +233,7 @@ class _CentralAttendanceLogScreenState extends State<CentralAttendanceLogScreen>
         final tempDir = await getTemporaryDirectory();
         final file = File('${tempDir.path}/$filename');
         await file.writeAsString(csvContent);
-        await Share.shareXFiles([XFile(file.path)], text: 'Comprehensive Attendance Export');
+        await Share.shareXFiles([XFile(file.path)], text: '${_activeTab.toUpperCase()} Attendance Export');
       }
 
       if (mounted) {

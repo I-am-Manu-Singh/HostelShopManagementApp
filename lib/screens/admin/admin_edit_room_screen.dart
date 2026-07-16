@@ -35,6 +35,9 @@ class _AdminEditRoomScreenState extends State<AdminEditRoomScreen> {
     _capacityCtrl = TextEditingController(text: widget.room.capacity.toString());
     _imageCtrl = TextEditingController(text: widget.room.imageUrl);
     _selectedType = widget.room.roomType ?? 'Standard';
+    if (!_roomTypes.contains(_selectedType)) {
+      _roomTypes.add(_selectedType);
+    }
   }
 
   Future<void> _saveRoom() async {

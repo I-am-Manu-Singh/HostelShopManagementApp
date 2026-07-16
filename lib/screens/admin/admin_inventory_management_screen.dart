@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 
 import 'admin_edit_product_screen.dart';
 import '../inventory_scanner_screen.dart';
@@ -14,6 +15,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
 
 class AdminInventoryManagementScreen extends StatefulWidget {
   const AdminInventoryManagementScreen({super.key});
@@ -37,6 +39,16 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
   }
 
   Future<void> _exportInventoryToCSV() async {
+    final String activeType = _tabController.index == 0 ? 'SHOP' : (_tabController.index == 1 ? 'MESS' : 'CANTEEN');
+    final String typeLabel = _tabController.index == 0 ? 'Shop Stock' : (_tabController.index == 1 ? 'Mess Inventory' : 'Canteen');
+
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: '$typeLabel Export',
+      isImport: false,
+    );
+    if (range == null) return;
+
     try {
       final List<String> csvHeaders = [
         'id', 'name', 'sku_qr', 'category', 'description', 'price', 'discount_price',
@@ -47,8 +59,36 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
       
       final buffer = StringBuffer();
       buffer.writeln(csvHeaders.join(','));
+
+      final targetItems = _allItems.where((i) {
+        final cat = i.category.toLowerCase();
+        final name = i.name.toLowerCase();
+        
+        // Tab type filter
+        bool matchesType = true;
+        if (activeType == 'SHOP') {
+          matchesType = !cat.contains('kitchen') && !cat.contains('raw') && !cat.contains('grocery') && 
+                        !cat.contains('beverage') && !cat.contains('snack') && !cat.contains('meal') && 
+                        !cat.contains('ready');
+        } else if (activeType == 'MESS') {
+          matchesType = cat.contains('kitchen') || cat.contains('raw') || cat.contains('grocery') || 
+                        cat.contains('bulk') || name.contains('rice') || name.contains('dal') || name.contains('oil');
+        } else if (activeType == 'CANTEEN') {
+          matchesType = cat.contains('beverage') || cat.contains('snack') || cat.contains('ready') || 
+                        cat.contains('canteen') || cat.contains('fast food') || name.contains('coke') || name.contains('chips');
+        }
+
+        // Date filter: only if rateDate is available
+        if (matchesType && i.rateDate != null) {
+          final dt = DateTime.tryParse(i.rateDate!.toString());
+          if (dt != null) {
+            return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+          }
+        }
+        return matchesType;
+      }).toList();
       
-      for (var item in _allItems) {
+      for (var item in targetItems) {
         final List<String> row = [
           item.id,
           '"${item.name.replaceAll('"', '""')}"',
@@ -76,18 +116,21 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         buffer.writeln(row.join(','));
       }
       
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = '${activeType.toLowerCase()}_inventory_$dateLabel.csv';
+
       if (kIsWeb) {
         try {
-          downloadCsvFile(buffer.toString(), 'mandi_products_export.csv');
+          downloadCsvFile(buffer.toString(), filename);
         } catch (_) {
           if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export not supported on this browser.'), backgroundColor: Colors.orangeAccent));
         }
         return;
       }
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/mandi_products_export.csv');
+      final file = File('${tempDir.path}/$filename');
       await file.writeAsString(buffer.toString());
-      await Share.shareXFiles([XFile(file.path)], text: 'Mandi & Shop Products Inventory Export');
+      await Share.shareXFiles([XFile(file.path)], text: '$typeLabel Inventory Export');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
@@ -96,6 +139,16 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
   }
 
   Future<void> _importInventoryFromCSV() async {
+    final String activeType = _tabController.index == 0 ? 'SHOP' : (_tabController.index == 1 ? 'MESS' : 'CANTEEN');
+    final String typeLabel = _tabController.index == 0 ? 'Shop Stock' : (_tabController.index == 1 ? 'Mess Inventory' : 'Canteen');
+
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: '$typeLabel Import',
+      isImport: true,
+    );
+    if (range == null) return;
+
     try {
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -205,6 +258,23 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         }
         
         if (payload['name'] == null) continue;
+
+        // Enforce active category import separation
+        final cat = (payload['category']?.toString() ?? '').toLowerCase();
+        final name = (payload['name']?.toString() ?? '').toLowerCase();
+        bool matchesType = true;
+        if (activeType == 'SHOP') {
+          matchesType = !cat.contains('kitchen') && !cat.contains('raw') && !cat.contains('grocery') && 
+                        !cat.contains('beverage') && !cat.contains('snack') && !cat.contains('meal') && 
+                        !cat.contains('ready');
+        } else if (activeType == 'MESS') {
+          matchesType = cat.contains('kitchen') || cat.contains('raw') || cat.contains('grocery') || 
+                        cat.contains('bulk') || name.contains('rice') || name.contains('dal') || name.contains('oil');
+        } else if (activeType == 'CANTEEN') {
+          matchesType = cat.contains('beverage') || cat.contains('snack') || cat.contains('ready') || 
+                        cat.contains('canteen') || cat.contains('fast food') || name.contains('coke') || name.contains('chips');
+        }
+        if (!matchesType) continue;
         
         if (itemId != null) {
           // Update item

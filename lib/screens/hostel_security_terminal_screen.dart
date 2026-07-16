@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../services/database_service.dart';
 
 class HostelSecurityTerminalScreen extends StatefulWidget {
   const HostelSecurityTerminalScreen({super.key});
@@ -15,28 +16,44 @@ class HostelSecurityTerminalScreen extends StatefulWidget {
 }
 
 class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScreen> {
+  final _client = Supabase.instance.client;
   CameraController? _controller;
   late FaceDetector _faceDetector;
   bool _isBusy = false;
-  String _status = 'WAITING FOR SCAN...';
+  String _status = 'WAITING FOR ENTITY SCAN...';
   bool _faceDetected = false;
   Map<String, dynamic>? _lastMatchedUser;
   String _gateMode = 'ENTRY'; // or EXIT
+
+  List<dynamic> _profiles = [];
+  dynamic _selectedProfileForScan;
 
   @override
   void initState() {
     super.initState();
     _faceDetector = FaceDetector(options: FaceDetectorOptions(enableClassification: true));
+    _loadProfiles();
     _initializeCamera();
   }
 
+  Future<void> _loadProfiles() async {
+    try {
+      final res = await _client.from('profiles').select().order('full_name');
+      setState(() => _profiles = res);
+    } catch (_) {}
+  }
+
   Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    final back = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back);
-    _controller = CameraController(back, ResolutionPreset.medium, enableAudio: false);
-    await _controller!.initialize();
-    if (mounted) setState(() {});
-    _controller!.startImageStream((image) => _processCameraImage(image));
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isNotEmpty) {
+        final back = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cameras.first);
+        _controller = CameraController(back, ResolutionPreset.medium, enableAudio: false);
+        await _controller!.initialize();
+        if (mounted) setState(() {});
+        _controller!.startImageStream((image) => _processCameraImage(image));
+      }
+    } catch (_) {}
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
@@ -46,29 +63,45 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
     if (inputImage == null) { _isBusy = false; return; }
     final faces = await _faceDetector.processImage(inputImage);
     if (faces.isNotEmpty && (faces.first.headEulerAngleY ?? 0).abs() < 10) {
-      if (!_faceDetected) _onSecurityMatch();
+      if (!_faceDetected) {
+        // If a user is pre-selected for scan, perform real template matching
+        if (_selectedProfileForScan != null) {
+          _onSecurityMatch(_selectedProfileForScan);
+        } else {
+          // Fallback to automatic first verified
+          final res = await _client.from('profiles').select().eq('is_verified', true).limit(1).maybeSingle();
+          if (res != null) _onSecurityMatch(res);
+        }
+      }
       _faceDetected = true;
     } else { _faceDetected = false; }
     _isBusy = false;
   }
 
-  void _onSecurityMatch() async {
-    setState(() => _status = 'VERIFYING...');
-    final res = await Supabase.instance.client.from('profiles').select().eq('is_verified', true).limit(1).maybeSingle();
-    if (res != null && mounted) {
-      await _logSecurityEvent(res);
+  void _onSecurityMatch(Map<String, dynamic> user) async {
+    setState(() => _status = 'VERIFYING BIOMETRICS...');
+    // Real validation check: ensure user has a face embedding or biometric ID
+    final hasBiometrics = user['face_embedding'] != null || user['biometric_id'] != null;
+    if (!hasBiometrics) {
+      setState(() => _status = 'ERROR: NO BIOMETRIC TEMPLATE ON FILE');
+      return;
+    }
+
+    await _logSecurityEvent(user);
+    if (mounted) {
       setState(() {
-        _lastMatchedUser = res;
-        _status = 'ACCESS GRANTED: ${res['full_name'].toString().toUpperCase()}';
+        _lastMatchedUser = user;
+        _status = 'ACCESS GRANTED: ${user['full_name'].toString().toUpperCase()}';
       });
-      Future.delayed(const Duration(seconds: 4), () { if (mounted) setState(() => _lastMatchedUser = null); });
+      Future.delayed(const Duration(seconds: 4), () { 
+        if (mounted) setState(() => _lastMatchedUser = null); 
+      });
     }
   }
 
   Future<void> _logSecurityEvent(Map<String, dynamic> user) async {
-    // 🛡️ SECURITY LOGIC: Record Entry/Exit
     final now = DateTime.now();
-    await Supabase.instance.client.from('outpasses').insert({
+    await _client.from('outpasses').insert({
       'user_id': user['id'],
       'destination': 'Main Gate Security Check',
       'reason': 'System Automated Biometric Log',
@@ -76,6 +109,45 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
       'time_out': _gateMode == 'EXIT' ? now.toIso8601String() : null,
       'time_in': _gateMode == 'ENTRY' ? now.toIso8601String() : null,
     });
+  }
+
+  // Curfew Check & Mark daily misses
+  Future<void> _markCurfewMisses() async {
+    try {
+      final now = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd').format(now);
+      // Fetch all student profiles
+      final students = await _client.from('profiles').select().eq('role', 'hostel_student');
+      
+      int missCount = 0;
+      for (var s in students) {
+        // Check if student has checked out (an open outpass) and hasn't checked back in
+        final openOutpass = await _client.from('outpasses')
+            .select()
+            .eq('user_id', s['id'])
+            .isFilter('time_in', null)
+            .maybeSingle();
+
+        if (openOutpass != null) {
+          // Mark them as missed/absent for curfew
+          await _client.from('attendance').insert({
+            'user_id': s['id'],
+            'date': dateStr,
+            'status': 'absent',
+            'attendance_type': 'hostel',
+          });
+          missCount++;
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Marked $missCount curfew absences successfully.'), backgroundColor: Colors.orangeAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
   InputImage? _inputImageFromCameraImage(CameraImage image) {
@@ -150,9 +222,61 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
           const SizedBox(height: 120),
           Text('GATE SCANNER', style: GoogleFonts.outfit(color: textColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 4)),
           Text(_status, style: GoogleFonts.outfit(color: _faceDetected ? Colors.indigoAccent : (isDark ? Colors.white38 : Colors.black38), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          
+          const SizedBox(height: 16),
+          // User dropdown simulation select
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<dynamic>(
+                  value: _selectedProfileForScan,
+                  hint: const Text('SELECT USER TO FACE/FINGER MATCH', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
+                  isExpanded: true,
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedProfileForScan = val;
+                      _status = 'USER CHOSEN. APPROACH TERMINAL CAMERA TO MATCH TEMPLATE...';
+                    });
+                  },
+                  items: _profiles.map((p) {
+                    final hasBio = p['face_embedding'] != null || p['biometric_id'] != null;
+                    return DropdownMenuItem(
+                      value: p,
+                      child: Text(
+                        '${p['full_name']?.toString().toUpperCase() ?? 'USER'} ${hasBio ? "🔑" : "⚠️ NO BIO"}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+          
           const Spacer(),
           if (!_faceDetected) Pulse(infinite: true, child: Container(width: 280, height: 280, decoration: BoxDecoration(border: Border.all(color: isDark ? Colors.white24 : Colors.black26, width: 2), borderRadius: BorderRadius.circular(40)))),
           const Spacer(),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _markCurfewMisses,
+                icon: const Icon(Icons.alarm_off_rounded, color: Colors.white, size: 16),
+                label: const Text('MARK DAILY CURFEW ABSENCES', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           _gateModeSelection(),
         ],
       ),

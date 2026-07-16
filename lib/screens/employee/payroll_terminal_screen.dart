@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../services/receipt_service.dart';
 
 class PayrollTerminalScreen extends StatefulWidget {
   final dynamic profileOverride;
@@ -311,24 +312,39 @@ class _PayrollTerminalScreenState extends State<PayrollTerminalScreen> {
   Widget _historyCard(dynamic h, bool isDark) {
     final date = DateFormat('MMMM yyyy').format(DateTime.parse(h['created_at']));
     return FadeInRight(
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 20),
-            const SizedBox(width: 20),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(date.toUpperCase(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
-              const Text('DISBURSED_VIA_BANK_TRANSFER', style: TextStyle(color: Colors.white24, fontSize: 8, fontWeight: FontWeight.bold)),
-            ])),
-            Text('₹${(h['amount'] as num).toInt()}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.greenAccent)),
-          ],
+      child: GestureDetector(
+        onTap: () {
+          // Prepare payslip arguments
+          final record = {
+            'id': h['id'],
+            'salary_amount': h['amount'] ?? 0,
+            'allowances': h['allowances'] ?? 0,
+            'advances_taken': h['advances'] ?? 0,
+            'deductions': h['deductions'] ?? 0,
+            'leaves_taken': h['leaves_taken'] ?? 0,
+            'month': date,
+          };
+          ReceiptService.generateSalaryReceipt(record, _profile?['full_name']);
+        },
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.verified_rounded, color: Colors.greenAccent, size: 20),
+              const SizedBox(width: 20),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(date.toUpperCase(), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                Text('TAP TO SHARE PAYSLIP PDF', style: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 8, fontWeight: FontWeight.bold)),
+              ])),
+              Text('₹${(h['amount'] as num).toInt()}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 18, color: Colors.greenAccent)),
+            ],
+          ),
         ),
       ),
     );

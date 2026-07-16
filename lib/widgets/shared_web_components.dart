@@ -3,22 +3,25 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../screens/legal/privacy_policy_screen.dart';
 import '../screens/legal/terms_of_service_screen.dart';
-import '../screens/app_info_screen.dart';
+import '../screens/legal/refund_policy_screen.dart';
+import '../screens/legal/safety_protocols_screen.dart';
 
 List<String> getRoleLabels(String role, bool isGuest) {
   if (isGuest) {
     return ['CAMPUS SHOP', 'MANDI MARKET', 'LOGIN'];
   }
   if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
-    return ['DASHBOARD', 'CAMPUS SHOP', 'MANDI MARKET', 'FINANCES', 'CHATS', 'PROFILE'];
+    return ['CAMPUS SHOP', 'MANDI MARKET', 'FINANCES', 'CHATS', 'PROFILE'];
   } else if (role == 'staff') {
-    return ['WORKPLACE', 'CAMPUS SHOP', 'MANDI MARKET', 'TASKS', 'CHATS', 'PROFILE'];
-  } else if (role == 'hostel_student' || role == 'mess_student') {
+    return ['EMPLOYEE TERMINAL', 'WORKPLACE', 'TASKS', 'CHATS', 'PROFILE'];
+  } else if (role == 'hostel_student') {
     return ['TERMINAL', 'CAMPUS SHOP', 'MANDI MARKET', 'SUITE', 'CHATS', 'PROFILE'];
+  } else if (role == 'mess_student') {
+    return ['CAMPUS SHOP', 'MANDI MARKET', 'MESS CARD', 'CHATS', 'PROFILE'];
   } else if (role == 'delivery_partner') {
-    return ['LOGISTICS', 'CAMPUS SHOP', 'MANDI MARKET', 'CHATS', 'PROFILE'];
+    return ['LOGISTICS', 'CHATS', 'PROFILE'];
   } else if (role == 'farmer_seller') {
-    return ['MARKET', 'CAMPUS SHOP', 'MANDI MARKET', 'CHATS', 'PROFILE'];
+    return ['MARKET', 'CHATS', 'PROFILE'];
   }
   return ['CAMPUS SHOP', 'MANDI MARKET', 'PROFILE'];
 }
@@ -299,8 +302,11 @@ class SharedWebFooter extends StatelessWidget {
         _footerLink(context, 'Terms & Conditions', () {
           Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()));
         }, isDark),
-        _footerLink(context, 'Support', () {
-          Navigator.push(context, MaterialPageRoute(builder: (_) => const AppInfoScreen()));
+        _footerLink(context, 'Refund Policy', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const RefundPolicyScreen()));
+        }, isDark),
+        _footerLink(context, 'Safety Protocols', () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => const SafetyProtocolsScreen()));
         }, isDark),
       ],
     );

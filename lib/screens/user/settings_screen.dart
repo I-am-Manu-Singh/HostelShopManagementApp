@@ -34,7 +34,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              FadeInDown(child: _buildSectionHeader('UI & ALERTS')),
+              _buildSectionHeader('UI & ALERTS'),
               const SizedBox(height: 16),
               _buildSettinsCard(
                 title: 'Theme (Dark Mode)',
@@ -64,7 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
               const SizedBox(height: 32),
-              FadeInUp(child: _buildSectionHeader('SECURITY')),
+              _buildSectionHeader('SECURITY & MAINTENANCE'),
               const SizedBox(height: 16),
               _buildSettinsCard(
                 title: 'Edit Profile',
@@ -73,16 +73,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: Colors.blueAccent,
                 onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())),
               ),
-              const SizedBox(height: 12),
-              _buildSettinsCard(
-                title: 'Profile Security',
-                subtitle: 'Password and access management',
-                icon: Icons.security_rounded,
-                color: Colors.greenAccent,
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfileScreen())),
-              ),
-              const SizedBox(height: 32),
-              FadeInUp(child: _buildSectionHeader('MAINTENANCE')),
               const SizedBox(height: 16),
               _buildSettinsCard(
                 title: 'Clear Cache',

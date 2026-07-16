@@ -1,9 +1,17 @@
+import 'dart:convert';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io' if (dart.library.html) 'dart:io';
+import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
 
 class AdminRoomInspectionScreen extends StatefulWidget {
   const AdminRoomInspectionScreen({super.key});
@@ -17,6 +25,8 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
   bool _isLoading = true;
   List<dynamic> _rooms = [];
   List<dynamic> _records = [];
+  
+  String? _selectedBuilding;
   dynamic _selectedRoom;
   
   final _descCtrl = TextEditingController();
@@ -34,8 +44,16 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
     try {
       final rRes = await _client.from('hostel_rooms').select();
       final mRes = await _client.from('room_maintenance_records').select('*, hostel_rooms(*)').order('inspection_date', ascending: false);
-      if (mounted) setState(() { _rooms = rRes; _records = mRes; _isLoading = false; });
-    } catch (_) { if (mounted) setState(() => _isLoading = false); }
+      if (mounted) {
+        setState(() {
+          _rooms = rRes;
+          _records = mRes;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _logInspection() async {
@@ -46,14 +64,14 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
       final cost = double.tryParse(_costCtrl.text) ?? 0;
       
       // 1. Create Maintenance Record
-      final res = await _client.from('room_maintenance_records').insert({
+      await _client.from('room_maintenance_records').insert({
         'room_id': _selectedRoom['id'],
         'inspector_id': user?.id,
         'status': _activeStatus,
         'issue_description': _descCtrl.text,
         'resolution_details': _resCtrl.text,
         'actual_cost': cost,
-      }).select().single();
+      });
 
       // 2. If cost > 0, log in Day Book automatically
       if (cost > 0) {
@@ -61,8 +79,7 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
           'entry_type': 'Expense',
           'amount': cost,
           'category': 'Room Maintenance',
-          'remark': 'Auto-logged from Inspection: ${_selectedRoom['room_number']}',
-          'user_id': user?.id,
+          'target_user_id': user?.id,
           'related_room_id': _selectedRoom['id'],
           'transaction_date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
         });
@@ -70,8 +87,145 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
 
       _descCtrl.clear(); _resCtrl.clear(); _costCtrl.clear();
       _fetchInitialData();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('INSPECTION AUDIT COMMITTED'), backgroundColor: Colors.indigoAccent));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('INSPECTION AUDIT COMMITTED'), backgroundColor: Colors.indigoAccent));
+      }
     } catch (_) {} finally { setState(() => _isLoading = false); }
+  }
+
+  // ── CSV Export ─────────────────────────────────────────────────────────────
+
+  Future<void> _exportInspectionsToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: _selectedBuilding != null ? 'Room Inspections ($_selectedBuilding)' : 'All Room Inspections',
+      isImport: false,
+    );
+    if (range == null) return;
+
+    try {
+      final buffer = StringBuffer();
+      final headers = ['Record ID', 'Building', 'Room No', 'Inspector UUID', 'Status', 'Issue', 'Resolution', 'Cost (₹)', 'Date'];
+      buffer.writeln(headers.join(','));
+
+      final filtered = _records.where((r) {
+        final room = r['hostel_rooms'] ?? {};
+        if (_selectedBuilding != null && room['building_name'] != _selectedBuilding) return false;
+        if (r['inspection_date'] != null) {
+          final dt = DateTime.tryParse(r['inspection_date'].toString());
+          if (dt != null) {
+            return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+          }
+        }
+        return true;
+      }).toList();
+
+      for (var r in filtered) {
+        final room = r['hostel_rooms'] ?? {};
+        final List<String> row = [
+          r['id']?.toString() ?? '',
+          '"${(room['building_name'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+          (room['room_number'] ?? 'N/A').toString(),
+          r['inspector_id']?.toString() ?? 'N/A',
+          r['status']?.toString() ?? 'OK',
+          '"${(r['issue_description'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+          '"${(r['resolution_details'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+          (r['actual_cost'] ?? 0.0).toString(),
+          r['inspection_date']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
+      }
+
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'inspections_${_selectedBuilding ?? "all"}_$dateLabel.csv';
+
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsString(buffer.toString());
+        await Share.shareXFiles([XFile(file.path)], text: 'Inspections CSV Export');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
+  // ── CSV Import ─────────────────────────────────────────────────────────────
+
+  Future<void> _importInspectionsFromCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Room Inspections',
+      isImport: true,
+    );
+    if (range == null) return;
+
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      if (result == null) return;
+
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        lines = await File(result.files.single.path!).readAsLines();
+      }
+
+      if (lines.length < 2) return;
+
+      int successCount = 0;
+      final user = _client.auth.currentUser;
+
+      for (int i = 1; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.isEmpty) continue;
+        final cells = line.split(',');
+        if (cells.length < 8) continue;
+
+        final building = cells[1].replaceAll('"', '').trim();
+        final roomNo = cells[2].trim();
+        final status = cells[4].trim();
+        final issue = cells[5].replaceAll('"', '').trim();
+        final cost = double.tryParse(cells[7].trim()) ?? 0.0;
+
+        // Find room ID matching room_number & building_name
+        final roomRes = await _client.from('hostel_rooms')
+            .select('id')
+            .eq('room_number', roomNo)
+            .eq('building_name', building)
+            .maybeSingle();
+
+        if (roomRes != null) {
+          await _client.from('room_maintenance_records').insert({
+            'room_id': roomRes['id'],
+            'inspector_id': user?.id,
+            'status': status,
+            'issue_description': issue,
+            'actual_cost': cost,
+          });
+          successCount++;
+        }
+      }
+
+      _fetchInitialData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported $successCount inspections successfully.'), backgroundColor: Colors.greenAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
   @override
@@ -79,12 +233,30 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
 
+    // Filtered lists
+    final List<dynamic> buildings = _rooms.map((r) => r['building_name']?.toString()).whereType<String>().toSet().toList();
+    
+    final filteredRooms = _rooms.where((r) {
+      if (_selectedBuilding == null) return true;
+      return r['building_name'] == _selectedBuilding;
+    }).toList();
+
+    final filteredRecords = _records.where((r) {
+      final rBuilding = r['hostel_rooms']?['building_name'];
+      if (_selectedBuilding == null) return true;
+      return rBuilding == _selectedBuilding;
+    }).toList();
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF08090A) : Colors.white,
       appBar: AppBar(
         title: Text('ROOM INSPECTION & AUDIT', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent, elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
+        actions: [
+          IconButton(icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent), onPressed: _importInspectionsFromCSV, tooltip: 'Import CSV'),
+          IconButton(icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent), onPressed: _exportInspectionsToCSV, tooltip: 'Export CSV'),
+        ],
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
@@ -93,26 +265,52 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildInspectionLauncher(isDark),
+                // Building Selector Filter
+                Text('SELECT BLOCK / BUILDING FIRST', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(16)),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedBuilding,
+                      hint: const Text('SHOW ALL BUILDINGS', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
+                      isExpanded: true,
+                      onChanged: (val) {
+                        setState(() {
+                          _selectedBuilding = val;
+                          _selectedRoom = null;
+                        });
+                      },
+                      items: [
+                        const DropdownMenuItem(value: null, child: Text('ALL BUILDINGS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+                        ...buildings.map((b) => DropdownMenuItem(value: b, child: Text(b.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                _buildInspectionLauncher(isDark, filteredRooms),
                 const SizedBox(height: 40),
                 _sectionHeader('HISTORICAL AUDIT LOG'),
                 const SizedBox(height: 16),
-                if (_records.isEmpty) _emptyState(isDark)
-                else ..._records.map((r) => FadeInUp(child: _buildRecordTile(r, isDark))).toList(),
+                if (filteredRecords.isEmpty) _emptyState(isDark)
+                else ...filteredRecords.map((r) => FadeInUp(child: _buildRecordTile(r, isDark))).toList(),
               ],
             ),
           ),
     );
   }
 
-  Widget _buildInspectionLauncher(bool isDark) {
+  Widget _buildInspectionLauncher(bool isDark, List<dynamic> filteredRooms) {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.02), borderRadius: BorderRadius.circular(32), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('NEW INSPECTION PROTOCOL', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
         const SizedBox(height: 24),
-        _roomDropdown(isDark),
+        _roomDropdown(isDark, filteredRooms),
         const SizedBox(height: 16),
         _statusPicker(isDark),
         const SizedBox(height: 16),
@@ -131,14 +329,14 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
     );
   }
 
-  Widget _roomDropdown(bool isDark) {
+  Widget _roomDropdown(bool isDark, List<dynamic> filteredRooms) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(16)),
       child: DropdownButtonHideUnderline(child: DropdownButton<dynamic>(
         hint: const Text('SELECT TARGET ROOM', style: TextStyle(fontSize: 12)),
         isExpanded: true, value: _selectedRoom, dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
-        items: _rooms.map((r) => DropdownMenuItem(value: r, child: Text('UNIT ${r['room_number']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))).toList(),
+        items: filteredRooms.map((r) => DropdownMenuItem(value: r, child: Text('UNIT ${r['room_number']} (${r['building_name']})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)))).toList(),
         onChanged: (v) => setState(() => _selectedRoom = v),
       )),
     );
@@ -159,11 +357,15 @@ class _AdminRoomInspectionScreenState extends State<AdminRoomInspectionScreen> {
       decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.02), borderRadius: BorderRadius.circular(20), border: Border.all(color: (isDark ? Colors.white : Colors.black).withOpacity(0.05))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('UNIT ${r['hostel_rooms']?['room_number'] ?? 'N/A'}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+            Text('UNIT ${r['hostel_rooms']?['room_number'] ?? 'N/A'} (${r['hostel_rooms']?['building_name'] ?? 'N/A'})', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(r['status'], style: TextStyle(color: statusColor, fontSize: 8, fontWeight: FontWeight.bold))),
          ]),
          const SizedBox(height: 8),
          Text(r['issue_description'] ?? 'Periodic check-up', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontSize: 11)),
+         if (r['resolution_details'] != null && r['resolution_details'].toString().isNotEmpty) ...[
+           const SizedBox(height: 4),
+           Text('Res: ${r['resolution_details']}', style: TextStyle(color: Colors.greenAccent.shade700, fontSize: 11, fontStyle: FontStyle.italic)),
+         ],
          const SizedBox(height: 12),
          Row(children: [
             Icon(Icons.calendar_month_rounded, size: 12, color: isDark ? Colors.white24 : Colors.black26),

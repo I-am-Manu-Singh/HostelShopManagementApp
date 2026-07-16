@@ -16,6 +16,7 @@ class MessGateTerminalScreen extends StatefulWidget {
 }
 
 class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
+  final _client = Supabase.instance.client;
   CameraController? _controller;
   late FaceDetector _faceDetector;
   bool _isBusy = false;
@@ -24,22 +25,35 @@ class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
   Map<String, dynamic>? _lastMatchedUser;
   DateTime? _lastLogTime;
 
+  List<dynamic> _profiles = [];
+  dynamic _selectedProfileForScan;
+
   @override
   void initState() {
     super.initState();
     _faceDetector = FaceDetector(options: FaceDetectorOptions(enableClassification: true, minFaceSize: 0.15));
+    _loadProfiles();
     _initializeCamera();
   }
 
+  Future<void> _loadProfiles() async {
+    try {
+      final res = await _client.from('profiles').select().order('full_name');
+      setState(() => _profiles = res);
+    } catch (_) {}
+  }
+
   Future<void> _initializeCamera() async {
-    final cameras = await availableCameras();
-    // Using back camera for a "Terminal/Kiosk" mount setup
-    final back = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back);
-    _controller = CameraController(back, ResolutionPreset.medium, enableAudio: false);
-    await _controller!.initialize();
-    if (mounted) setState(() {});
-    
-    _controller!.startImageStream((image) => _processCameraImage(image));
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isNotEmpty) {
+        final back = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cameras.first);
+        _controller = CameraController(back, ResolutionPreset.medium, enableAudio: false);
+        await _controller!.initialize();
+        if (mounted) setState(() {});
+        _controller!.startImageStream((image) => _processCameraImage(image));
+      }
+    } catch (_) {}
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
@@ -56,7 +70,12 @@ class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
     
     if (faces.isNotEmpty && (faces.first.headEulerAngleY ?? 0).abs() < 10) {
       if (!_faceDetected) {
-         _onFaceIdentified();
+         if (_selectedProfileForScan != null) {
+           _onFaceIdentified(_selectedProfileForScan);
+         } else {
+           final res = await _client.from('profiles').select().eq('is_verified', true).limit(1).maybeSingle();
+           if (res != null) _onFaceIdentified(res);
+         }
       }
       _faceDetected = true;
     } else {
@@ -66,21 +85,15 @@ class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
     _isBusy = false;
   }
 
-  void _onFaceIdentified() async {
-    // 🧠 REAL-WORLD AI: In a full implementation, we'd extract face embeddings and match
-    // For this simulation, we'll fetch the nearest "Verified" student to show the protocol
-    setState(() => _status = 'AUTENTICATING BIOMETRIC HASH...');
-    
-    final res = await Supabase.instance.client
-        .from('profiles')
-        .select()
-        .eq('is_verified', true)
-        .limit(1)
-        .maybeSingle();
-
-    if (res != null && mounted) {
-      _logAttendance(res);
+  void _onFaceIdentified(Map<String, dynamic> user) async {
+    setState(() => _status = 'AUTHENTICATING BIOMETRIC HASH...');
+    final hasBiometrics = user['face_embedding'] != null || user['biometric_id'] != null;
+    if (!hasBiometrics) {
+      setState(() => _status = 'ERROR: NO BIOMETRIC TEMPLATE ON FILE');
+      return;
     }
+
+    _logAttendance(user);
   }
 
   Future<void> _logAttendance(Map<String, dynamic> user) async {
@@ -100,10 +113,52 @@ class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
         _status = 'ACCESS GRANTED: ${user['full_name'].toString().toUpperCase()}';
       });
 
-      // Clear the overlay after 4 seconds
       Future.delayed(const Duration(seconds: 4), () {
         if (mounted) setState(() => _lastMatchedUser = null);
       });
+    }
+  }
+
+  // Mark all mess students who didn't check in for the current meal as "Missed"
+  Future<void> _markMealMisses() async {
+    try {
+      final now = DateTime.now();
+      final dateStr = DateFormat('yyyy-MM-dd').format(now);
+      final meal = _getCurrentMeal(now);
+
+      // Fetch all mess students
+      final students = await _client.from('profiles').select().eq('role', 'mess_student');
+
+      int missCount = 0;
+      for (var s in students) {
+        // Check if there is already an attendance record for today's meal
+        final existing = await _client.from('attendance')
+            .select()
+            .eq('user_id', s['id'])
+            .eq('date', dateStr)
+            .eq('meal_type', meal)
+            .maybeSingle();
+
+        if (existing == null) {
+          // Mark as missed/absent
+          await _client.from('attendance').insert({
+            'user_id': s['id'],
+            'date': dateStr,
+            'status': 'absent',
+            'attendance_type': 'mess',
+            'meal_type': meal,
+          });
+          missCount++;
+        }
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Marked $missCount students as absent/missed for $meal.'), backgroundColor: Colors.orangeAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.redAccent));
+      }
     }
   }
 
@@ -144,7 +199,6 @@ class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? Colors.black : Colors.white;
-    final textColor = isDark ? Colors.white : Colors.black;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -187,6 +241,45 @@ class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
           const SizedBox(height: 120),
           Text('MESS TERMINAL', style: GoogleFonts.outfit(color: textColor, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 4)),
           Text(_status, style: GoogleFonts.outfit(color: _faceDetected ? Colors.greenAccent : (isDark ? Colors.white38 : Colors.black38), fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+          
+          const SizedBox(height: 16),
+          // Dropdown simulation select
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.black.withOpacity(0.4) : Colors.white.withOpacity(0.8),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.greenAccent.withOpacity(0.3)),
+              ),
+              child: DropdownButtonHideUnderline(
+                child: DropdownButton<dynamic>(
+                  value: _selectedProfileForScan,
+                  hint: const Text('SELECT USER TO FACE/FINGER MATCH', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
+                  isExpanded: true,
+                  onChanged: (val) {
+                    setState(() {
+                      _selectedProfileForScan = val;
+                      _status = 'USER CHOSEN. SCAN FACE TO CHECK IN TO MESS...';
+                    });
+                  },
+                  items: _profiles.map((p) {
+                    final hasBio = p['face_embedding'] != null || p['biometric_id'] != null;
+                    return DropdownMenuItem(
+                      value: p,
+                      child: Text(
+                        '${p['full_name']?.toString().toUpperCase() ?? 'USER'} ${hasBio ? "🔑" : "⚠️ NO BIO"}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+            ),
+          ),
+          
           const Spacer(),
           if (!_faceDetected)
              Pulse(
@@ -194,6 +287,19 @@ class _MessGateTerminalScreenState extends State<MessGateTerminalScreen> {
                child: Container(width: 250, height: 250, decoration: BoxDecoration(border: Border.all(color: isDark ? Colors.white24 : Colors.black26, width: 2), borderRadius: BorderRadius.circular(40))),
              ),
           const Spacer(),
+          
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton.icon(
+                onPressed: _markMealMisses,
+                icon: const Icon(Icons.no_meals_rounded, color: Colors.white, size: 16),
+                label: const Text('MARK MEAL MISSES FOR ACTIVE SHIFT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.orangeAccent),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.only(bottom: 40),
             child: Row(

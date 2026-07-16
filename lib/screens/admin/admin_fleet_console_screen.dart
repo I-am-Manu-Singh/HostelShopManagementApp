@@ -1,10 +1,18 @@
+import 'dart:convert';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io' if (dart.library.html) 'dart:io';
+import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
 
 class AdminFleetConsoleScreen extends StatefulWidget {
   const AdminFleetConsoleScreen({super.key});
@@ -115,6 +123,138 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
     }
   }
 
+  // ── CSV Export / Import ────────────────────────────────────────────────────
+
+  Future<void> _exportFleetCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Fleet Refueling Logs',
+      isImport: false,
+    );
+    if (range == null) return;
+
+    try {
+      final buffer = StringBuffer();
+      final headers = ['Log ID', 'Vehicle No', 'Driver/Submitter', 'Prev Meter', 'Latest Meter', 'Distance (km)', 'Fuel Volume (L)', 'Amt Paid (₹)', 'Payment Method', 'Date'];
+      buffer.writeln(headers.join(','));
+
+      final targetLogs = _logs.where((l) {
+        if (l['created_at'] != null) {
+          final dt = DateTime.tryParse(l['created_at'].toString());
+          if (dt != null) {
+            return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+          }
+        }
+        return true;
+      }).toList();
+
+      for (var l in targetLogs) {
+        final van = l['vans'] ?? {};
+        final profile = l['profiles'] ?? {};
+        final double prev = (l['previous_meter'] as num? ?? 0.0).toDouble();
+        final double curr = (l['latest_meter'] as num? ?? 0.0).toDouble();
+        final List<String> row = [
+          l['id']?.toString() ?? '',
+          '"${(van['van_number'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+          '"${(profile['full_name'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+          prev.toString(),
+          curr.toString(),
+          (curr - prev).toStringAsFixed(1),
+          (l['fuel_liters'] ?? 0.0).toString(),
+          (l['amount_paid'] ?? 0.0).toString(),
+          l['payment_method']?.toString() ?? 'Cash',
+          l['created_at']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
+      }
+
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'fleet_logs_$dateLabel.csv';
+
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsString(buffer.toString());
+        await Share.shareXFiles([XFile(file.path)], text: 'Fleet Console Logs CSV');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
+  Future<void> _importFleetCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Fleet Refueling Logs',
+      isImport: true,
+    );
+    if (range == null) return;
+
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      if (result == null) return;
+
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        lines = await File(result.files.single.path!).readAsLines();
+      }
+
+      if (lines.length < 2) return;
+
+      int successCount = 0;
+      for (int i = 1; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.isEmpty) continue;
+
+        final cells = line.split(',');
+        if (cells.length < 9) continue;
+
+        final vanNo = cells[1].replaceAll('"', '').trim();
+        final latestMeter = double.tryParse(cells[4].trim()) ?? 0.0;
+        final liters = double.tryParse(cells[6].trim()) ?? 0.0;
+        final amount = double.tryParse(cells[7].trim()) ?? 0.0;
+        final method = cells[8].replaceAll('"', '').trim();
+
+        // Find van ID
+        final vanRes = await _client.from('vans').select('id').eq('van_number', vanNo).maybeSingle();
+        if (vanRes != null) {
+          final user = _client.auth.currentUser;
+          await _client.from('van_logs').insert({
+            'van_id': vanRes['id'],
+            'user_id': user?.id,
+            'previous_meter': latestMeter - 100, // Estimate distance delta or fallback
+            'latest_meter': latestMeter,
+            'fuel_liters': liters,
+            'amount_paid': amount,
+            'payment_method': method,
+          });
+          successCount++;
+        }
+      }
+
+      _fetchConsoleData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported $successCount refueling logs successfully.'), backgroundColor: Colors.greenAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
   void _showAddVanModal(bool isDark) {
     final numCtrl = TextEditingController();
     final driverCtrl = TextEditingController();
@@ -172,6 +312,8 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
+          IconButton(icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent), onPressed: _importFleetCSV, tooltip: 'Import CSV'),
+          IconButton(icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent), onPressed: _exportFleetCSV, tooltip: 'Export CSV'),
           IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.greenAccent, size: 24), onPressed: () => _showAddVanModal(isDark)),
           IconButton(icon: const Icon(Icons.calendar_month_rounded, color: Colors.indigoAccent, size: 24), onPressed: () async {
             final picked = await showDatePicker(context: context, initialDate: _selectedDate, firstDate: DateTime(2024), lastDate: DateTime(2030));
@@ -199,52 +341,52 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
                                 children: [
                                   _buildOverviewMetrics(totalCost, totalLiters, isDark),
                                   const SizedBox(height: 24),
-                                  _buildRefuelingEntryForm(isDark),
+                                  _buildRefuelingForm(isDark),
                                 ],
                               ),
                             ),
                           ),
-                          const VerticalDivider(width: 1, color: Colors.black12),
+                          const VerticalDivider(width: 1, color: Colors.white10),
                           Expanded(
                             flex: 5,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
-                                  child: Text('REFUELING REGISTRY (${DateFormat('dd MMM yyyy').format(_selectedDate).toUpperCase()})', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
-                                ),
-                                Expanded(
-                                  child: dateFiltered.isEmpty
-                                    ? Center(child: Text('NO ENTRIES REGISTERED TODAY', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13, fontWeight: FontWeight.bold)))
-                                    : ListView.builder(
-                                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                                        itemCount: dateFiltered.length,
-                                        itemBuilder: (context, i) => _buildLogCard(dateFiltered[i], isDark),
-                                      ),
-                                ),
-                              ],
+                            child: ListView.builder(
+                              padding: const EdgeInsets.all(24),
+                              itemCount: dateFiltered.isEmpty ? 1 : dateFiltered.length,
+                              itemBuilder: (c, idx) {
+                                if (dateFiltered.isEmpty) {
+                                  return Center(child: Padding(padding: const EdgeInsets.only(top: 80), child: Text('NO REFUELLING EVENTS TODAY', style: GoogleFonts.outfit(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.bold, fontSize: 12))));
+                                }
+                                return _buildLogCard(dateFiltered[idx], isDark);
+                              },
                             ),
                           ),
                         ],
                       );
                     }
 
-                    // Mobile View: Single column scrolling list
-                    return ListView(
+                    // Mobile View: Default Scrollable view
+                    return SingleChildScrollView(
                       padding: const EdgeInsets.all(24),
-                      children: [
-                        _buildOverviewMetrics(totalCost, totalLiters, isDark),
-                        const SizedBox(height: 24),
-                        _buildRefuelingEntryForm(isDark),
-                        const SizedBox(height: 32),
-                        Text('REFUELING REGISTRY (${DateFormat('dd MMM yyyy').format(_selectedDate).toUpperCase()})', style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.greenAccent, letterSpacing: 1.5)),
-                        const SizedBox(height: 16),
-                        if (dateFiltered.isEmpty)
-                          Center(child: Padding(padding: const EdgeInsets.all(40), child: Text('NO ENTRIES REGISTERED TODAY', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 13, fontWeight: FontWeight.bold))))
-                        else
-                          ...dateFiltered.map((l) => _buildLogCard(l, isDark)).toList(),
-                      ],
+                      child: Column(
+                        children: [
+                          _buildOverviewMetrics(totalCost, totalLiters, isDark),
+                          const SizedBox(height: 32),
+                          _buildRefuelingForm(isDark),
+                          const SizedBox(height: 40),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('REFUELING CHRONOLOGY', style: GoogleFonts.outfit(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                              Text(DateFormat('MMM dd').format(_selectedDate).toUpperCase(), style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          if (dateFiltered.isEmpty)
+                            Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 40), child: Text('NO REFUELLING EVENTS TODAY', style: GoogleFonts.outfit(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.bold, fontSize: 12))))
+                          else
+                            ...dateFiltered.map((log) => _buildLogCard(log, isDark)),
+                        ],
+                      ),
                     );
                   },
                 ),
@@ -253,68 +395,10 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
     );
   }
 
-  Widget _buildRefuelingEntryForm(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(28), border: Border.all(color: Colors.greenAccent.withOpacity(0.2))),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('NEW REFUELING AUDIT LOG', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-          const SizedBox(height: 16),
-          // Van Selector
-          DropdownButtonHideUnderline(
-            child: DropdownButtonFormField<String>(
-              value: _selectedVanId,
-              hint: const Text('SELECT VEHICLE', style: TextStyle(fontSize: 13)),
-              dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
-              items: _vans.map((v) => DropdownMenuItem(value: v['id'].toString(), child: Text(v['van_number'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)))).toList(),
-              onChanged: (val) { if (val != null) _fetchLastMeter(val); },
-            ),
-          ),
-          if (_selectedVanId != null) ...[
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: _infoBox('PREVIOUS METER', _lastMeter.toStringAsFixed(1), isDark)),
-              const SizedBox(width: 12),
-              Expanded(child: _inputBox('TODAY METER', _todayMeterCtrl, isDark)),
-            ]),
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: _inputBox('VOLUME (LITERS)', _litersCtrl, isDark, icon: Icons.local_gas_station_outlined)),
-              const SizedBox(width: 12),
-              Expanded(child: _inputBox('COST AMOUNT (₹)', _amountCtrl, isDark, icon: Icons.payments_outlined)),
-            ]),
-            const SizedBox(height: 16),
-            // Payment method selector
-            Row(children: ['Cash', 'Card', 'Wallet'].map((type) {
-              bool sel = _paymentMethod == type;
-              return Expanded(child: GestureDetector(onTap: () => setState(() => _paymentMethod = type), child: Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: sel ? Colors.greenAccent : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03)), borderRadius: BorderRadius.circular(12)), child: Center(child: Text(type.toUpperCase(), style: TextStyle(color: sel ? Colors.black : (isDark ? Colors.white60 : Colors.black54), fontWeight: FontWeight.bold, fontSize: 11))))));
-            }).toList()),
-            const SizedBox(height: 16),
-            // Receipt pick
-            GestureDetector(
-              onTap: _pickReceipt,
-              child: Container(
-                height: 100, width: double.infinity,
-                decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.01) : Colors.black.withOpacity(0.01), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.greenAccent.withOpacity(0.1))),
-                child: _receiptUrl == null
-                    ? const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.camera_alt_outlined, color: Colors.greenAccent, size: 24), SizedBox(height: 8), Text('UPLOAD RECEIPT IMAGE', style: TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold))])
-                    : ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network(_receiptUrl!, fit: BoxFit.cover)),
-              ),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: _submitRefuelingLog, style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent), child: const Text('SUBMIT REFUEL LOG', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 15))))
-          ]
-        ],
-      ),
-    );
-  }
-
   Widget _buildOverviewMetrics(double totalCost, double totalLiters, bool isDark) {
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(28), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)),
+      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(28), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -333,6 +417,58 @@ class _AdminFleetConsoleScreenState extends State<AdminFleetConsoleScreen> {
               ])
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefuelingForm(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(28), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('REFUELING DISPATCH', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 2)),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _selectedVanId,
+                hint: const Text('SELECT VEHICLE UNIT', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                dropdownColor: isDark ? const Color(0xFF16181A) : Colors.white,
+                isExpanded: true,
+                onChanged: (v) {
+                  if (v != null) _fetchLastMeter(v);
+                },
+                items: _vans.map((v) => DropdownMenuItem(value: v['id'].toString(), child: Text(v['van_number'].toString().toUpperCase(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)))).toList(),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _infoBox('PREVIOUS METER READING (km)', _lastMeter.toStringAsFixed(1), isDark),
+          const SizedBox(height: 16),
+          _inputBox('CURRENT METER READING (km)', _todayMeterCtrl, isDark, icon: Icons.speed_rounded),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: _inputBox('VOLUME (L)', _litersCtrl, isDark, icon: Icons.local_gas_station_rounded)),
+              const SizedBox(width: 16),
+              Expanded(child: _inputBox('AMOUNT PAID (₹)', _amountCtrl, isDark, icon: Icons.payments_rounded)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('RECEIPT ATTACHED', style: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 11, fontWeight: FontWeight.bold)),
+              IconButton(icon: Icon(Icons.camera_alt_rounded, color: _receiptUrl != null ? Colors.greenAccent : Colors.indigoAccent), onPressed: _pickReceipt),
+            ],
+          ),
+          const SizedBox(height: 24),
+          SizedBox(width: double.infinity, height: 50, child: ElevatedButton(onPressed: _submitRefuelingLog, style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: const Text('COMMIT FUEL ENTRY', style: TextStyle(color: Colors.black, fontWeight: FontWeight.w900, fontSize: 14))))
         ],
       ),
     );

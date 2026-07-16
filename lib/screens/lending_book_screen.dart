@@ -305,11 +305,21 @@ _typeBtn('RETURNED', 'return', Colors.greenAccent, (v) {
 
   Future<void> _submitEntry(String type) async {
     final amt = double.tryParse(_amtCtrl.text);
-    if (amt == null || amt <= 0 || _nameCtrl.text.isEmpty) return;
+    if (amt == null || amt <= 0 || _nameCtrl.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid name and amount.'), backgroundColor: Colors.orangeAccent),
+      );
+      return;
+    }
 
     try {
       final user = _client.auth.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Not authenticated. Please log in.'), backgroundColor: Colors.redAccent),
+        );
+        return;
+      }
 
       await _client.from('lending_book').insert({
         'user_id': user.id,
@@ -323,8 +333,19 @@ _typeBtn('RETURNED', 'return', Colors.greenAccent, (v) {
       _nameCtrl.clear();
       _phoneCtrl.clear();
       _amtCtrl.clear();
-      Navigator.pop(context);
-      _fetchRecords();
-    } catch (_) {}
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Transaction successfully logged to Khata.'), backgroundColor: Colors.greenAccent),
+        );
+        _fetchRecords();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error committing: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 }

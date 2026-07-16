@@ -1,10 +1,18 @@
+import 'dart:convert';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../services/receipt_service.dart';
+import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
 
 class AdminOrderControlScreen extends StatefulWidget {
   final bool approvalsOnly;
@@ -30,10 +38,12 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
   bool _isLoading = true;
   List<dynamic> _orders = [];
   DateTime? _filterDate;
+  late bool _isBookingFilter;
 
   @override
   void initState() {
     super.initState();
+    _isBookingFilter = widget.isBookingFilter;
     _filterDate = widget.initialDate;
     _tabController = TabController(length: 3, vsync: this);
     _fetchOrders();
@@ -57,7 +67,6 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
   Future<void> _fetchOrders() async {
     if (_orders.isEmpty) setState(() => _isLoading = true);
     try {
-      // 🧠 RESILIENT JOIN: Handles both direct and aliased profile relationships
       final res = await _client.from('shop_orders').select('*, profiles(*)').order('created_at', ascending: false);
       if (mounted) setState(() { _orders = res; _isLoading = false; });
     } catch (e) {
@@ -70,13 +79,130 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
     }
   }
 
+  // ── CSV Export ─────────────────────────────────────────────────────────────
+
+  Future<void> _exportOrdersToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: _isBookingFilter ? 'Mandi Bookings' : 'Campus Shop Orders',
+      isImport: false,
+    );
+    if (range == null) return;
+
+    try {
+      final buffer = StringBuffer();
+      final headers = ['Order ID', 'Customer Name', 'Total Price (₹)', 'Payment Method', 'Status', 'Booking Mode', 'Created At'];
+      buffer.writeln(headers.join(','));
+
+      final filtered = _orders.where((o) {
+        final matchBooking = (o['is_booking'] ?? false) == _isBookingFilter;
+        if (!matchBooking) return false;
+        if (o['created_at'] != null) {
+          final dt = DateTime.tryParse(o['created_at'].toString());
+          if (dt != null) {
+            return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+          }
+        }
+        return true;
+      }).toList();
+
+      for (var o in filtered) {
+        final profile = o['profiles'] ?? {};
+        final List<String> row = [
+          o['id']?.toString() ?? '',
+          '"${(profile['full_name'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+          (o['total_price'] ?? 0.0).toString(),
+          o['payment_method']?.toString() ?? 'N/A',
+          o['order_status']?.toString() ?? 'Placed',
+          (_isBookingFilter ? 'Mandi' : 'Shop'),
+          o['created_at']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
+      }
+
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = '${_isBookingFilter ? "mandi" : "shop"}_orders_$dateLabel.csv';
+
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsString(buffer.toString());
+        await Share.shareXFiles([XFile(file.path)], text: 'Orders CSV Export');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
+  // ── CSV Import ─────────────────────────────────────────────────────────────
+
+  Future<void> _importOrdersFromCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: _isBookingFilter ? 'Mandi Bookings' : 'Campus Shop Orders',
+      isImport: true,
+    );
+    if (range == null) return;
+
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      if (result == null) return;
+
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        lines = await File(result.files.single.path!).readAsLines();
+      }
+
+      if (lines.length < 2) return;
+
+      int successCount = 0;
+      for (int i = 1; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.isEmpty) continue;
+
+        final cells = line.split(',');
+        if (cells.length < 5) continue;
+
+        final orderId = cells[0].trim();
+        final status = cells[4].trim();
+
+        if (orderId.isNotEmpty && orderId.length > 5) {
+          await _client.from('shop_orders').update({
+            'order_status': status,
+          }).eq('id', orderId);
+          successCount++;
+        }
+      }
+
+      _fetchOrders();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Updated $successCount orders from CSV successfully.'), backgroundColor: Colors.greenAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final textColor = isDark ? Colors.white : Colors.black;
 
-    // Use a simplified view if integrating into Approvals Center
     if (widget.approvalsOnly) {
        return _isLoading 
          ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
@@ -86,15 +212,14 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('ORDERS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        title: Text('ORDERS HUB', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(
-            icon: Icon(Icons.settings_suggest_rounded, color: textColor, size: 20),
-            onPressed: () => _showSettingsDialog(isDark),
-          ),
+          IconButton(icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent), onPressed: _importOrdersFromCSV, tooltip: 'Import CSV'),
+          IconButton(icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent), onPressed: _exportOrdersToCSV, tooltip: 'Export CSV'),
+          IconButton(icon: Icon(Icons.settings_suggest_rounded, color: textColor, size: 20), onPressed: () => _showSettingsDialog(isDark)),
           const SizedBox(width: 8),
         ],
         bottom: TabBar(
@@ -112,26 +237,91 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
       ),
       body: _isLoading 
         ? const Center(child: CircularProgressIndicator(color: Colors.pinkAccent))
-        : Stack(
+        : Column(
             children: [
-              _buildRefractionOrbs(),
-              TabBarView(
-  controller: _tabController,
-  children: [
-    _buildOrdersList(
-      ['Placed', 'Confirmed', 'In Process', 'Packing', 'Preparing'],
-      isDark,
-    ),
-    _buildOrdersList(
-      ['Ready', 'Shipped'],
-      isDark,
-    ),
-    _buildOrdersList(
-      ['Completed', 'Delivered', 'Cancelled', 'Rejected'],
-      isDark,
-    ),
-  ],
-),
+              // Sliding toggle filter between Campus Shop and Mandi Orders
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                child: Container(
+                  height: 46,
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => setState(() => _isBookingFilter = false),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: !_isBookingFilter ? Colors.pinkAccent : Colors.transparent,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              'CAMPUS SHOP',
+                              style: GoogleFonts.outfit(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                                color: !_isBookingFilter ? Colors.white : (isDark ? Colors.white38 : Colors.black45),
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => setState(() => _isBookingFilter = true),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Container(
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: _isBookingFilter ? Colors.pinkAccent : Colors.transparent,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Text(
+                              'MANDI BOOKINGS',
+                              style: GoogleFonts.outfit(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 11,
+                                color: _isBookingFilter ? Colors.white : (isDark ? Colors.white38 : Colors.black45),
+                                letterSpacing: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Stack(
+                  children: [
+                    _buildRefractionOrbs(),
+                    TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildOrdersList(
+                          ['Placed', 'Confirmed', 'In Process', 'Packing', 'Preparing'],
+                          isDark,
+                        ),
+                        _buildOrdersList(
+                          ['Ready', 'Shipped'],
+                          isDark,
+                        ),
+                        _buildOrdersList(
+                          ['Completed', 'Delivered', 'Cancelled', 'Rejected'],
+                          isDark,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
             ],
           ),
     );
@@ -144,7 +334,7 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
   Widget _buildOrdersList(List<String> statuses, bool isDark, {bool pendingUpiOnly = false}) {
     final filtered = _orders.where((o) {
        final matchStatus = statuses.contains(o['order_status'] ?? 'Placed');
-       final matchBooking = (o['is_booking'] ?? false) == widget.isBookingFilter;
+       final matchBooking = (o['is_booking'] ?? false) == _isBookingFilter;
        if (pendingUpiOnly) {
          return matchStatus && o['payment_method'] == 'UPI' && matchBooking;
        }
@@ -208,105 +398,151 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
                      Text(profile?['full_name'] ?? 'USER', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 15)),
                      if (o['order_instructions'] != null && o['order_instructions'].toString().isNotEmpty) ...[
                        const SizedBox(width: 8),
-                       Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.pinkAccent, borderRadius: BorderRadius.circular(4)), child: const Text('NOTE', style: TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900))),
+                       Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(8)), child: const Text('ALERT', style: TextStyle(color: Colors.orangeAccent, fontSize: 8, fontWeight: FontWeight.bold))),
                      ],
                    ]),
-                   Text('ORDER #${o['id'].toString().substring(0,8).toUpperCase()}', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10, fontWeight: FontWeight.bold)),
+                   Text('Order Total: ₹${o['total_price']}', style: GoogleFonts.outfit(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54)),
                 ])),
               ],
             ),
-            trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [
-               Text('₹${(o['total_price'] ?? 0).toInt()}', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 18)),
-               _statusBadge(status.toUpperCase(), _getStatusColor(status)),
-            ]),
+            subtitle: Container(
+              margin: const EdgeInsets.only(top: 8),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (status == 'Placed' || status == 'Pending') ? Colors.orangeAccent.withOpacity(0.1) : Colors.greenAccent.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      status.toString().toUpperCase(),
+                      style: TextStyle(
+                        color: (status == 'Placed' || status == 'Pending') ? Colors.orangeAccent : Colors.greenAccent.shade700,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      (o['payment_method'] ?? 'CASH').toString().toUpperCase(),
+                      style: TextStyle(
+                        color: isDark ? Colors.white60 : Colors.black54,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             children: [
               Container(
                 padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Divider(color: Colors.white10),
+                    const Divider(height: 32),
+                    Text('ITEMS ORDERED', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.pinkAccent, letterSpacing: 1)),
+                    const SizedBox(height: 12),
+                     ...items.map((it) {
+                       final qty = it['qty'] ?? it['quantity'] ?? 1;
+                       final price = it['price'] ?? 0.0;
+                       return Padding(
+                         padding: const EdgeInsets.symmetric(vertical: 4),
+                         child: Row(
+                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                           children: [
+                             Text('${it['name'] ?? 'Item'} x$qty', style: const TextStyle(fontSize: 13)),
+                             Text('₹${(price * qty).toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                           ],
+                         ),
+                       );
+                     }),
+                    if (isUPI) ...[
+                      const Divider(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('UPI TRANSACTION ATTACHMENT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                          IconButton(
+                            icon: const Icon(Icons.receipt_long_rounded, color: Colors.pinkAccent),
+                            onPressed: () {
+                              ReceiptService.generateAndShareReceipt(o);
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                    if (o['order_instructions'] != null && o['order_instructions'].toString().isNotEmpty) ...[
+                      const Divider(height: 32),
+                      Text('DELIVERY INSTRUCTIONS', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orangeAccent, letterSpacing: 1)),
+                      const SizedBox(height: 8),
+                      Text(o['order_instructions'], style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+                    ],
                     const SizedBox(height: 16),
-                    _detailRow('METHOD', o['delivery_type'] ?? 'Pickup', isDark),
-                    _detailRow('PAYMENT', o['payment_method'] ?? 'Wallet', isDark),
-                    _detailRow('PHONE', o['phone_no'] ?? 'N/A', isDark),
-                    if (o['alt_phone_no'] != null && o['alt_phone_no'].toString().isNotEmpty) _detailRow('ALT_PHONE', o['alt_phone_no'], isDark),
-                    if (o['delivery_address'] != null && o['delivery_address'].toString().isNotEmpty) _detailRow('ADDRESS', o['delivery_address'], isDark),
-                    if (o['is_booking'] == true) ...[
-                      _detailRow('BOOKING DATE', o['booking_date'] != null ? DateFormat('yyyy-MM-dd').format(DateTime.parse(o['booking_date'])) : 'N/A', isDark, color: Colors.indigoAccent),
-                      _detailRow('ADVANCE PAID', '₹${o['advance_paid'] ?? 0.0}', isDark, color: Colors.green),
-                      _detailRow('USER TYPE', (o['user_type'] ?? 'domestic').toString().toUpperCase(), isDark),
-                      if (o['delivery_location'] != null && o['delivery_location'].toString().isNotEmpty)
-                        _detailRow('LOCATION', o['delivery_location'], isDark),
-                    ],
-                    if (o['order_instructions'] != null && o['order_instructions'].toString().isNotEmpty)
-                      _detailRow('INSTRUCTIONS', o['order_instructions'], isDark, color: Colors.pinkAccent),
-                    if (o['delivery_otp'] != null && status != 'Completed' && status != 'Delivered')
-                      _detailRow('VERIF. OTP', o['delivery_otp'].toString(), isDark, color: Colors.indigoAccent),
-                    if (o['estimated_delivery'] != null) _detailRow('ETA', DateFormat('MMM dd, hh:mm a').format(DateTime.parse(o['estimated_delivery'])), isDark, color: Colors.amberAccent),
-                    const SizedBox(height: 16),
-                    if (isUPI && o['upi_screenshot_url'] != null) ...[
-                       Text('PAYMENT VOUCHER', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                       const SizedBox(height: 12),
-                       GestureDetector(
-                         onTap: () => _showScreenshotDialog(o['upi_screenshot_url']),
-                         child: Container(height: 120, width: double.infinity, decoration: BoxDecoration(color: Colors.white.withOpacity(0.02), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white10)), child: const Center(child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.image_outlined, color: Colors.indigoAccent), SizedBox(width: 12), Text('VIEW UPI RECEIPT', style: TextStyle(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.bold))]))),
-                       ),
-                       const SizedBox(height: 16),
-                    ],
-                    /// 🔥 ADMIN STATUS WORKFLOW
-                    if (status == 'Placed' && isUPI) ...[
-                       const SizedBox(height: 12),
-                       Row(children: [
-                         Expanded(child: ElevatedButton(onPressed: () => _updateStatus(o['id'], 'Confirmed'), style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent), child: const Text('AUTHORIZE PAYMENT', style: TextStyle(color: Colors.black, fontSize: 10, fontWeight: FontWeight.bold)))),
-                         const SizedBox(width: 8),
-                         Expanded(child: OutlinedButton(onPressed: () => _updateStatus(o['id'], 'Failed'), style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.redAccent)), child: const Text('FAIL ORDER', style: TextStyle(color: Colors.redAccent, fontSize: 10, fontWeight: FontWeight.bold)))),
-                       ]),
-                       const SizedBox(height: 24),
-                    ],
-
-                    Text('ORDER ITEMS', style: GoogleFonts.outfit(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                    const SizedBox(height: 8),
-                    ...items.map((it) {
-                      final qty = (it['qty'] as num).toInt();
-                      final wQty = it['weight_qty'] != null ? (it['weight_qty'] as num).toDouble() : null;
-                      final wUnit = it['weight_unit']?.toString();
-                      
-                      String qtyWeightStr = qty.toString();
-                      if (wQty != null && wQty != 1.0) {
-                        qtyWeightStr = '$qty x ${wQty} ${wUnit ?? 'kg'}';
-                      }
-                      
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(children: [
-                          Text('$qtyWeightStr ', style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.w900, fontSize: 12)),
-                          Text(it['name'] ?? 'ITEM', style: const TextStyle(color: Colors.white70, fontSize: 12)),
-                          const Spacer(),
-                          Text('₹${it['price'] ?? ''}', style: const TextStyle(color: Colors.white38, fontSize: 12)),
-                        ]),
-                      );
-                    }).toList(),
-                    const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: () async {
-                          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating Invoice PDF...')));
-                          try {
-                            // Import of ReceiptService might be missing, so we'll check it
-                            await ReceiptService.generateAndShareReceipt(o);
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-                          }
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          ReceiptService.generateAndShareReceipt(o);
                         },
-                        icon: const Icon(Icons.download_for_offline_rounded, color: Colors.white, size: 16),
-                        label: const Text('DOWNLOAD INVOICE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1)),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), padding: const EdgeInsets.symmetric(vertical: 16)),
+                        icon: const Icon(Icons.receipt_long_rounded, size: 16),
+                        label: const Text('DOWNLOAD / SHARE INVOICE RECEIPT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1)),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.indigoAccent,
+                          side: const BorderSide(color: Colors.indigoAccent),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                    _buildActionButtons(o, isDark),
+                    const Divider(height: 32),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        if (status == 'Placed')
+                          ElevatedButton(
+                            onPressed: () async {
+                              await _client.from('shop_orders').update({'order_status': 'Confirmed'}).eq('id', o['id']);
+                              _fetchOrders();
+                            },
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent),
+                            child: const Text('CONFIRM', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                        if (status == 'Confirmed' || status == 'In Process' || status == 'Preparing' || status == 'Packing')
+                          ElevatedButton(
+                            onPressed: () async {
+                              await _client.from('shop_orders').update({'order_status': 'Ready'}).eq('id', o['id']);
+                              _fetchOrders();
+                            },
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                            child: const Text('MARK READY', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                        if (status == 'Ready')
+                          ElevatedButton(
+                            onPressed: () => _assignDeliveryPartner(o['id'], isDark),
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.amberAccent.shade700),
+                            child: const Text('ASSIGN DELIVERY', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                        if (status == 'Shipped')
+                          ElevatedButton(
+                            onPressed: () async {
+                              await _client.from('shop_orders').update({'order_status': 'Completed'}).eq('id', o['id']);
+                              _fetchOrders();
+                            },
+                            style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent.shade700),
+                            child: const Text('DELIVERED', style: TextStyle(color: Colors.black, fontSize: 11, fontWeight: FontWeight.bold)),
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -317,186 +553,21 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
     );
   }
 
-  Widget _buildActionButtons(dynamic o, bool isDark) {
-    final status = o['order_status'] ?? 'Placed';
-    if (status == 'Completed' || status == 'Delivered' || status == 'Cancelled') return const SizedBox.shrink();
-
-    String nextLabel = 'MARK PREPARING';
-    String nextStatus = 'Preparing';
-    Color btnColor = Colors.indigoAccent;
-
-    if (status == 'Placed') { nextLabel = 'MARK PREPARING'; nextStatus = 'Preparing'; }
-    else if (status == 'Preparing') { nextLabel = 'MARK READY'; nextStatus = 'Ready'; btnColor = Colors.blueAccent; }
-    else if (status == 'Ready') { nextLabel = 'MARK DISPATCHED'; nextStatus = 'Shipped'; btnColor = Colors.orangeAccent; }
-    else if (status == 'Shipped') { nextLabel = 'MARK DELIVERED'; nextStatus = 'Delivered'; btnColor = Colors.greenAccent; }
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: ElevatedButton(
-                onPressed: () {
-                  if (nextStatus == 'Delivered') {
-                    _verifyAndDelivery(o, isDark);
-                  } else {
-                    _updateStatus(o['id'], nextStatus);
-                  }
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: btnColor, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), padding: const EdgeInsets.symmetric(vertical: 16)),
-                child: Text(nextLabel, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11)),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(15)),
-              child: PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: isDark ? Colors.white70 : Colors.black54),
-                onSelected: (val) => _updateStatus(o['id'], val),
-                itemBuilder: (ctx) => [
-                  'Confirmed', 'In Process', 'Packing', 'Ready', 'Shipped', 'Delivered', 'Completed', 'Rejected', 'Cancelled'
-                ].map((s) => PopupMenuItem(value: s, child: Text(s.toUpperCase(), style: GoogleFonts.outfit(color: isDark ? Colors.white70 : Colors.black87, fontSize: 10, fontWeight: FontWeight.bold)))).toList(),
-              ),
-            ),
-          ],
-        ),
-        if (o['delivery_type'] == 'Home Delivery' || o['delivery_type'] == null) ...[
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _setDeliveryTime(o['id'], isDark),
-                  icon: const Icon(Icons.timer_outlined, size: 16, color: Colors.amberAccent),
-                  label: const Text('SET ETA', style: TextStyle(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.amberAccent), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _assignDeliveryPartner(o['id'], isDark),
-                  icon: const Icon(Icons.delivery_dining_rounded, size: 16, color: Colors.greenAccent),
-                  label: const Text('ASSIGN PARTNER', style: TextStyle(color: Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
-                  style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.greenAccent), padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-
-  Future<void> _setDeliveryTime(String id, bool isDark) async {
-    final date = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 7)),
-      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: ColorScheme.fromSeed(seedColor: Colors.pinkAccent, brightness: isDark ? Brightness.dark : Brightness.light)), child: child!));
-    if (date == null) return;
-    final time = await showTimePicker(context: context, initialTime: TimeOfDay.now());
-    if (time == null) return;
-
-    final target = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+  void _showSettingsDialog(bool isDark) async {
+    final chargeCtrl = TextEditingController();
     try {
-      await _client.from('shop_orders').update({'estimated_delivery': target.toIso8601String()}).eq('id', id);
-      _fetchOrders();
+      final res = await _client.from('app_settings').select('value').eq('key', 'delivery_charge').maybeSingle();
+      if (res != null) chargeCtrl.text = res['value'].toString();
     } catch (_) {}
-  }
-
-  Widget _statusBadge(String label, Color c) {
-    return Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: c.withOpacity(0.12), borderRadius: BorderRadius.circular(10)), child: Text(label, style: TextStyle(color: c, fontSize: 8, fontWeight: FontWeight.bold)));
-  }
-
-   Color _getStatusColor(String s) {
-      if (s == 'Confirmed') return Colors.tealAccent;
-      if (s == 'In Process' || s == 'Preparing') return Colors.indigoAccent;
-      if (s == 'Packing') return Colors.amberAccent;
-      if (s == 'Ready') return Colors.blueAccent;
-      if (s == 'Shipped') return Colors.orangeAccent;
-      if (s == 'Delivered' || s == 'Completed') return Colors.greenAccent;
-      if (s == 'Rejected' || s == 'Cancelled') return Colors.redAccent;
-      return Colors.white24;
-   }
-
-  Widget _detailRow(String label, String val, bool isDark, {Color color = Colors.white70}) {
-    final defaultColor = isDark ? Colors.white70 : Colors.black87;
-    final labelColor = isDark ? Colors.white24 : Colors.black26;
-    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [Text(label, style: TextStyle(color: labelColor, fontSize: 9, fontWeight: FontWeight.bold)), const SizedBox(width: 12), Expanded(child: Text(val, style: TextStyle(color: color == Colors.white70 ? defaultColor : color, fontSize: 11, fontWeight: FontWeight.bold), textAlign: TextAlign.right))]));
-  }
-
-  void _showScreenshotDialog(String url) {
-    showDialog(context: context, builder: (ctx) => BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: Dialog(backgroundColor: Colors.transparent, child: Column(mainAxisSize: MainAxisSize.min, children: [ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.network(url, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Center(child: Text('LOAD ERROR', style: TextStyle(color: Colors.white))))), const SizedBox(height: 16), ElevatedButton(onPressed: () => Navigator.pop(ctx), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent), child: const Text('DISMISS', style: TextStyle(color: Colors.white)))]))));
-  }
-
-  Future<void> _updateStatus(dynamic id, String status) async {
-    try {
-      await _client.from('shop_orders').update({'order_status': status}).eq('id', id);
-      _fetchOrders();
-    } catch (_) {}
-  }
-
-  Future<void> _verifyAndDelivery(dynamic o, bool isDark) async {
-    final TextEditingController otpCtrl = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (ctx) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: AlertDialog(
-          backgroundColor: isDark ? const Color(0xFF08090A) : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-          title: Text('VERIFY DELIVERY', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1, color: isDark ? Colors.white : Colors.black)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('Ask the customer or alternate receiver for their 4-digit Collection OTP.', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10)),
-              const SizedBox(height: 24),
-              TextField(
-                controller: otpCtrl,
-                keyboardType: TextInputType.number,
-                maxLength: 4,
-                textAlign: TextAlign.center,
-                style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w900, letterSpacing: 10, color: Colors.indigoAccent),
-                decoration: InputDecoration(
-                  counterText: "",
-                  filled: true,
-                  fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text('CANCEL', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.bold))),
-            ElevatedButton(
-              onPressed: () {
-                if (otpCtrl.text == o['delivery_otp'].toString()) {
-                  Navigator.pop(ctx);
-                  _updateStatus(o['id'], 'Delivered');
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('VERIFICATION SUCCESSFUL: ORDER DELIVERED'), backgroundColor: Colors.greenAccent));
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('INVALID OTP: ACCESS DENIED'), backgroundColor: Colors.redAccent));
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-              child: const Text('VERIFY & COMPLETE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showSettingsDialog(bool isDark) async {
-    final settings = await _client.from('app_settings').select('value').eq('key', 'delivery_charge').maybeSingle();
-    final TextEditingController chargeCtrl = TextEditingController(text: (settings?['value'] ?? 20.0).toString());
 
     if (!mounted) return;
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF08090A) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
-        title: Text('LOGISTICS SETTINGS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, letterSpacing: 1, color: isDark ? Colors.white : Colors.black)),
+        backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        title: Text('LOGISTICS PARAMETERS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, color: isDark ? Colors.white : Colors.black)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'admin_room_intelligence_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
@@ -11,6 +12,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:convert';
 import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
 
 class AdminBlockManagementScreen extends StatefulWidget {
   const AdminBlockManagementScreen({super.key});
@@ -32,6 +34,13 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
   }
 
   Future<void> _exportRoomsToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Hostel Rooms',
+      isImport: false,
+    );
+    if (range == null) return;
+
     try {
       final List<String> csvHeaders = [
         'id', 'building_name', 'floor', 'room_number', 'room_type', 'rent_amount',
@@ -43,7 +52,17 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
       
       final List<dynamic> rooms = await _client.from('hostel_rooms').select();
       
-      for (var r in rooms) {
+      final targetRooms = rooms.where((r) {
+        if (r['created_at'] != null) {
+          final dt = DateTime.tryParse(r['created_at'].toString());
+          if (dt != null) {
+            return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+          }
+        }
+        return true;
+      }).toList();
+
+      for (var r in targetRooms) {
         final List<String> row = [
           r['id']?.toString() ?? '',
           '"${(r['building_name'] ?? '').toString().replaceAll('"', '""')}"',
@@ -58,9 +77,12 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
         buffer.writeln(row.join(','));
       }
       
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'hostel_rooms_export_$dateLabel.csv';
+
       if (kIsWeb) {
         try {
-          downloadCsvFile(buffer.toString(), 'hostel_rooms_export.csv');
+          downloadCsvFile(buffer.toString(), filename);
         } catch (_) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export failed or not supported.'), backgroundColor: Colors.orangeAccent));
@@ -70,7 +92,7 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
       }
       
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/hostel_rooms_export.csv');
+      final file = File('${tempDir.path}/$filename');
       await file.writeAsString(buffer.toString());
       
       await Share.shareXFiles([XFile(file.path)], text: 'Hostel Rooms Database Export');
@@ -82,6 +104,13 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
   }
 
   Future<void> _importRoomsFromCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Hostel Rooms',
+      isImport: true,
+    );
+    if (range == null) return;
+
     try {
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -402,8 +431,8 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
                     Expanded(child: _buildInput('MANUAL TYPE', 'e.g. Standard', TextEditingController(), isDark)),
                     IconButton(icon: const Icon(Icons.help_outline), onPressed: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not find data in fee_structure. Enter manually.'))))
                  ])
-               : DropdownButton<String>(
-                  value: selType, isExpanded: true,
+                : DropdownButton<String>(
+                  value: _feePackages.any((t) => t['service_name'].toString() == selType) ? selType : (_feePackages.isNotEmpty ? _feePackages.first['service_name'].toString() : null), isExpanded: true,
                   items: _feePackages.map((t) => DropdownMenuItem(value: t['service_name'].toString(), child: Text(t['service_name'].toString()))).toList(),
                   onChanged: (v) => setS(() => selType = v!),
                ),
@@ -528,7 +557,7 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
            _feePackages.isEmpty 
              ? TextField(onChanged: (v) => unitType = v, decoration: const InputDecoration(hintText: 'Manual Type'))
              : DropdownButton<String>(
-                value: unitType, isExpanded: true,
+                value: _feePackages.any((t) => t['service_name'].toString() == unitType) ? unitType : (_feePackages.isNotEmpty ? _feePackages.first['service_name'].toString() : null), isExpanded: true,
                 items: _feePackages.map((t) => DropdownMenuItem(value: t['service_name'].toString(), child: Text(t['service_name'].toString()))).toList(),
                 onChanged: (v) => setS(() => unitType = v!),
              ),

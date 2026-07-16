@@ -29,7 +29,6 @@ import 'admin_broadcast_screen.dart';
 import '../central_attendance_log_screen.dart';
 import 'admin_room_inspection_screen.dart';
 import 'admin_fleet_console_screen.dart';
-import 'admin_meter_intelligence_screen.dart';
 import 'meter_reading_matrix_screen.dart';
 
 class AdminPanelScreen extends StatefulWidget {
@@ -41,6 +40,7 @@ class AdminPanelScreen extends StatefulWidget {
 
 class _AdminPanelScreenState extends State<AdminPanelScreen> {
   bool _isLoading = true;
+  String _role = 'admin';
   int _studentCount = 0;
   int _activeComplaints = 0;
   int _pendingApprovals = 0;
@@ -65,6 +65,17 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
     setState(() => _isLoading = true);
     try {
       final client = Supabase.instance.client;
+      final user = client.auth.currentUser;
+      String userRole = 'admin';
+      if (user != null) {
+        try {
+          final profileRes = await client.from('profiles').select('role').eq('id', user.id).maybeSingle();
+          if (profileRes != null) {
+            userRole = profileRes['role'] ?? 'admin';
+          }
+        } catch (_) {}
+      }
+
       final enrollments = await client.from('hostel_enrollments').select('total_price, paid_amount');
       final orders = await client.from('shop_orders').select('total_price, order_status');
       final students = await client.from('profiles').select('id').inFilter('role', ['hostel_student', 'mess_student']);
@@ -98,6 +109,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 
       if (mounted) {
         setState(() {
+          _role = userRole;
           _hostelRev = hRev;
           _shopRev = sRev;
           _totalRevenue = hRev + sRev;
@@ -274,31 +286,33 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
 }
 
 Widget _buildHubGrid(bool isDark) {
+  final bool isOwner = _role == 'owner' || _role == 'hostel_owner';
   return Column(
     children: [
       _hubSection(
         'FINANCE',
         [
-          {
-            'icon': Icons.menu_book_rounded,
-            'label': 'Lending Book',
-            'value': 'ACTIVE',
-            'color': Colors.amberAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => LendingBookScreen())),
-          },
+          if (isOwner)
+            {
+              'icon': Icons.menu_book_rounded,
+              'label': 'Lending Book',
+              'value': 'ACTIVE',
+              'color': Colors.amberAccent,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => LendingBookScreen())),
+            },
           {
             'icon': Icons.account_balance_rounded,
             'label': 'Rent Tracker',
             'value': '₹${(_totalDues/1000).toStringAsFixed(1)}K',
             'color': Colors.amberAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminFinanceHubScreen())),
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen())),
           },
           {
             'icon': Icons.price_change_rounded,
             'label': 'Fee Plans',
             'value': 'FEE SETUP',
             'color': Colors.indigoAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminFeePackageScreen())),
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFeePackageScreen())),
           },
         ],
         isDark,
@@ -309,26 +323,27 @@ Widget _buildHubGrid(bool isDark) {
       _hubSection(
         'RESIDENT & HOUSING',
         [
-          {
-            'icon': Icons.badge_outlined,
-            'label': 'Registry',
-            'value': '$_studentCount IDS',
-            'color': Colors.blueAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminPersonnelHubScreen())),
-          },
+          if (isOwner)
+            {
+              'icon': Icons.badge_outlined,
+              'label': 'Registry',
+              'value': '$_studentCount IDS',
+              'color': Colors.blueAccent,
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPersonnelHubScreen())),
+            },
           {
             'icon': Icons.apartment_rounded,
             'label': 'Manage Blocks',
             'value': '$_totalRooms UNITS',
             'color': Colors.purpleAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminBlockManagementScreen())),
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminBlockManagementScreen())),
           },
           {
             'icon': Icons.room_preferences_rounded,
             'label': 'Room Inspector',
             'value': 'INSPECT',
             'color': Colors.indigoAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminRoomInspectionScreen())),
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminRoomInspectionScreen())),
           },
         ],
         isDark,
@@ -347,15 +362,8 @@ Widget _buildHubGrid(bool isDark) {
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => CentralAttendanceLogScreen())),
           },
           {
-            'icon': Icons.credit_card_rounded,
-            'label': 'Mess Cards',
-            'value': '$_expiringMessCards ALERT',
-            'color': Colors.pinkAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen(filterType: 'Mess'))),
-          },
-          {
             'icon': Icons.receipt_long_rounded,
-            'label': 'Procurement',
+            'label': 'Procurements',
             'value': 'HISTORY',
             'color': Colors.tealAccent,
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => AdminProcurementScreen())),
@@ -368,16 +376,9 @@ Widget _buildHubGrid(bool isDark) {
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFleetConsoleScreen())),
           },
           {
-            'icon': Icons.flash_on_rounded,
-            'label': 'Power Audits',
-            'value': 'STATISTICS',
-            'color': Colors.amberAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminMeterIntelligenceScreen())),
-          },
-          {
-            'icon': Icons.grid_on_rounded,
-            'label': 'Meter Matrix',
-            'value': 'GRID EDIT',
+            'icon': Icons.electric_meter_rounded,
+            'label': 'Meter & Power',
+            'value': 'MATRIX + INTEL',
             'color': Colors.amberAccent,
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MeterReadingMatrixScreen())),
           },
@@ -399,17 +400,10 @@ Widget _buildHubGrid(bool isDark) {
           },
           {
             'icon': Icons.shopping_basket_rounded,
-            'label': 'Shop Control',
+            'label': 'Orders Hub',
             'value': '$_pendingOrders ORD',
             'color': Colors.pinkAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOrderControlScreen(isBookingFilter: false))),
-          },
-          {
-            'icon': Icons.storefront_rounded,
-            'label': 'Mandi Bookings',
-            'value': 'MANDI',
-            'color': Colors.greenAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOrderControlScreen(isBookingFilter: true))),
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOrderControlScreen())),
           },
           {
             'icon': Icons.inventory_2_outlined,
@@ -425,13 +419,6 @@ Widget _buildHubGrid(bool isDark) {
             'color': Colors.indigoAccent,
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminBroadcastScreen())),
           },
-          {
-            'icon': Icons.receipt_long_rounded,
-            'label': 'Mandi POs',
-            'value': 'NEW PO',
-            'color': Colors.green,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminProcurementScreen(isMandiPOFilter: true))),
-          },
         ],
         isDark,
       ),
@@ -446,7 +433,7 @@ Widget _buildHubGrid(bool isDark) {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title, style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.w900, color: isDark ? Colors.white38 : Colors.black38, letterSpacing: 2)),
+            Text(title, style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white54 : Colors.black54, letterSpacing: 2)),
             Container(width: 40, height: 1, color: Colors.indigoAccent.withOpacity(0.1)),
           ],
         ),
@@ -475,13 +462,13 @@ Widget _buildHubGrid(bool isDark) {
         decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.06))),
         child: Row(
           children: [
-            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: (item['color'] as Color).withOpacity(0.1), shape: BoxShape.circle), child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 16)),
+            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: (item['color'] as Color).withOpacity(0.1), shape: BoxShape.circle), child: Icon(item['icon'] as IconData, color: item['color'] as Color, size: 20)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisAlignment: MainAxisAlignment.center, children: [
-               Text(item['label'] as String, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 10, fontWeight: FontWeight.w900), maxLines: 1, overflow: TextOverflow.ellipsis),
-               if (item['value'] != null) Text(item['value'] as String, style: TextStyle(color: (item['color'] as Color).withOpacity(0.7), fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+               Text(item['label'] as String, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 14, fontWeight: FontWeight.w900), maxLines: 1, overflow: TextOverflow.ellipsis),
+               if (item['value'] != null) Text(item['value'] as String, style: TextStyle(color: (item['color'] as Color).withOpacity(0.8), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
             ])),
-            Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white10 : Colors.black12, size: 16),
+            Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white24 : Colors.black26, size: 20),
           ],
         ),
       ),

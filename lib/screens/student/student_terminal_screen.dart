@@ -391,8 +391,8 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
         const SizedBox(height: 16),
         SizedBox(
           height: 140,
-          child: StreamBuilder(
-            stream: Supabase.instance.client.from('global_announcements').stream(primaryKey: ['id']).order('created_at', ascending: false).limit(10),
+          child: FutureBuilder<List<Map<String, dynamic>>>(
+            future: Supabase.instance.client.from('global_announcements').select().order('created_at', ascending: false).limit(10),
             builder: (context, snapshot) {
               if (!snapshot.hasData || snapshot.data!.isEmpty) return _emptyIntel(isDark);
               

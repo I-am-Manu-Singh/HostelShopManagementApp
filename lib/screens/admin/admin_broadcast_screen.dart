@@ -1,9 +1,17 @@
-import "dart:ui";
+import 'dart:convert';
+import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io' if (dart.library.html) 'dart:io';
+import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
 
 class AdminBroadcastScreen extends StatefulWidget {
   const AdminBroadcastScreen({super.key});
@@ -42,6 +50,120 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
     }
   }
 
+  // ── CSV Export ─────────────────────────────────────────────────────────────
+
+  Future<void> _exportBroadcastsToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Global Announcements',
+      isImport: false,
+    );
+    if (range == null) return;
+
+    try {
+      final buffer = StringBuffer();
+      final headers = ['ID', 'Title', 'Content', 'Urgent', 'Date'];
+      buffer.writeln(headers.join(','));
+
+      final filtered = _broadcasts.where((b) {
+        if (b['created_at'] != null) {
+          final dt = DateTime.tryParse(b['created_at'].toString());
+          if (dt != null) {
+            return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+          }
+        }
+        return true;
+      }).toList();
+
+      for (var b in filtered) {
+        final List<String> row = [
+          b['id']?.toString() ?? '',
+          '"${(b['title'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+          '"${(b['content'] ?? 'N/A').toString().replaceAll('"', '""')}"',
+          (b['is_urgent'] ?? false).toString(),
+          b['created_at']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
+      }
+
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'announcements_$dateLabel.csv';
+
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsString(buffer.toString());
+        await Share.shareXFiles([XFile(file.path)], text: 'Announcements CSV');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
+  // ── CSV Import ─────────────────────────────────────────────────────────────
+
+  Future<void> _importBroadcastsFromCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Global Announcements',
+      isImport: true,
+    );
+    if (range == null) return;
+
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      if (result == null) return;
+
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        lines = await File(result.files.single.path!).readAsLines();
+      }
+
+      if (lines.length < 2) return;
+
+      int successCount = 0;
+      for (int i = 1; i < lines.length; i++) {
+        final line = lines[i].trim();
+        if (line.isEmpty) continue;
+        final cells = line.split(',');
+        if (cells.length < 3) continue;
+
+        final title = cells[1].replaceAll('"', '').trim();
+        final content = cells[2].replaceAll('"', '').trim();
+
+        if (title.isNotEmpty) {
+          await _client.from('global_announcements').insert({
+            'title': title,
+            'content': content,
+            'is_urgent': false,
+          });
+          successCount++;
+        }
+      }
+
+      _loadBroadcasts();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported $successCount announcements successfully.'), backgroundColor: Colors.greenAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
+  }
+
   void _showCreateModal(bool isDark, {Map<String, dynamic>? existing}) {
     final titleCtrl = TextEditingController(text: existing?['title']);
     final contentCtrl = TextEditingController(text: existing?['content']);
@@ -69,49 +191,50 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
               const SizedBox(height: 24),
               Text('TARGET AUDIENCE', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 2)),
               const SizedBox(height: 12),
-              Wrap(spacing: 8, children: ['ALL', 'HOSTEL', 'MESS', 'STAFF'].map((t) {
-                 bool isSel = target == t;
-                 return ChoiceChip(
-                   label: Text(t, style: TextStyle(color: isSel ? Colors.white : (isDark ? Colors.white24 : Colors.black38), fontSize: 10, fontWeight: FontWeight.bold)),
-                   selected: isSel,
-                   onSelected: (v) => setModalState(() => target = t),
-                   selectedColor: Colors.indigoAccent,
-                   backgroundColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
-                 );
-              }).toList()),
-              const SizedBox(height: 20),
-              SwitchListTile(
-                title: Text('MARK AS URGENT', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 12, fontWeight: FontWeight.bold)),
-                subtitle: Text('Broadcast with alert markers', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 10)),
-                value: isUrgent,
-                activeColor: Colors.redAccent,
-                onChanged: (v) => setModalState(() => isUrgent = v),
-                contentPadding: EdgeInsets.zero,
+              Row(
+                children: [
+                  _choiceChip('ALL', target == 'ALL', isDark, () => setModalState(() => target = 'ALL')),
+                  const SizedBox(width: 8),
+                  _choiceChip('STUDENTS', target == 'STUDENTS', isDark, () => setModalState(() => target = 'STUDENTS')),
+                  const SizedBox(width: 8),
+                  _choiceChip('STAFF', target == 'STAFF', isDark, () => setModalState(() => target = 'STAFF')),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('HIGH PRIORITY / CRITICAL', style: GoogleFonts.outfit(color: isDark ? Colors.white30 : Colors.black38, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                  Switch.adaptive(
+                    value: isUrgent,
+                    activeColor: Colors.pinkAccent,
+                    onChanged: (val) => setModalState(() => isUrgent = val),
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
               SizedBox(
-                width: double.infinity, height: 55,
+                width: double.infinity,
+                height: 56,
                 child: ElevatedButton(
                   onPressed: () async {
                     if (titleCtrl.text.isEmpty) return;
                     final data = {
-                      'title': titleCtrl.text.trim(),
-                      'content': contentCtrl.text.trim(),
+                      'title': titleCtrl.text,
+                      'content': contentCtrl.text,
                       'is_urgent': isUrgent,
                       'target_audience': target,
-                      'sender_name': 'ADMIN',
                     };
                     if (isEdit) {
                       await _client.from('global_announcements').update(data).eq('id', existing['id']);
                     } else {
-                      data['created_at'] = DateTime.now().toIso8601String();
                       await _client.from('global_announcements').insert(data);
                     }
-                    if (mounted) Navigator.pop(ctx);
+                    Navigator.pop(ctx);
                     _loadBroadcasts();
                   },
-                  style: ElevatedButton.styleFrom(backgroundColor: isUrgent ? Colors.redAccent : Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
-                  child: Text(isEdit ? 'UPDATE ANNOUNCEMENT' : 'SEND ANNOUNCEMENT', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.5)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
+                  child: Text(isEdit ? 'UPDATE ANNOUNCEMENT' : 'SEND BROADCAST', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 1.5)),
                 ),
               ),
             ],
@@ -121,238 +244,173 @@ class _AdminBroadcastScreenState extends State<AdminBroadcastScreen> {
     );
   }
 
+  Widget _choiceChip(String l, bool active, bool isDark, VoidCallback onTap) {
+    return ChoiceChip(
+      label: Text(l, style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: active ? Colors.white : (isDark ? Colors.white24 : Colors.black26))),
+      selected: active,
+      selectedColor: Colors.indigoAccent,
+      backgroundColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+      onSelected: (_) => onTap(),
+    );
+  }
+
   Widget _modalInput(TextEditingController ctrl, String hint, int lines, bool isDark) {
-    return TextField(
-      controller: ctrl, maxLines: lines, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 14),
-      decoration: InputDecoration(hintText: hint, hintStyle: TextStyle(color: isDark ? Colors.white10 : Colors.black12), filled: true, fillColor: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03), border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none)),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.03), borderRadius: BorderRadius.circular(20), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)),
+      child: TextField(
+        controller: ctrl,
+        maxLines: lines,
+        style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
+        decoration: InputDecoration(hintText: hint, hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26), border: InputBorder.none),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final bgColor = isDark ? const Color(0xFF08090A) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black;
+
+    final filtered = _broadcasts.where((b) {
+      if (_targetFilter == 'ALL') return true;
+      return (b['target_audience'] ?? 'ALL') == _targetFilter;
+    }).toList();
 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('COMMAND BROADCAST', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
-        backgroundColor: Colors.transparent, elevation: 0,
+        title: Text('BROADCASTS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, color: textColor, letterSpacing: 2)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
+        actions: [
+          IconButton(icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent), onPressed: _importBroadcastsFromCSV, tooltip: 'Import CSV'),
+          IconButton(icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent), onPressed: _exportBroadcastsToCSV, tooltip: 'Export CSV'),
+          IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.indigoAccent, size: 24), onPressed: () => _showCreateModal(isDark)),
+        ],
       ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-        : Stack(
-            children: [
-              _buildBackgroundGlow(),
-              Column(
-                children: [
-                  _buildAnalyticsBar(isDark),
-                  _buildTargetFilter(isDark),
-                  Expanded(
-                    child: ListView.builder(
-                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-                      itemCount: _filteredBroadcasts().length,
-                      itemBuilder: (context, index) {
-                        final b = _filteredBroadcasts()[index];
-                        return _buildBroadcastItem(b, isDark, () async {
-                          final confirm = await showDialog<bool>(
-                            context: context,
-                            builder: (c) => AlertDialog(
-                              backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
-                              title: const Text('DELETE INTEL?'),
-                              content: const Text('This action will redact the broadcast from all user terminals.'),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('CANCEL')),
-                                TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('DELETE', style: TextStyle(color: Colors.redAccent))),
-                              ],
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+          : Stack(
+              children: [
+                Positioned(top: -100, right: -50, child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(width: 300, height: 300, decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.05), shape: BoxShape.circle)))),
+                Column(
+                  children: [
+                    _buildAudienceFilters(isDark),
+                    Expanded(
+                      child: filtered.isEmpty
+                          ? _emptyState(isDark)
+                          : ListView.builder(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              itemCount: filtered.length,
+                              itemBuilder: (context, idx) => _broadcastCard(filtered[idx], isDark),
                             ),
-                          );
-                          if (confirm == true) {
-                            await _client.from('global_announcements').delete().eq('id', b['id']);
-                            _loadBroadcasts();
-                          }
-                        });
-                      },
                     ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateModal(isDark), backgroundColor: Colors.indigoAccent,
-        icon: const Icon(Icons.campaign_rounded, color: Colors.white, size: 20),
-        label: Text('NEW INTEL', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5)),
-      ),
+                  ],
+                ),
+              ],
+            ),
     );
   }
 
-  Widget _buildBackgroundGlow() {
-    return Positioned(bottom: -50, left: -50, child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), child: Container(width: 200, height: 200, decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.04), shape: BoxShape.circle))));
-  }
-
-  List<dynamic> _filteredBroadcasts() {
-    if (_targetFilter == 'ALL') return _broadcasts;
-    return _broadcasts.where((b) => b['target_audience'] == _targetFilter || b['target_audience'] == 'ALL').toList();
-  }
-
-  Widget _buildAnalyticsBar(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 32),
-      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), border: Border(bottom: BorderSide(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)))),
+  Widget _buildAudienceFilters(bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
-          _statMini('TOTAL', _broadcasts.length.toString(), isDark ? Colors.white : Colors.black, isDark),
-          _statMini('URGENT', _broadcasts.where((b) => b['is_urgent'] == true).length.toString(), Colors.redAccent, isDark),
+          _audienceChip('ALL', isDark),
+          const SizedBox(width: 8),
+          _audienceChip('STUDENTS', isDark),
+          const SizedBox(width: 8),
+          _audienceChip('STAFF', isDark),
         ],
       ),
     );
   }
 
-  Widget _statMini(String label, String val, Color c, bool isDark) {
-    return Column(children: [Text(val, style: TextStyle(color: c, fontWeight: FontWeight.w900, fontSize: 20)), Text(label, style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1))]);
-  }
-
-  Widget _buildTargetFilter(bool isDark) {
-    return Container(
-      height: 40,
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      margin: const EdgeInsets.only(top: 16),
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        children: ['ALL', 'HOSTEL', 'MESS', 'STAFF'].map((t) {
-          bool isSel = _targetFilter == t;
-          return GestureDetector(
-            onTap: () => setState(() => _targetFilter = t),
-            child: Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              decoration: BoxDecoration(color: isSel ? Colors.indigoAccent.withOpacity(0.1) : Colors.transparent, borderRadius: BorderRadius.circular(10), border: Border.all(color: isSel ? Colors.indigoAccent : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)))),
-              alignment: Alignment.center,
-              child: Text(t, style: TextStyle(color: isSel ? Colors.indigoAccent : (isDark ? Colors.white24 : Colors.black38), fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
-            ),
-          );
-        }).toList(),
-      ),
+  Widget _audienceChip(String label, bool isDark) {
+    final active = _targetFilter == label;
+    return ChoiceChip(
+      label: Text(label, style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.bold, color: active ? Colors.white : (isDark ? Colors.white30 : Colors.black45))),
+      selected: active,
+      selectedColor: Colors.indigoAccent,
+      backgroundColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+      onSelected: (sel) {
+        if (sel) setState(() => _targetFilter = label);
+      },
     );
   }
 
-  Widget _buildBroadcastItem(dynamic b, bool isDark, VoidCallback onDelete) {
-    final bool isUrgent = b['is_urgent'] ?? false;
-    // Format timestamp
-    String date = 'Just now';
-    try {
-      if (b['created_at'] != null) {
-        date = DateFormat('MMM dd, HH:mm').format(DateTime.parse(b['created_at']));
-      }
-    } catch (_) {}
+  Widget _broadcastCard(dynamic b, bool isDark) {
+    final title = b['title'] ?? 'Announcement';
+    final content = b['content'] ?? '';
+    final bool urgent = b['is_urgent'] ?? false;
+    final String timeStr = b['created_at'] != null
+        ? DateFormat('dd MMM, hh:mm a').format(DateTime.parse(b['created_at']))
+        : 'Recently';
 
     return FadeInUp(
       child: Container(
-        margin: const EdgeInsets.only(bottom: 20),
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: isUrgent 
-              ? Colors.redAccent.withOpacity(0.2) 
-              : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))
-          ),
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.02),
+          borderRadius: BorderRadius.circular(28),
+          border: Border.all(color: urgent ? Colors.pinkAccent.withOpacity(0.2) : (isDark ? Colors.white10 : Colors.black12)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: isUrgent 
-                  ? Colors.redAccent.withOpacity(0.05) 
-                  : (isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02)),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        isUrgent ? Icons.warning_amber_rounded : Icons.cell_tower_rounded,
-                        color: isUrgent ? Colors.redAccent : Colors.indigoAccent,
-                        size: 14,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        b['target_audience']?.toString().toUpperCase() ?? 'ALL',
-                        style: TextStyle(
-                          color: isUrgent ? Colors.redAccent : Colors.indigoAccent,
-                          fontSize: 9,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                        ),
-                      ),
-                    ],
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: Text(title.toString().toUpperCase(), style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, letterSpacing: 0.5))),
+                if (urgent)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(color: Colors.pinkAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(8)),
+                    child: const Text('CRITICAL', style: TextStyle(color: Colors.pinkAccent, fontSize: 7, fontWeight: FontWeight.bold)),
                   ),
-                  Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () => _showCreateModal(isDark, existing: b),
-                        child: Icon(
-                          Icons.edit_note_rounded,
-                          color: isDark ? Colors.white30 : Colors.black26,
-                          size: 16,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: onDelete,
-                        child: Icon(
-                          Icons.delete_outline_rounded,
-                          color: isDark ? Colors.white30 : Colors.black26,
-                          size: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+              ],
             ),
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    b['title'] ?? 'NO SUBJECT',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
+            const SizedBox(height: 12),
+            Text(content, style: TextStyle(color: isDark ? Colors.white54 : Colors.black54, fontSize: 13, height: 1.4)),
+            const Divider(height: 32, color: Colors.white10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(timeStr.toUpperCase(), style: const TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.bold)),
+                Row(
+                  children: [
+                    IconButton(icon: Icon(Icons.edit_rounded, color: isDark ? Colors.white30 : Colors.black38, size: 16), onPressed: () => _showCreateModal(isDark, existing: b)),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 16),
+                      onPressed: () async {
+                        await _client.from('global_announcements').delete().eq('id', b['id']);
+                        _loadBroadcasts();
+                      },
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    b['content'] ?? '',
-                    style: TextStyle(
-                      color: isDark ? Colors.white54 : Colors.black54,
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    date,
-                    style: TextStyle(
-                      color: isDark ? Colors.white12 : Colors.black12,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                  ],
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyState(bool isDark) {
+    return Center(
+      child: FadeIn(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.campaign_outlined, size: 48, color: isDark ? Colors.white10 : Colors.black12),
+            const SizedBox(height: 12),
+            Text('NO ACTIVE ANNOUNCEMENTS', style: GoogleFonts.outfit(color: isDark ? Colors.white24 : Colors.black26, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
           ],
         ),
       ),

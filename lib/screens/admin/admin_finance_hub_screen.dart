@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
@@ -14,6 +15,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../utils/csv_range_dialog.dart';
+import '../../utils/csv_web_helper.dart';
 
 class AdminFinanceHubScreen extends StatefulWidget {
   final bool hideAppBar;
@@ -76,6 +79,12 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
   }
 
   Future<void> _exportMessCardsToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Mess Cards',
+      isImport: false,
+    );
+    if (range == null) return;
     try {
       final List<String> csvHeaders = [
         'id', 'user_id', 'card_number', 'status', 'expiry_date', 'meals_allowed',
@@ -83,7 +92,14 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
       ];
       final buffer = StringBuffer();
       buffer.writeln(csvHeaders.join(','));
-      for (var c in _activeMessCards + _expiringSoonCards + _expiredMessCards) {
+      final allCards = _activeMessCards + _expiringSoonCards + _expiredMessCards;
+      final filtered = allCards.where((c) {
+        final dt = DateTime.tryParse(c['last_sync_at']?.toString() ?? c['created_at']?.toString() ?? '');
+        if (dt == null) return true;
+        return dt.isAfter(range.startDate.subtract(const Duration(days: 1))) &&
+               dt.isBefore(range.endDate.add(const Duration(days: 1)));
+      }).toList();
+      for (var c in filtered) {
         final List<String> row = [
           c['id']?.toString() ?? '',
           c['user_id']?.toString() ?? '',
@@ -97,25 +113,39 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         ];
         buffer.writeln(row.join(','));
       }
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'mess_cards_$dateLabel.csv';
       if (kIsWeb) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('CSV exports are available only on native Android/iOS apps.'), backgroundColor: Colors.orangeAccent));
+        downloadCsvFile(buffer.toString(), filename);
         return;
       }
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/mess_cards_export.csv');
+      final file = File('${tempDir.path}/$filename');
       await file.writeAsString(buffer.toString());
-      await Share.shareXFiles([XFile(file.path)], text: 'Mess Cards Database Export');
+      await Share.shareXFiles([XFile(file.path)], text: 'Mess Cards Export');
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
     }
   }
 
   Future<void> _exportRentalsToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Rent Collections',
+      isImport: false,
+    );
+    if (range == null) return;
     try {
       final List<String> csvHeaders = ['id', 'user_id', 'amount', 'collection_type', 'payment_method', 'created_at'];
       final buffer = StringBuffer();
       buffer.writeln(csvHeaders.join(','));
-      for (var r in _rentCollections) {
+      final filtered = _rentCollections.where((r) {
+        final dt = DateTime.tryParse(r['created_at']?.toString() ?? '');
+        if (dt == null) return true;
+        return dt.isAfter(range.startDate.subtract(const Duration(days: 1))) &&
+               dt.isBefore(range.endDate.add(const Duration(days: 1)));
+      }).toList();
+      for (var r in filtered) {
         final List<String> row = [
           r['id']?.toString() ?? '',
           r['user_id']?.toString() ?? '',
@@ -126,8 +156,14 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         ];
         buffer.writeln(row.join(','));
       }
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'rent_collections_$dateLabel.csv';
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+        return;
+      }
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/rent_collections_export.csv');
+      final file = File('${tempDir.path}/$filename');
       await file.writeAsString(buffer.toString());
       await Share.shareXFiles([XFile(file.path)], text: 'Rent Collections Export');
     } catch (e) {
@@ -136,11 +172,23 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
   }
 
   Future<void> _exportPayrollToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Payroll Records',
+      isImport: false,
+    );
+    if (range == null) return;
     try {
       final List<String> csvHeaders = ['id', 'employee_id', 'amount', 'month', 'status', 'created_at'];
       final buffer = StringBuffer();
       buffer.writeln(csvHeaders.join(','));
-      for (var p in _payrollLogs) {
+      final filtered = _payrollLogs.where((p) {
+        final dt = DateTime.tryParse(p['created_at']?.toString() ?? '');
+        if (dt == null) return true;
+        return dt.isAfter(range.startDate.subtract(const Duration(days: 1))) &&
+               dt.isBefore(range.endDate.add(const Duration(days: 1)));
+      }).toList();
+      for (var p in filtered) {
         final List<String> row = [
           p['id']?.toString() ?? '',
           p['employee_id']?.toString() ?? '',
@@ -151,8 +199,14 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         ];
         buffer.writeln(row.join(','));
       }
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'payroll_$dateLabel.csv';
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+        return;
+      }
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/payroll_export.csv');
+      final file = File('${tempDir.path}/$filename');
       await file.writeAsString(buffer.toString());
       await Share.shareXFiles([XFile(file.path)], text: 'Payroll Records Export');
     } catch (e) {
@@ -161,11 +215,23 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
   }
 
   Future<void> _exportShopOrdersToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Shop Orders',
+      isImport: false,
+    );
+    if (range == null) return;
     try {
       final List<String> csvHeaders = ['id', 'user_id', 'total_price', 'payment_method', 'order_status', 'created_at'];
       final buffer = StringBuffer();
       buffer.writeln(csvHeaders.join(','));
-      for (var o in _shopOrders) {
+      final filtered = _shopOrders.where((o) {
+        final dt = DateTime.tryParse(o['created_at']?.toString() ?? '');
+        if (dt == null) return true;
+        return dt.isAfter(range.startDate.subtract(const Duration(days: 1))) &&
+               dt.isBefore(range.endDate.add(const Duration(days: 1)));
+      }).toList();
+      for (var o in filtered) {
         final List<String> row = [
           o['id']?.toString() ?? '',
           o['user_id']?.toString() ?? '',
@@ -176,8 +242,14 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         ];
         buffer.writeln(row.join(','));
       }
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'shop_orders_$dateLabel.csv';
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+        return;
+      }
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/shop_orders_export.csv');
+      final file = File('${tempDir.path}/$filename');
       await file.writeAsString(buffer.toString());
       await Share.shareXFiles([XFile(file.path)], text: 'Shop Orders Export');
     } catch (e) {
@@ -186,6 +258,12 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
   }
 
   Future<void> _exportLedgerToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Finance Ledger',
+      isImport: false,
+    );
+    if (range == null) return;
     try {
       final List<String> csvHeaders = ['name', 'type', 'amount', 'date'];
       final buffer = StringBuffer();
@@ -208,7 +286,15 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
       }
       combinedLogs.sort((a,b) => DateTime.parse(b['date'].toString()).compareTo(DateTime.parse(a['date'].toString())));
 
-      for (var l in combinedLogs) {
+      // Filter by range
+      final filtered = combinedLogs.where((l) {
+        final dt = DateTime.tryParse(l['date']?.toString() ?? '');
+        if (dt == null) return true;
+        return dt.isAfter(range.startDate.subtract(const Duration(days: 1))) &&
+               dt.isBefore(range.endDate.add(const Duration(days: 1)));
+      }).toList();
+
+      for (var l in filtered) {
         final List<String> row = [
           '"${l['name'].toString().replaceAll('"', '""')}"',
           l['type'].toString(),
@@ -217,8 +303,14 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         ];
         buffer.writeln(row.join(','));
       }
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'finance_ledger_$dateLabel.csv';
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+        return;
+      }
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/finance_ledger_export.csv');
+      final file = File('${tempDir.path}/$filename');
       await file.writeAsString(buffer.toString());
       await Share.shareXFiles([XFile(file.path)], text: 'Finance Ledger Export');
     } catch (e) {
@@ -460,12 +552,12 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
               unselectedLabelColor: textColor.withOpacity(0.3),
               labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
               tabs: const [
-                Tab(text: 'OVERVIEW'),
-                Tab(text: 'RENTALS'),
-                Tab(text: 'MESS CARDS'),
-                Tab(text: 'PAYROLL'),
-                Tab(text: 'SHOP'),
-                Tab(text: 'LEDGER', icon: Icon(Icons.menu_book_rounded, size: 16)),
+                Tab(icon: Icon(Icons.dashboard_customize_rounded, size: 14), text: 'OVERVIEW'),
+                Tab(icon: Icon(Icons.bed_rounded, size: 14), text: 'RENTALS'),
+                Tab(icon: Icon(Icons.restaurant_rounded, size: 14), text: 'MESS CARDS'),
+                Tab(icon: Icon(Icons.payments_rounded, size: 14), text: 'PAYROLL'),
+                Tab(icon: Icon(Icons.shopping_bag_rounded, size: 14), text: 'SHOP'),
+                Tab(icon: Icon(Icons.menu_book_rounded, size: 14), text: 'LEDGER'),
               ],
             ),
       ),

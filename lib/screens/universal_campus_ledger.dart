@@ -1,11 +1,19 @@
+import 'dart:convert';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import 'dart:io' if (dart.library.html) 'dart:io';
 import '../services/database_service.dart';
+import '../utils/csv_web_helper.dart';
+import '../utils/csv_range_dialog.dart';
 
 class UniversalCampusLedger extends StatefulWidget {
   const UniversalCampusLedger({super.key});
@@ -57,17 +65,47 @@ class _UniversalCampusLedgerState extends State<UniversalCampusLedger> with Sing
     setState(() => _isLoading = true);
     try {
       final user = _client.auth.currentUser;
-      
-      // 🧬 FETCH STRATEGY: Universal Data Ingestion (Including Room & Khata Links)
-      final dayBookRes = await _client.from('day_book_entries').select('*, profiles:user_id(*), related_user:target_user_id(*), related_room:related_room_id(*)').order('created_at', ascending: false);
-      final enrollRes = await _client.from('hostel_enrollments').select('*, profiles:user_id(*)');
-      final shopRes = await _client.from('shop_orders').select('*, profiles:user_id(*)').order('created_at', ascending: false);
-      final payrollRes = await _client.from('payroll_records').select('*, profiles:user_id(*)').order('month', ascending: false);
-      final walletRes = await _client.from('wallet_transactions').select('*, profiles:user_id(*)').order('created_at', ascending: false);
+
+      List<dynamic> dayBookRes = [];
+      try {
+        dayBookRes = await _client.from('day_book_entries').select('*, profiles:user_id(*), related_user:target_user_id(*), related_room:related_room_id(*)').order('created_at', ascending: false);
+      } catch (e) {
+        debugPrint('Error day_book_entries: $e');
+      }
+
+      List<dynamic> enrollRes = [];
+      try {
+        enrollRes = await _client.from('hostel_enrollments').select('*, profiles:user_id(*)');
+      } catch (e) {
+        debugPrint('Error hostel_enrollments: $e');
+      }
+
+      List<dynamic> shopRes = [];
+      try {
+        shopRes = await _client.from('shop_orders').select('*, profiles:user_id(*)').order('created_at', ascending: false);
+      } catch (e) {
+        debugPrint('Error shop_orders: $e');
+      }
+
+      List<dynamic> payrollRes = [];
+      try {
+        payrollRes = await _client.from('payroll_records').select('*, profiles:user_id(*)').order('month', ascending: false);
+      } catch (e) {
+        debugPrint('Error payroll_records: $e');
+      }
+
+      List<dynamic> walletRes = [];
+      try {
+        walletRes = await _client.from('wallet_transactions').select('*, profiles:user_id(*)').order('created_at', ascending: false);
+      } catch (e) {
+        debugPrint('Error wallet_transactions: $e');
+      }
       
       if (user != null) {
-        final profile = await _client.from('profiles').select('balance').eq('id', user.id).maybeSingle();
-        _adminWalletBalance = (profile?['balance'] as num? ?? 0).toDouble();
+        try {
+          final profile = await _client.from('profiles').select('balance').eq('id', user.id).maybeSingle();
+          _adminWalletBalance = (profile?['balance'] as num? ?? 0).toDouble();
+        } catch (_) {}
       }
 
       List<dynamic> combined = [];
@@ -76,7 +114,7 @@ class _UniversalCampusLedgerState extends State<UniversalCampusLedger> with Sing
 
       // 🧺 Day Book (Maintenance, Damages, Khata)
       for (var e in dayBookRes) {
-        final double v = (e['amount'] as num).toDouble();
+        final double v = (e['amount'] as num? ?? 0.0).toDouble();
         final isInc = e['entry_type'] == 'Income';
         final ct = DateTime.parse(e['transaction_date'] ?? e['created_at']);
         if (isInc) _totalIn += v; else _totalOut += v;
@@ -99,409 +137,475 @@ class _UniversalCampusLedgerState extends State<UniversalCampusLedger> with Sing
 
       // 🧺 Rent (Dues)
       for (var e in enrollRes) {
-        final total = double.tryParse(e['total_price']?.toString() ?? '0') ?? 0;
-        final paid = double.tryParse(e['paid_amount']?.toString() ?? '0') ?? 0;
-        final due = total - paid;
-        if (due > 0) {
-           final uid = e['user_id'];
-           if (!kMap.containsKey(uid)) kMap[uid] = {'name': e['profiles']?['full_name'] ?? 'Res', 'lent': total, 'recovered': paid, 'history': []};
-           else { kMap[uid]['lent'] += total; kMap[uid]['recovered'] += paid; }
-        }
-        if (paid > 0) {
-          _totalIn += paid;
-          combined.add({...e, 'origin': 'Rent', 'val': paid, 'is_income': true, 'title': 'Rent: ${e['profiles']?['full_name']}', 'date': DateTime.parse(e['updated_at'] ?? e['created_at'])});
+        final profile = e['profiles'] ?? {};
+        final double rent = (e['monthly_rent'] as num? ?? 6500.0).toDouble();
+        final double outstanding = (e['outstanding_dues'] as num? ?? 0.0).toDouble();
+        final name = profile['full_name'] ?? 'Student';
+        if (outstanding > 0) {
+          _totalOutstandingLent += outstanding;
+          final uid = e['user_id'];
+          if (uid != null) {
+            if (!kMap.containsKey(uid)) kMap[uid] = {'name': name, 'lent': 0.0, 'recovered': 0.0, 'history': []};
+            kMap[uid]['lent'] += outstanding;
+          }
+          combined.add({
+            'id': e['id'],
+            'title': 'Outstanding Rent Dues: $name',
+            'origin': 'Hostel Rent',
+            'val': outstanding,
+            'is_income': false,
+            'date': DateTime.parse(e['created_at'] ?? DateTime.now().toIso8601String())
+          });
         }
       }
 
-      kMap.forEach((uid, data) {
-         data['net'] = (data['lent'] as double) - (data['recovered'] as double);
-         if (data['net'] > 0) _totalOutstandingLent += data['net'];
+      // 🧺 Shop Orders (UPI/Cash)
+      for (var o in shopRes) {
+        final profile = o['profiles'] ?? {};
+        final double total = (o['total_price'] as num? ?? 0.0).toDouble();
+        final status = o['order_status'] ?? 'Completed';
+        if (status == 'Completed' || status == 'Delivered') {
+          _totalIn += total;
+          combined.add({
+            'id': o['id'],
+            'title': 'Canteen Order: ${profile['full_name'] ?? 'Customer'}',
+            'origin': 'Campus Shop',
+            'val': total,
+            'is_income': true,
+            'date': DateTime.parse(o['created_at'])
+          });
+        }
+      }
+
+      // 🧺 Payroll (Salary Expense)
+      for (var p in payrollRes) {
+        final profile = p['profiles'] ?? {};
+        final double sal = (p['salary_amount'] as num? ?? 0.0).toDouble();
+        final status = p['status']?.toString().toUpperCase() ?? 'PENDING';
+        if (status == 'PAID') {
+          _totalOut += sal;
+          combined.add({
+            'id': p['id'],
+            'title': 'Salary Payout: ${profile['full_name'] ?? 'Employee'}',
+            'origin': 'Payroll',
+            'val': sal,
+            'is_income': false,
+            'date': DateTime.parse(p['paid_at'] ?? p['created_at'])
+          });
+        }
+      }
+
+      // 🧺 Wallet Topups
+      for (var w in walletRes) {
+        final profile = w['profiles'] ?? {};
+        final double amt = (w['amount'] as num? ?? 0.0).toDouble();
+        final type = w['transaction_type'] ?? 'Reload';
+        if (type == 'Reload' || type == 'Topup') {
+          _totalIn += amt;
+          combined.add({
+            'id': w['id'],
+            'title': 'Wallet Topup: ${profile['full_name'] ?? 'User'}',
+            'origin': 'Digital Wallet',
+            'val': amt,
+            'is_income': true,
+            'date': DateTime.parse(w['created_at'])
+          });
+        }
+      }
+
+      // Compute lent balances
+      kMap.forEach((key, val) {
+        final double outstanding = (val['lent'] as double) - (val['recovered'] as double);
+        if (outstanding > 0) _totalOutstandingLent += outstanding;
       });
 
-      // 🧺 Common Stores/Payroll (Skipped for brevity)
-      for(var s in shopRes) if(s['order_status']!='Cancelled'){_totalIn+=(s['total_price']??0).toDouble(); combined.add({...s,'origin':'Shop','val':(s['total_price']??0).toDouble(),'is_income':true,'title':'Store Order','date':DateTime.parse(s['created_at'])});}
-      for(var p in payrollRes) {final v=double.tryParse(p['amount']?.toString()??'0')??0; _totalOut+=v; combined.add({...p,'origin':'Payroll','val':v,'is_income':false,'title':'Staff Salary','date':DateTime.parse(p['month'])});}
-      
-      combined.sort((a,b) => b['date'].compareTo(a['date']));
-      if (mounted) setState(() { _allTransactions = combined; _khataMap = kMap; _isLoading = false; });
-    } catch (_) { if (mounted) setState(() => _isLoading = false); }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final bgColor = isDark ? const Color(0xFF08090A) : Colors.white;
-    final showSidebar = MediaQuery.of(context).size.width > 800;
-
-    return Scaffold(
-      backgroundColor: bgColor,
-      appBar: AppBar(
-        title: Text('UNIVERSAL CAMPUS LEDGER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2.5)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
-        actions: [
-          IconButton(icon: const Icon(Icons.receipt_long_rounded, color: Colors.indigoAccent), onPressed: () => _showAuditLogModal(isDark)),
-        ],
-        bottom: showSidebar 
-          ? null 
-          : TabBar(
-              controller: _tabController,
-              labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
-              indicatorColor: Colors.indigoAccent,
-              tabs: const [ Tab(text: 'LEDGER'), Tab(text: 'KHATA/DUES'), Tab(text: 'ANALYTICS') ],
-            ),
-      ),
-      body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-        : LayoutBuilder(
-            builder: (context, constraints) {
-              if (showSidebar) {
-                return Row(
-                  children: [
-                    Expanded(
-                      flex: 3,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          border: Border(right: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
-                        ),
-                        child: ListView(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          children: [
-                            _buildLedgerSidebarTile(0, 'LEDGER', Icons.receipt_long_rounded),
-                            _buildLedgerSidebarTile(1, 'KHATA/DUES', Icons.account_balance_wallet_rounded),
-                            _buildLedgerSidebarTile(2, 'ANALYTICS', Icons.analytics_rounded),
-                          ],
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      flex: 7,
-                      child: TabBarView(
-                        controller: _tabController,
-                        physics: const NeverScrollableScrollPhysics(),
-                        children: [
-                           _buildLedgerTab(isDark),
-                           _buildKhataTab(isDark),
-                           _buildAnalyticsTab(isDark),
-                        ],
-                      ),
-                    ),
-                  ],
-                );
-              }
-
-              return TabBarView(
-                controller: _tabController,
-                physics: const NeverScrollableScrollPhysics(),
-                children: [
-                   _buildLedgerTab(isDark),
-                   _buildKhataTab(isDark),
-                   _buildAnalyticsTab(isDark),
-                ],
-              );
-            },
-          ),
-    );
-  }
-
-  Widget _buildLedgerSidebarTile(int index, String label, IconData icon) {
-    final active = _tabController.index == index;
-    return ListTile(
-      selected: active,
-      selectedTileColor: Colors.indigoAccent.withOpacity(0.08),
-      leading: Icon(icon, color: active ? Colors.indigoAccent : Colors.grey),
-      title: Text(label, style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 11, color: active ? Colors.indigoAccent : Colors.grey)),
-      onTap: () {
+      if (mounted) {
         setState(() {
-          _tabController.index = index;
+          _allTransactions = combined;
+          _khataMap = kMap;
+          _isLoading = false;
         });
-      },
-    );
+      }
+    } catch (err) {
+      debugPrint('General ledger load failure: $err');
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  // --- LEDGER TAB ---
-  Widget _buildLedgerTab(bool isDark) {
-    final filtered = _allTransactions.where((tx) => DateFormat('yyyy-MM-dd').format(tx['date']) == DateFormat('yyyy-MM-dd').format(_selectedDate)).toList();
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-         _buildModernCalendarHeader(isDark),
-         const SizedBox(height: 24),
-         _buildSummaryShield(isDark, filtered),
-         const SizedBox(height: 32),
-         _sectionHeader('DAILY TRANSACTION FLOW'),
-         const SizedBox(height: 16),
-         if (filtered.isEmpty) _emptyState(isDark)
-         else ...filtered.map((tx) => FadeInUp(child: _buildTransactionTile(tx, isDark))).toList(),
-         const SizedBox(height: 100),
-      ],
+  // ── CSV Range-based Export ──────────────────────────────────────────────────
+
+  Future<void> _exportLedgerCSV() async {
+    final activeTab = _tabController.index; // 0 = Ledger, 1 = Khatabook
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: activeTab == 1 ? 'Khata Balances' : 'Unified DayBook Ledger',
+      isImport: false,
     );
+    if (range == null) return;
+
+    try {
+      final buffer = StringBuffer();
+      if (activeTab == 1) {
+        // Export Khata
+        buffer.writeln('User ID,Customer Name,Lent Amount (₹),Recovered Amount (₹),Balance Outstanding (₹)');
+        _khataMap.forEach((uid, val) {
+          final double lent = val['lent'] ?? 0.0;
+          final double rec = val['recovered'] ?? 0.0;
+          final double bal = lent - rec;
+          buffer.writeln('$uid,"${val['name'].toString().replaceAll('"', '""')}",$lent,$rec,$bal');
+        });
+      } else {
+        // Export Ledger
+        buffer.writeln('Transaction ID,Title,Source,Amount (₹),Flow,Transaction Date');
+        final filtered = _allTransactions.where((t) {
+          final dt = t['date'] as DateTime;
+          return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+        }).toList();
+
+        for (var t in filtered) {
+          buffer.writeln('${t['id'] ?? ''},"${t['title'].toString().replaceAll('"', '""')}","${t['origin']}",${t['val']},${t['is_income'] ? "IN" : "OUT"},${t['date']}');
+        }
+      }
+
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = '${activeTab == 1 ? "khata" : "unified_ledger"}_$dateLabel.csv';
+
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+      } else {
+        final tempDir = await getTemporaryDirectory();
+        final file = File('${tempDir.path}/$filename');
+        await file.writeAsString(buffer.toString());
+        await Share.shareXFiles([XFile(file.path)], text: 'Ledger CSV');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
-  // --- KHATA TAB ---
-  Widget _buildKhataTab(bool isDark) {
-    final activeKhata = _khataMap.entries.where((e) => e.value['net'] != 0).toList();
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-         _buildWalletHeader(isDark),
-         const SizedBox(height: 32),
-         _sectionHeader('USER DUES & DAMAGE RECOVERIES'),
-         const SizedBox(height: 16),
-         if (activeKhata.isEmpty) _emptyState(isDark)
-         else ...activeKhata.map((e) => _buildUserKhataTile(e.value, isDark)).toList(),
-         const SizedBox(height: 100),
-      ],
+  // ── CSV Range-based Import ──────────────────────────────────────────────────
+
+  Future<void> _importLedgerCSV() async {
+    final activeTab = _tabController.index;
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: activeTab == 1 ? 'Khata Balances' : 'Unified DayBook Ledger',
+      isImport: true,
     );
+    if (range == null) return;
+
+    try {
+      final FilePickerResult? result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+      );
+      if (result == null) return;
+
+      List<String> lines;
+      if (kIsWeb) {
+        final bytes = result.files.single.bytes;
+        if (bytes == null) return;
+        lines = utf8.decode(bytes).split('\n');
+      } else {
+        if (result.files.single.path == null) return;
+        lines = await File(result.files.single.path!).readAsLines();
+      }
+
+      if (lines.length < 2) return;
+
+      int successCount = 0;
+      final user = _client.auth.currentUser;
+
+      if (activeTab == 1) {
+        // Import Khata: inserts manual DayBook entries to represent debts
+        for (int i = 1; i < lines.length; i++) {
+          final line = lines[i].trim();
+          if (line.isEmpty) continue;
+          final cells = line.split(',');
+          if (cells.length < 4) continue;
+
+          final uid = cells[0].trim();
+          final lentAmt = double.tryParse(cells[2].trim()) ?? 0.0;
+          if (uid.isNotEmpty && lentAmt > 0) {
+            await _client.from('day_book_entries').insert({
+              'entry_type': 'Expense',
+              'amount': lentAmt,
+              'category': 'Imported Debt',
+              'target_user_id': uid,
+              'user_id': user?.id,
+              'transaction_date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+            });
+            successCount++;
+          }
+        }
+      } else {
+        // Import Ledger: inserts manual entries to day_book_entries
+        for (int i = 1; i < lines.length; i++) {
+          final line = lines[i].trim();
+          if (line.isEmpty) continue;
+          final cells = line.split(',');
+          if (cells.length < 5) continue;
+
+          final title = cells[1].replaceAll('"', '').trim();
+          final source = cells[2].replaceAll('"', '').trim();
+          final amount = double.tryParse(cells[3].trim()) ?? 0.0;
+          final flow = cells[4].trim();
+
+          if (amount > 0) {
+            await _client.from('day_book_entries').insert({
+              'entry_type': flow == 'IN' ? 'Income' : 'Expense',
+              'amount': amount,
+              'category': '$source: $title',
+              'user_id': user?.id,
+              'transaction_date': DateFormat('yyyy-MM-dd').format(DateTime.now()),
+            });
+            successCount++;
+          }
+        }
+      }
+
+      _fetchUnifiedData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported $successCount transactions successfully.'), backgroundColor: Colors.greenAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Import failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
-  // --- ANALYTICS TAB ---
-  Widget _buildAnalyticsTab(bool isDark) {
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: [
-         _sectionHeader('OPERATIONAL VELOCITY'),
-         const SizedBox(height: 24),
-         _buildExpenseChart(isDark),
-         const SizedBox(height: 48),
-         _buildMetricGrid(isDark),
-         const SizedBox(height: 100),
-      ],
-    );
+  Future<void> _commitManualTransaction() async {
+    final amt = double.tryParse(_manualAmtCtrl.text);
+    if (amt == null || amt <= 0) return;
+    try {
+      final user = _client.auth.currentUser;
+      final category = _manualCatCtrl.text.isNotEmpty ? _manualCatCtrl.text : 'Miscellaneous';
+      
+      await _client.from('day_book_entries').insert({
+        'entry_type': _totalOut >= 0 ? 'Expense' : 'Income', // Set type based on context
+        'amount': amt,
+        'category': category,
+        'user_id': user?.id,
+        'target_user_id': _selectedProfile?['id'],
+        'related_room_id': _selectedRoom?['id'],
+        'transaction_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
+      });
+
+      _manualAmtCtrl.clear();
+      _manualCatCtrl.clear();
+      _selectedProfile = null;
+      _selectedRoom = null;
+      _fetchUnifiedData();
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('TRANSACTION COMMITTED TO UNIVERSAL LEDGER'), backgroundColor: Colors.greenAccent));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
-  // --- WIDGETS ---
-  Widget _buildWalletHeader(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF1E3A8A), Color(0xFF08090A)]), borderRadius: BorderRadius.circular(36), boxShadow: [BoxShadow(color: Colors.indigoAccent.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, 10))]),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text('AVAILABLE FIDELITY BALANCE', style: GoogleFonts.outfit(color: Colors.white60, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-            const Icon(Icons.shield_moon_rounded, color: Colors.indigoAccent, size: 16),
-          ]),
-          const SizedBox(height: 12),
-          Text('₹${_adminWalletBalance.toInt().toString().replaceAllMapped(RegExp(r"(\d{1,3})(?=(\d{3})+(?!\d))"), (m) => "${m[1]},")}', style: GoogleFonts.outfit(color: Colors.white, fontSize: 42, fontWeight: FontWeight.w900, letterSpacing: -1)),
-          const SizedBox(height: 4),
-          Text('RECOVERABLE ASSETS: ₹${_totalOutstandingLent.toInt()}', style: TextStyle(color: Colors.amberAccent.withOpacity(0.5), fontSize: 9, fontWeight: FontWeight.bold)),
-          const SizedBox(height: 32),
-          Row(children: [
-            Expanded(child: _actionBtn(Icons.add_circle_outline_rounded, 'TOP UP', Colors.indigoAccent, () => _showTopUpModal(isDark))),
-            const SizedBox(width: 12),
-            Expanded(child: _actionBtn(Icons.assignment_turned_in_rounded, 'LOG AUDIT', Colors.white.withOpacity(0.1), () => _showAuditLogModal(isDark))),
-          ]),
-      ]),
-    );
-  }
-Widget _actionBtn(
-  IconData icon,
-  String label,
-  Color color,
-  VoidCallback onTap,
-) {
-  final isPrimary = color == Colors.indigoAccent;
-
-  return GestureDetector(
-    onTap: onTap,
-    child: ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: isPrimary
-                ? Colors.indigoAccent
-                : Colors.white.withOpacity(0.06), // 🔥 glass secondary
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isPrimary
-                  ? Colors.indigoAccent
-                  : Colors.white.withOpacity(0.15),
-            ),
-            boxShadow: isPrimary
-                ? [
-                    BoxShadow(
-                      color: Colors.indigoAccent.withOpacity(0.4),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
-                    )
-                  ]
-                : [],
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+  void _showManualTransactionModal(bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (c) => StatefulBuilder(
+        builder: (ctx, setStateModal) => Container(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(c).viewInsets.bottom + 24),
+          decoration: BoxDecoration(color: isDark ? const Color(0xFF08090A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                icon,
-                size: 18,
-                color: isPrimary ? Colors.black : Colors.white,
+              Text('MANUAL LEDGER DISPATCH', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2)),
+              const SizedBox(height: 24),
+              _inputField('AMOUNT (₹)', _manualAmtCtrl, isDark, Icons.payments_rounded, isNumeric: true),
+              const SizedBox(height: 16),
+              _inputField('CATEGORY / REMARKS', _manualCatCtrl, isDark, Icons.tag_rounded),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(20), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<dynamic>(
+                    value: _selectedProfile,
+                    hint: const Text('LINK TO MEMBER / DEBTOR (OPTIONAL)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    dropdownColor: isDark ? const Color(0xFF16181A) : Colors.white,
+                    isExpanded: true,
+                    onChanged: (val) => setStateModal(() => _selectedProfile = val),
+                    items: _profiles.map((p) => DropdownMenuItem(value: p, child: Text(p['full_name']?.toString().toUpperCase() ?? 'USER', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))).toList(),
+                  ),
+                ),
               ),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: GoogleFonts.outfit(
-                  color: isPrimary ? Colors.black : Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 11,
-                  letterSpacing: 1,
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(20), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<dynamic>(
+                    value: _selectedRoom,
+                    hint: const Text('LINK TO BUILDING ROOM (OPTIONAL)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    dropdownColor: isDark ? const Color(0xFF16181A) : Colors.white,
+                    isExpanded: true,
+                    onChanged: (val) => setStateModal(() => _selectedRoom = val),
+                    items: _rooms.map((r) => DropdownMenuItem(value: r, child: Text('${r['building_name']} - Room ${r['room_number']}'.toUpperCase(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)))).toList(),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _commitManualTransaction,
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                  child: const Text('COMMIT ENTRY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
                 ),
               ),
             ],
           ),
         ),
       ),
-    ),
-  );
-}
-  Widget _buildUserKhataTile(dynamic u, bool isDark) {
-     final bool debt = u['net'] > 0;
-     final Color color = debt ? Colors.redAccent : Colors.greenAccent;
-     return Container(
-       margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(20),
-       decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: (isDark ? Colors.white : Colors.black).withOpacity(0.05))),
-       child: ExpansionTile(
-         title: Row(children: [
-            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle), child: Icon(Icons.person_pin_rounded, color: color, size: 16)),
-            const SizedBox(width: 12),
-            Expanded(child: Text(u['name'].toString().toUpperCase(), style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 13))),
-            Text('₹${u['net'].abs().toInt()}', style: GoogleFonts.outfit(color: color, fontWeight: FontWeight.w900, fontSize: 16)),
-         ]),
-         children: [
-            ...((u['history'] ?? []) as List).map((h) => ListTile(
-               dense: true, leading: Icon(h['entry_type'] == 'Income' ? Icons.south_west_rounded : Icons.north_east_rounded, color: h['entry_type'] == 'Income' ? Colors.greenAccent : Colors.redAccent, size: 14),
-               title: Text(h['category'] ?? 'Audit Log', style: const TextStyle(color: Colors.white70, fontSize: 11)),
-               subtitle: Text(DateFormat('MMM dd').format(DateTime.parse(h['transaction_date'] ?? h['created_at'])), style: const TextStyle(color: Colors.white24, fontSize: 8)),
-               trailing: Text('₹${(h['amount'] as num).toInt()}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            )).toList(),
-         ],
-       ),
-     );
-  }
-
-  // --- MODALS ---
-  void _showAuditLogModal(bool isDark) {
-    String auditType = 'Maintenance (Exp)';
-    String method = 'Cash';
-    
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: Colors.transparent,
-      builder: (context) => StatefulBuilder(builder: (c, setModalState) => Container(
-        padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
-        decoration: BoxDecoration(color: isDark ? const Color(0xFF08090A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(32))),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('HOSTEL AUDIT LOG', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 18)),
-          const SizedBox(height: 24),
-          _modalSegment(['Maintenance (Exp)', 'Damage Fine (Dr)', 'Recovery (Cr)'], auditType, (v) => setModalState(() => auditType = v), isDark),
-          const SizedBox(height: 20),
-          _inputField('AMOUNT (₹)', _manualAmtCtrl, isDark, Icons.payments_rounded, isNumeric: true),
-          const SizedBox(height: 20),
-          Text('ENTITY SELECTION', style: TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-          const SizedBox(height: 8),
-          Row(children: [
-            Expanded(child: _roomSelector(isDark, setModalState)),
-            const SizedBox(width: 12),
-            Expanded(child: _profileSelector(isDark, setModalState)),
-          ]),
-          const SizedBox(height: 20),
-          _modalSegment(['Cash', 'UPI', 'Bank'], method, (v) => setModalState(() => method = v), isDark),
-          const SizedBox(height: 32),
-          ElevatedButton(
-            onPressed: () => _submitAuditEntry(auditType, method),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, minimumSize: const Size(double.infinity, 60), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))),
-            child: const Text('AUTHORIZE AUDIT ENTRY', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-          ),
-        ]),
-      )),
     );
   }
 
-  Widget _roomSelector(bool isDark, StateSetter setModalState) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(16)),
-      child: DropdownButtonHideUnderline(child: DropdownButton<dynamic>(
-        hint: Text('ROOM', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10)),
-        isExpanded: true, value: _selectedRoom, dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
-        items: _rooms.map((r) => DropdownMenuItem(value: r, child: Text('UNIT ${r['room_number']}', style: TextStyle(color: isDark?Colors.white:Colors.black, fontSize: 12)))).toList(),
-        onChanged: (v) => setModalState(() => _selectedRoom = v),
-      )),
-    );
-  }
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF08090A) : Colors.white;
+    final textColor = isDark ? Colors.white : Colors.black;
 
-  Widget _profileSelector(bool isDark, StateSetter setModalState) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(16)),
-      child: DropdownButtonHideUnderline(child: DropdownButton<dynamic>(
-        hint: Text('USER', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10)),
-        isExpanded: true, value: _selectedProfile, dropdownColor: isDark ? const Color(0xFF08090A) : Colors.white,
-        items: _profiles.map((p) => DropdownMenuItem(value: p, child: Text(p['full_name'].toString().toUpperCase(), style: TextStyle(color: isDark?Colors.white:Colors.black, fontSize: 10, fontWeight: FontWeight.bold)))).toList(),
-        onChanged: (v) => setModalState(() => _selectedProfile = v),
-      )),
-    );
-  }
+    // Filter transaction list by date
+    final dateFiltered = _allTransactions.where((tx) {
+       final dt = tx['date'] as DateTime;
+       return dt.year == _selectedDate.year && dt.month == _selectedDate.month && dt.day == _selectedDate.day;
+    }).toList();
 
-  Future<void> _submitAuditEntry(String type, String method) async {
-     final amt = double.tryParse(_manualAmtCtrl.text);
-     if (amt == null || amt <= 0) return;
-     try {
-       String entryType = 'Expense';
-       String category = 'Miscellaneous';
-       if (type == 'Recovery (Cr)') entryType = 'Income';
-       if (type == 'Damage Fine (Dr)') {
-          entryType = 'Expense'; // Money "spent" by student fine (Liability)
-          category = 'Damage Fine';
-       }
-       if (type == 'Maintenance (Exp)') {
-          entryType = 'Expense';
-          category = 'Room Maintenance';
-       }
-
-       await _client.from('day_book_entries').insert({
-         'entry_type': entryType,
-         'amount': amt,
-         'payment_method': method,
-         'category': category,
-         'target_user_id': _selectedProfile?['id'],
-         'related_room_id': _selectedRoom?['id'],
-         'user_id': _client.auth.currentUser!.id,
-         'transaction_date': DateFormat('yyyy-MM-dd').format(_selectedDate),
-       });
-       Navigator.pop(context);
-       _manualAmtCtrl.clear(); _selectedProfile = null; _selectedRoom = null;
-       _fetchUnifiedData();
-     } catch (_) {}
-  }
-
-  // (Helper widgets: _modalSegment, _buildModernCalendarHeader, _statColumn, etc. are restored/updated as before)
-  Widget _modalSegment(List<String> options, String selected, Function(String) onSel, bool isDark) {
-    return Row(children: options.map((o) {
-      bool sel = selected == o;
-      return Expanded(child: GestureDetector(onTap: () => onSel(o), child: Container(margin: const EdgeInsets.all(4), padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: sel ? Colors.indigoAccent : (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(12)), alignment: Alignment.center, child: Text(o.toUpperCase(), style: TextStyle(color: sel ? Colors.white : (isDark ? Colors.white38 : Colors.black38), fontSize: 7, fontWeight: FontWeight.w900)))));
-    }).toList());
-  }
-
-  Widget _buildModernCalendarHeader(bool isDark) {
-    return GestureDetector(
-      onTap: _pickDate,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.04), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)),
-        child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Row(children: [
-            const Icon(Icons.calendar_month_rounded, color: Colors.indigoAccent, size: 20),
-            const SizedBox(width: 16),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(DateFormat('EEEE').format(_selectedDate).toUpperCase(), style: const TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 2)),
-              Text(DateFormat('MMM dd, yyyy').format(_selectedDate), style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.w900, fontSize: 16)),
-            ]),
-          ]),
-          const Icon(Icons.arrow_drop_down_rounded, color: Colors.indigoAccent),
-        ]),
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        title: Text('UNIVERSAL LEDGER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, color: textColor, letterSpacing: 2)),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
+        actions: [
+          IconButton(icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent), onPressed: _importLedgerCSV, tooltip: 'Import CSV'),
+          IconButton(icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent), onPressed: _exportLedgerCSV, tooltip: 'Export CSV'),
+          IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.indigoAccent, size: 24), onPressed: () => _showManualTransactionModal(isDark)),
+          IconButton(icon: const Icon(Icons.calendar_month_rounded, color: Colors.indigoAccent, size: 24), onPressed: _pickDate),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          indicatorColor: Colors.indigoAccent,
+          labelColor: Colors.indigoAccent,
+          unselectedLabelColor: isDark ? Colors.white24 : Colors.black26,
+          labelStyle: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1),
+          tabs: const [
+            Tab(text: 'STATEMENT'),
+            Tab(text: 'KHATA LEDGER'),
+            Tab(text: 'ANALYTICS'),
+          ],
+        ),
       ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+        : Stack(
+            children: [
+              Positioned(top: -100, left: -50, child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 100, sigmaY: 100), child: Container(width: 300, height: 300, decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.05), shape: BoxShape.circle)))),
+              TabBarView(
+                controller: _tabController,
+                children: [
+                  // 1. Statements Tab
+                  ListView(
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      _buildSummaryShield(isDark, dateFiltered),
+                      const SizedBox(height: 32),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _sectionHeader('DAILY CHRONOLOGY'),
+                          Text(DateFormat('MMM dd, yyyy').format(_selectedDate).toUpperCase(), style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      if (dateFiltered.isEmpty) _emptyState(isDark)
+                      else ...dateFiltered.map((tx) => _buildTransactionTile(tx, isDark)),
+                    ],
+                  ),
+                  
+                  // 2. Khata Ledger Tab
+                  ListView(
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.05), borderRadius: BorderRadius.circular(32), border: Border.all(color: Colors.indigoAccent.withOpacity(0.1))),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                              Text('OUTSTANDING LOANS', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                              Text('₹${_totalOutstandingLent.toInt()}', style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
+                            ]),
+                            IconButton(
+                              icon: const Icon(Icons.wallet_giftcard_rounded, color: Colors.greenAccent, size: 28),
+                              onPressed: () => _showTopUpModal(isDark),
+                            )
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      _sectionHeader('ACTIVE MEMBERS BALANCES'),
+                      const SizedBox(height: 16),
+                      if (_khataMap.isEmpty) _emptyState(isDark)
+                      else ..._khataMap.entries.map((entry) {
+                        final val = entry.value;
+                        final double lent = val['lent'] ?? 0.0;
+                        final double rec = val['recovered'] ?? 0.0;
+                        final double outstanding = lent - rec;
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: (isDark ? Colors.white : Colors.black).withOpacity(0.05))),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                Text(val['name']?.toString().toUpperCase() ?? 'MEMBER', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13)),
+                                Text('Lent: ₹${lent.toInt()} | Recovered: ₹${rec.toInt()}', style: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 9, fontWeight: FontWeight.bold)),
+                              ]),
+                              Text('₹${outstanding.toInt()}', style: GoogleFonts.outfit(color: outstanding > 0 ? Colors.redAccent : Colors.greenAccent, fontWeight: FontWeight.w900, fontSize: 16)),
+                            ],
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                  
+                  // 3. Analytics Tab
+                  ListView(
+                    padding: const EdgeInsets.all(24),
+                    children: [
+                      _sectionHeader('CASHFLOW ANALYTICS'),
+                      const SizedBox(height: 16),
+                      _buildExpenseChart(isDark),
+                      const SizedBox(height: 32),
+                      _sectionHeader('FISCAL METRICS'),
+                      const SizedBox(height: 16),
+                      _buildMetricGrid(isDark),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
     );
   }
 

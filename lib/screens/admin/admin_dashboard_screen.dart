@@ -110,7 +110,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               children: [
                 _buildIntelligenceGraph(),
                 const SizedBox(height: 32),
-                const Text('OPERATIONAL METRICS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 2, color: Colors.blueGrey)),
+                 const Text('OPERATIONAL METRICS', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.blueGrey)),
                 const SizedBox(height: 16),
                 GridView.builder(
                   shrinkWrap: true,
@@ -135,7 +135,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   },
                 ),
                 const SizedBox(height: 40),
-                const Text('GLOBAL BROADCAST CONTROL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 2, color: Colors.blueGrey)),
+                const Text('GLOBAL BROADCAST CONTROL', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: Colors.blueGrey)),
                 const SizedBox(height: 16),
                 if (_broadcasts.isEmpty)
                   const Center(child: Padding(padding: EdgeInsets.all(40), child: Text('NO ACTIVE BROADCASTS', style: TextStyle(color: Colors.grey, fontSize: 12))))
@@ -205,10 +205,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: color, size: 16),
+            Icon(icon, color: color, size: 24),
             const SizedBox(height: 8),
-            Text(val, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 7, fontWeight: FontWeight.bold, letterSpacing: 1)),
+            Text(val, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22, color: Colors.black)),
+            Text(label, style: const TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
           ],
         ),
       ),

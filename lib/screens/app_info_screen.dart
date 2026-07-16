@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -43,29 +42,25 @@ class AppInfoScreen extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            FadeInDown(
-              child: Center(
-                child: Container(
-                  padding: const EdgeInsets.all(30),
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.pinkAccent.withOpacity(0.1)),
-                    boxShadow: isDark ? [BoxShadow(color: Colors.pinkAccent.withOpacity(0.05), blurRadius: 40)] : [],
-                  ),
-                  child: const Icon(Icons.hub_rounded, size: 80, color: Colors.pinkAccent),
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(30),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.pinkAccent.withOpacity(0.1)),
+                  boxShadow: isDark ? [BoxShadow(color: Colors.pinkAccent.withOpacity(0.05), blurRadius: 40)] : [],
                 ),
+                child: const Icon(Icons.hub_rounded, size: 80, color: Colors.pinkAccent),
               ),
             ),
             const SizedBox(height: 32),
-            FadeInUp(
-              child: Column(
-                children: [
-                   Text(companyName, style: GoogleFonts.outfit(color: textColor, fontSize: 22, fontWeight: FontWeight.bold)),
-                   const SizedBox(height: 8),
-                   Text('Version $version', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 11, fontWeight: FontWeight.bold)),
-                ],
-              ),
+            Column(
+              children: [
+                 Text(companyName, style: GoogleFonts.outfit(color: textColor, fontSize: 22, fontWeight: FontWeight.bold)),
+                 const SizedBox(height: 8),
+                 Text('Version $version', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 11, fontWeight: FontWeight.bold)),
+              ],
             ),
 
             const SizedBox(height: 32),
@@ -121,40 +116,36 @@ class AppInfoScreen extends StatelessWidget {
   }
 
   Widget _buildSectionTitle(String title, Color color, bool isDark) {
-    return FadeInLeft(
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Row(
-          children: [
-            Container(width: 4, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
-            const SizedBox(width: 8),
-            Text(title, style: GoogleFonts.outfit(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-          ],
-        ),
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Row(
+        children: [
+          Container(width: 4, height: 12, decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2))),
+          const SizedBox(width: 8),
+          Text(title, style: GoogleFonts.outfit(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+        ],
       ),
     );
   }
 
   Widget _infoTile(IconData icon, String title, String value, VoidCallback onTap, Color color, bool isDark) {
-    return FadeInUp(
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(
-          color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+      ),
+      child: ListTile(
+        onTap: onTap,
+        leading: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+          child: Icon(icon, color: color, size: 18),
         ),
-        child: ListTile(
-          onTap: onTap,
-          leading: Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          title: Text(title, style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold)),
-          subtitle: Text(value, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 14, fontWeight: FontWeight.bold)),
-          trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white10 : Colors.black12, size: 20),
-        ),
+        title: Text(title, style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold)),
+        subtitle: Text(value, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 14, fontWeight: FontWeight.bold)),
+        trailing: Icon(Icons.chevron_right_rounded, color: isDark ? Colors.white10 : Colors.black12, size: 20),
       ),
     );
   }

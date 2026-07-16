@@ -23,6 +23,7 @@ import 'legal/privacy_policy_screen.dart';
 import 'legal/terms_of_service_screen.dart';
 import 'app_info_screen.dart';
 import '../widgets/shared_web_components.dart';
+import 'employee/employee_terminal_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isGuest;
@@ -67,7 +68,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
       return [
-        AdminPanelScreen(),
         const ShopBrowseScreen(isMandiMode: false),
         const ShopBrowseScreen(isMandiMode: true),
         AdminFinanceHubScreen(),
@@ -76,14 +76,12 @@ class _HomeScreenState extends State<HomeScreen> {
       ];
     } else if (role == 'staff') {
       return [
-        ProductivitySuiteHub(),
-        const ShopBrowseScreen(isMandiMode: false),
-        const ShopBrowseScreen(isMandiMode: true),
+        const EmployeeTerminalScreen(),
         StaffTaskHubScreen(),
         CampusChatListScreen(),
         ProfileScreen(),
       ];
-    } else if (role == 'hostel_student' || role == 'mess_student') {
+    } else if (role == 'hostel_student') {
       return [
         StudentTerminalScreen(),
         const ShopBrowseScreen(isMandiMode: false),
@@ -92,19 +90,23 @@ class _HomeScreenState extends State<HomeScreen> {
         CampusChatListScreen(),
         ProfileScreen(),
       ];
+    } else if (role == 'mess_student') {
+      return [
+        const ShopBrowseScreen(isMandiMode: false),
+        const ShopBrowseScreen(isMandiMode: true),
+        MessStudentCardScreen(),
+        CampusChatListScreen(),
+        ProfileScreen(),
+      ];
     } else if (role == 'delivery_partner') {
       return [
         const MandiDeliveryScreen(),
-        const ShopBrowseScreen(isMandiMode: false),
-        const ShopBrowseScreen(isMandiMode: true),
         CampusChatListScreen(),
         const ProfileScreen(),
       ];
     } else if (role == 'farmer_seller') {
       return [
         const MandiSellerScreen(),
-        const ShopBrowseScreen(isMandiMode: false),
-        const ShopBrowseScreen(isMandiMode: true),
         CampusChatListScreen(),
         const ProfileScreen(),
       ];
@@ -123,15 +125,17 @@ class _HomeScreenState extends State<HomeScreen> {
       return [Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.login_rounded];
     }
     if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
-      return [Icons.grid_view_rounded, Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.receipt_long_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
+      return [Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.receipt_long_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
     } else if (role == 'staff') {
-      return [Icons.psychology_outlined, Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.pending_actions_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
-    } else if (role == 'hostel_student' || role == 'mess_student') {
+      return [Icons.badge_outlined, Icons.psychology_outlined, Icons.pending_actions_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
+    } else if (role == 'hostel_student') {
       return [Icons.grid_view_rounded, Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.psychology_outlined, Icons.forum_outlined, Icons.person_outline_rounded];
+    } else if (role == 'mess_student') {
+      return [Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.credit_card_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
     } else if (role == 'delivery_partner') {
-      return [Icons.local_shipping_rounded, Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
+      return [Icons.local_shipping_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
     } else if (role == 'farmer_seller') {
-      return [Icons.agriculture_rounded, Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
+      return [Icons.agriculture_rounded, Icons.forum_outlined, Icons.person_outline_rounded];
     }
     return [Icons.shopping_bag_outlined, Icons.storefront_rounded, Icons.person_outline_rounded];
   }

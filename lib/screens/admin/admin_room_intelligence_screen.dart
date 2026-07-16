@@ -403,7 +403,7 @@ class _AdminRoomIntelligenceScreenState extends State<AdminRoomIntelligenceScree
        TextField(controller: flrCtrl, decoration: InputDecoration(labelText: 'Floor Assignment (0-6)'), keyboardType: TextInputType.number),
        TextField(controller: capCtrl, decoration: InputDecoration(labelText: 'Unit Capacity'), keyboardType: TextInputType.number),
        const SizedBox(height: 16),
-       if (_feePackages.isNotEmpty) DropdownButton<String>(value: selType, isExpanded: true, items: _feePackages.map((t) => DropdownMenuItem(value: t['service_name'].toString(), child: Text(t['service_name'].toString()))).toList(), onChanged: (v) => setS(() => selType = v!)),
+        if (_feePackages.isNotEmpty) DropdownButton<String>(value: _feePackages.any((t) => t['service_name'].toString() == selType) ? selType : _feePackages.first['service_name'].toString(), isExpanded: true, items: _feePackages.map((t) => DropdownMenuItem(value: t['service_name'].toString(), child: Text(t['service_name'].toString()))).toList(), onChanged: (v) => setS(() => selType = v!)),
        const SizedBox(height: 32),
        SizedBox(width: double.infinity, height: 55, child: ElevatedButton(onPressed: () async {
           if (selType == null) return;
@@ -433,7 +433,7 @@ class _AdminRoomIntelligenceScreenState extends State<AdminRoomIntelligenceScree
           setS(() { selStudent = v; currentEnrollment = enroll; });
        }),
        const SizedBox(height: 24),
-       DropdownButton<String>(value: selRoom, isExpanded: true, hint: const Text('Select Target Room'), items: (targetedRoom != null ? [targetedRoom] : vacantRooms).map((r) => DropdownMenuItem(value: r['id'].toString(), child: Text('ROOM ${r['room_number']} (${r['room_type']})'))).toList(), onChanged: (v) => setS(() => selRoom = v)),
+       DropdownButton<String>(value: (targetedRoom != null && targetedRoom['id'].toString() == selRoom) || vacantRooms.any((r) => r['id'].toString() == selRoom) ? selRoom : null, isExpanded: true, hint: const Text('Select Target Room'), items: (targetedRoom != null ? [targetedRoom] : vacantRooms).map((r) => DropdownMenuItem(value: r['id'].toString(), child: Text('ROOM ${r['room_number']} (${r['room_type']})'))).toList(), onChanged: (v) => setS(() => selRoom = v)),
        const SizedBox(height: 32),
        SizedBox(width: double.infinity, height: 55, child: ElevatedButton(onPressed: () async {
           if (selStudent == null || selRoom == null) return;

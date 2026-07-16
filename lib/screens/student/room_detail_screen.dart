@@ -5,21 +5,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import '../../models/hostel.dart';
-import '../../services/database_service.dart';
-import '../../services/preferences_service.dart';
-import 'package:flutter_rating_bar/flutter_rating_bar.dart';
 import 'package:share_plus/share_plus.dart';
-import '../add_review_screen.dart';
-import '../web_view_screen.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:screenshot/screenshot.dart';
+import 'package:image_picker/image_picker.dart';
 import 'dart:io';
-import '../chat_screen.dart';
-import '../../widgets/user_avatar.dart';
+import '../../models/hostel.dart';
 
 class RoomDetailScreen extends StatefulWidget {
   final HostelRoom room;
@@ -29,20 +18,18 @@ class RoomDetailScreen extends StatefulWidget {
   State<RoomDetailScreen> createState() => _RoomDetailScreenState();
 }
 
-class _RoomDetailScreenState extends State<RoomDetailScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _RoomDetailScreenState extends State<RoomDetailScreen> {
+  final _client = Supabase.instance.client;
   bool _isSaved = false;
   List<dynamic> _reviews = [];
   bool _isLoadingReviews = true;
   bool _canReview = false;
   int _currentImageIndex = 0;
-  final ScreenshotController _screenshotController = ScreenshotController();
   String _role = 'user';
 
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
     _checkSavedStatus();
     _checkReviewEligibility();
     _fetchReviews();
@@ -50,24 +37,23 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> with SingleTickerPr
   }
 
   Future<void> _checkUserRole() async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = _client.auth.currentUser;
     if (user == null) return;
     try {
-      final res = await Supabase.instance.client.from('profiles').select('role').eq('id', user.id).single();
+      final res = await _client.from('profiles').select('role').eq('id', user.id).single();
       if (mounted) setState(() => _role = res['role'] ?? 'user');
     } catch (_) {}
   }
 
   Future<void> _checkSavedStatus() async {
-    // Re-linking to hostel preferences
     if (mounted) setState(() => _isSaved = false);
   }
   
   Future<void> _checkReviewEligibility() async {
-    final user = Supabase.instance.client.auth.currentUser;
+    final user = _client.auth.currentUser;
     if (user == null) return;
     try {
-      final res = await Supabase.instance.client.from('hostel_enrollments').select('id').eq('room_id', widget.room.id).eq('user_id', user.id).limit(1);
+      final res = await _client.from('hostel_enrollments').select('id').eq('room_id', widget.room.id).eq('user_id', user.id).limit(1);
       if (res.isNotEmpty && mounted) {
         setState(() => _canReview = true);
       }
@@ -76,9 +62,9 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> with SingleTickerPr
 
   Future<void> _fetchReviews() async {
     try {
-      final response = await Supabase.instance.client
+      final response = await _client
           .from('reviews')
-          .select()
+          .select('*, profiles(full_name)')
           .eq('hostel_id', widget.room.id)
           .order('created_at', ascending: false);
       if (mounted) {
@@ -94,381 +80,321 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardColor = isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03);
+    final borderColor = isDark ? Colors.white.withOpacity(0.06) : Colors.black.withOpacity(0.05);
+
     return Scaffold(
       backgroundColor: const Color(0xFF08090A),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth > 800) {
-            // Desktop/Wide View: 2-column sidebar layout
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  flex: 5,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: 400,
-                          width: double.infinity,
-                          child: _buildImageGallery(),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.all(24),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildHeader(),
-                              const SizedBox(height: 12),
-                              _buildLocationRow(),
-                              const SizedBox(height: 24),
-                              _buildQuickStats(),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+      body: Stack(
+        children: [
+          CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              _buildAppBar(context, isDark),
+              SliverToBoxAdapter(
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF08090A),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
                   ),
-                ),
-                const VerticalDivider(width: 1, color: Colors.white12),
-                Expanded(
-                  flex: 5,
-                  child: Column(
-                    children: [
-                      TabBar(
-                        controller: _tabController,
-                        isScrollable: true,
-                        indicatorColor: Colors.indigoAccent,
-                        labelColor: Colors.white,
-                        unselectedLabelColor: Colors.white38,
-                        labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
-                        tabs: const [
-                          Tab(text: 'OVERVIEW'),
-                          Tab(text: 'AMENITIES'),
-                          Tab(text: 'INCLUSIONS'),
-                          Tab(text: 'INSPECTION'),
-                          Tab(text: 'REVIEWS'),
-                        ],
-                      ),
-                      Expanded(
-                        child: TabBarView(
-                          controller: _tabController,
-                          children: [
-                            _buildOverview(),
-                            _buildAmenities(),
-                            _buildInclusions(),
-                            _buildInspectionChecklist(),
-                            _buildReviewsTab(),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            );
-          }
-
-          // Mobile View: Default nested scrolling list
-          return NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverAppBar(
-                  expandedHeight: 400,
-                  pinned: false,
-                  floating: true,
-                  backgroundColor: const Color(0xFF08090A),
-                  flexibleSpace: FlexibleSpaceBar(
-                    background: _buildImageGallery(),
-                  ),
-                  leading: _buildAppBarAction(Icons.arrow_back, () => Navigator.pop(context)),
-                  actions: [
-                    _buildAppBarAction(Icons.share, () => Share.share('Join me at Unit ${widget.room.roomNumber}!')),
-                    _buildAppBarAction(_isSaved ? Icons.favorite : Icons.favorite_border, () {}, color: _isSaved ? Colors.red : Colors.white),
-                  ],
-                ),
-                SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                    padding: const EdgeInsets.fromLTRB(20, 24, 20, 120),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildHeader(),
-                        const SizedBox(height: 12),
-                        _buildLocationRow(),
+                        Center(
+                          child: Container(
+                            width: 40,
+                            height: 4,
+                            margin: const EdgeInsets.only(bottom: 24),
+                            decoration: BoxDecoration(
+                              color: Colors.white12,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                        ),
+                        _buildHeaderSection(isDark),
                         const SizedBox(height: 24),
-                        _buildQuickStats(),
+                        _buildQuickSpecs(cardColor, borderColor),
+                        const SizedBox(height: 32),
+                        _buildAboutSection(),
+                        const SizedBox(height: 32),
+                        _buildAmenitiesGrid(isDark, cardColor, borderColor),
+                        const SizedBox(height: 32),
+                        _buildInclusionsList(isDark),
+                        const SizedBox(height: 32),
+                        _buildInspectionStatus(isDark),
+                        const SizedBox(height: 32),
+                        _buildReviewsSection(isDark, cardColor),
                       ],
                     ),
                   ),
                 ),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _SliverAppBarDelegate(
-                    preferredHeight: 60,
-                    child: Container(
-                      color: const Color(0xFF08090A),
-                      child: TabBar(
-                        controller: _tabController,
-                        isScrollable: true,
-                        indicatorColor: Colors.indigoAccent,
-                        labelColor: Colors.white,
-                        unselectedLabelColor: Colors.white38,
-                        labelStyle: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13),
-                        tabs: const [
-                          Tab(text: 'OVERVIEW'),
-                          Tab(text: 'AMENITIES'),
-                          Tab(text: 'INCLUSIONS'),
-                          Tab(text: 'INSPECTION'),
-                          Tab(text: 'REVIEWS'),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ];
-            },
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildOverview(),
-                _buildAmenities(),
-                _buildInclusions(),
-                _buildInspectionChecklist(),
-                _buildReviewsTab(),
-              ],
-            ),
-          );
-        },
+              ),
+            ],
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: _buildBottomBar(isDark),
+          ),
+        ],
       ),
-      bottomNavigationBar: _buildBottomBar(),
     );
   }
 
-  Widget _buildAppBarAction(IconData icon, VoidCallback onTap, {Color color = Colors.white}) {
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            color: Colors.white.withOpacity(0.05),
-            child: IconButton(icon: Icon(icon, color: color, size: 20), onPressed: onTap),
+  Widget _buildAppBar(BuildContext context, bool isDark) {
+    return SliverAppBar(
+      expandedHeight: 340,
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      pinned: true,
+      leading: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: CircleAvatar(
+          backgroundColor: Colors.black38,
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+            onPressed: () => Navigator.pop(context),
           ),
         ),
       ),
-    );
-  }
-
-  Widget _buildHeader() {
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      actions: [
+        Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: CircleAvatar(
+            backgroundColor: Colors.black38,
+            child: IconButton(
+              icon: const Icon(Icons.share, color: Colors.white, size: 18),
+              onPressed: () {
+                Share.share('Check out Unit ${widget.room.roomNumber} on HostelShop!');
+              },
+            ),
+          ),
+        ),
+      ],
+      flexibleSpace: FlexibleSpaceBar(
+        collapseMode: CollapseMode.parallax,
+        background: Stack(
           children: [
-            Text(
-              'UNIT ${widget.room.roomNumber}',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.outfit(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: Colors.white,
+            Positioned.fill(
+              child: CachedNetworkImage(
+                imageUrl: widget.room.imageUrl ?? 'https://images.unsplash.com/photo-1555854817-5b273417735e',
+                fit: BoxFit.cover,
+                errorWidget: (c, e, s) => Container(
+                  color: Colors.indigoAccent.withOpacity(0.1),
+                  child: const Icon(Icons.bed_rounded, color: Colors.indigoAccent, size: 64),
+                ),
               ),
             ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Icon(Icons.star, color: Colors.amber, size: 14),
-                const SizedBox(width: 4),
-                Flexible(
-                  child: Text(
-                    '4.8 (120 reviews)',
-                    overflow: TextOverflow.ellipsis,
-                    style: GoogleFonts.outfit(
-                      color: Colors.white54,
-                      fontSize: 12,
-                    ),
+            Positioned.fill(
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.black54, Colors.transparent, Colors.black87],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
                   ),
                 ),
-              ],
+              ),
             ),
           ],
         ),
       ),
-
-      const SizedBox(width: 10),
-
-      /// PRICE BOX (shrink-safe)
-      Flexible(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: Colors.indigoAccent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            '₹${widget.room.basePrice.toInt()}/mo',
-            overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.outfit(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-        ),
-      ),
-    ],
-  );
-}
-
-  Widget _buildLocationRow() {
-    return Row(
-      children: [
-        const Icon(Icons.location_on, color: Colors.indigoAccent, size: 18),
-        const SizedBox(width: 8),
-        Text('${widget.room.wing ?? 'Main Wing'} • Block B', style: GoogleFonts.outfit(color: Colors.white38, fontSize: 14)),
-      ],
     );
   }
 
-Widget _buildQuickStats() {
-  return Wrap(
-    spacing: 12,
-    runSpacing: 12,
-    children: [
-      _quickStat(Icons.people_outline, '3 Sharing', 'Capacity'),
-      _quickStat(Icons.ac_unit, 'AC Room', 'Type'),
-      _quickStat(Icons.security, '24/7 Guard', 'Safety'),
-    ],
-  );
-}
-
-  Widget _quickStat(IconData icon, String val, String label) {
-  return Container(
-    width: 100,
-    padding: const EdgeInsets.all(10),
-    decoration: BoxDecoration(
-      color: Colors.white.withOpacity(0.03),
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: Colors.white.withOpacity(0.05)),
-    ),
-    child: Column(
+  Widget _buildHeaderSection(bool isDark) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: Colors.white24, size: 18),
-        const SizedBox(height: 6),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.indigoAccent.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
+              ),
+              child: Text(
+                widget.room.roomType?.toUpperCase() ?? 'STANDARD',
+                style: GoogleFonts.outfit(
+                  color: Colors.indigoAccent,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    '4.8 (${_reviews.length})',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
         Text(
-          val,
-          textAlign: TextAlign.center,
+          'UNIT ${widget.room.roomNumber}',
           style: GoogleFonts.outfit(
             color: Colors.white,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
+            fontSize: 28,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
           ),
         ),
-        Text(
-          label,
-          style: GoogleFonts.outfit(
-            color: Colors.white38,
-            fontSize: 9,
-          ),
-        ),
-      ],
-    ),
-  );
-}
-
-  Widget _buildImageGallery() {
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: CachedNetworkImage(
-            imageUrl: widget.room.imageUrl ?? 'https://images.unsplash.com/photo-1555854817-5b2247a8175f?q=80&w=1000',
-            fit: BoxFit.cover,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildOverview() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: FadeInUp(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(height: 8),
+        Row(
           children: [
-            Text('ABOUT THIS UNIT', style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Text(widget.room.description ?? 'A high-fidelity tactical unit engineered for peak resident performance and operational comfort.', style: GoogleFonts.outfit(color: Colors.white54, fontSize: 15, height: 1.6)),
-            const SizedBox(height: 32),
-            Text('FLOOR PLAN', style: GoogleFonts.outfit(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 16),
-            Container(
-              height: 200,
-              width: double.infinity,
-              decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.white.withOpacity(0.05))),
-              child: const Icon(Icons.map_outlined, color: Colors.indigoAccent, size: 40),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-Widget _buildAmenities() {
-  final list = [
-    'High-speed WiFi',
-    'Laundry Service',
-    'Attach Bathroom',
-    'Private Balcony',
-    'Study Table',
-    'Smart Lock'
-  ];
-
-  return GridView.builder(
-    padding: const EdgeInsets.all(24),
-    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-      crossAxisCount: 2,
-      mainAxisSpacing: 10,
-      crossAxisSpacing: 10,
-      childAspectRatio: 3.2,
-    ),
-    itemCount: list.length,
-    itemBuilder: (context, i) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.04),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withOpacity(0.06)),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.check_circle_outline,
-                color: Colors.greenAccent, size: 14),
+            const Icon(Icons.location_on_outlined, color: Colors.indigoAccent, size: 16),
             const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                list[i],
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                ),
+            Text(
+              '${widget.room.wing ?? 'Main Wing'} • ${widget.room.buildingName ?? 'Block B'}',
+              style: GoogleFonts.outfit(
+                color: Colors.white54,
+                fontSize: 13,
               ),
             ),
           ],
         ),
-      );
-    },
-  ); // 👈 THIS WAS MISSING
-}
+      ],
+    );
+  }
 
-  Widget _buildInclusions() {
+  Widget _buildQuickSpecs(Color bg, Color border) {
+    return Row(
+      children: [
+        Expanded(child: _specBox(Icons.people_outline, '${widget.room.capacity} Sharing', 'Capacity', bg, border)),
+        const SizedBox(width: 12),
+        Expanded(child: _specBox(Icons.ac_unit, widget.room.roomType?.toLowerCase().contains('ac') == true ? 'AC Active' : 'Non-AC', 'Climatization', bg, border)),
+        const SizedBox(width: 12),
+        Expanded(child: _specBox(Icons.security, '24/7 Guard', 'Safety Rating', bg, border)),
+      ],
+    );
+  }
+
+  Widget _specBox(IconData icon, String val, String label, Color bg, Color border) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: Colors.indigoAccent, size: 20),
+          const SizedBox(height: 8),
+          Text(
+            val,
+            style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAboutSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'ABOUT THIS UNIT',
+          style: GoogleFonts.outfit(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: 1),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          widget.room.description ?? 'A high-fidelity premium tactical room option engineered for peak resident comfort, smart locks, and operational productivity.',
+          style: GoogleFonts.outfit(color: Colors.white60, fontSize: 13, height: 1.6),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAmenitiesGrid(bool isDark, Color bg, Color border) {
+    final list = widget.room.amenities.isNotEmpty ? widget.room.amenities : [
+      'High-speed WiFi',
+      'Laundry Service',
+      'Attach Bathroom',
+      'Private Balcony',
+      'Study Table',
+      'Smart Lock'
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'INCLUDED AMENITIES',
+          style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1),
+        ),
+        const SizedBox(height: 16),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+            childAspectRatio: 3.5,
+          ),
+          itemCount: list.length,
+          itemBuilder: (context, i) {
+            return Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: bg,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: border),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.greenAccent, size: 14),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      list[i],
+                      style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInclusionsList(bool isDark) {
     final inclusions = [
       {'label': 'HIGH-SPEED WIFI', 'status': true},
       {'label': 'STUDY DESK & CHAIR', 'status': true},
@@ -477,126 +403,644 @@ Widget _buildAmenities() {
       {'label': '24/7 MAINTENANCE', 'status': true},
       {'label': 'LAUNDRY SERVICE', 'status': false},
       {'label': 'MEAL SUBSCRIPTION', 'status': false},
-      {'label': 'ELECTRICITY (METERED)', 'status': false},
     ];
-    return ListView.builder(
-      padding: const EdgeInsets.all(24),
-      itemCount: inclusions.length,
-      itemBuilder: (context, i) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        decoration: BoxDecoration(color: Colors.white.withOpacity(0.02), borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.white.withOpacity(0.04))),
-        child: Row(children: [
-          Icon(inclusions[i]['status'] as bool ? Icons.add_circle_outline_rounded : Icons.remove_circle_outline_rounded, color: inclusions[i]['status'] as bool ? Colors.greenAccent : Colors.redAccent.withOpacity(0.4), size: 16),
-          const SizedBox(width: 16),
-          Text(inclusions[i]['label'] as String, style: GoogleFonts.outfit(color: inclusions[i]['status'] as bool ? Colors.white70 : Colors.white24, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
-          const Spacer(),
-          Text(inclusions[i]['status'] as bool ? 'INCLUDED' : 'EXCLUDED', style: TextStyle(color: inclusions[i]['status'] as bool ? Colors.greenAccent : Colors.white10, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
-        ]),
-      ),
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'STANDARD POLICIES & BILLING',
+          style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1),
+        ),
+        const SizedBox(height: 16),
+        ...inclusions.map((inc) {
+          final status = inc['status'] as bool;
+          return Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.01),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withOpacity(0.03)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  status ? Icons.check_circle_outline : Icons.remove_circle_outline,
+                  color: status ? Colors.greenAccent : Colors.redAccent.withOpacity(0.5),
+                  size: 15,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  inc['label'].toString(),
+                  style: GoogleFonts.outfit(
+                    color: status ? Colors.white70 : Colors.white30,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  status ? 'INCLUDED' : 'METERED / ADD-ON',
+                  style: TextStyle(
+                    color: status ? Colors.greenAccent : Colors.white24,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 
-  Widget _buildInspectionChecklist() {
-    final checks = ['Plumbing Grid', 'Electrical Node', 'Wall Integrity', 'Lock Functionality', 'Furniture Condition'];
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('PRE-ALLOTMENT AUDIT STATUS', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 2)),
-          const SizedBox(height: 20),
-          ...checks.map((c) => Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(children: [const Icon(Icons.verified_user_outlined, color: Colors.greenAccent, size: 16), const SizedBox(width: 16), Text(c, style: const TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)), const Spacer(), const Text('SECURE', style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.w900))]),
-          )).toList(),
-          const SizedBox(height: 32),
-          Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.05), borderRadius: BorderRadius.circular(16)), child: Row(children: [const Icon(Icons.assignment_turned_in_rounded, color: Colors.greenAccent, size: 16), const SizedBox(width: 12), const Expanded(child: Text('THIS UNIT HAS PASSED ALL SMART INSPECTION PROTOCOLS FOR IMMEDIATE ALLOTMENT.', style: TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.bold)))]))
-        ],
-      ),
-    );
-  }
-
-  Widget _buildReviewsTab() {
-    return _isLoadingReviews 
-      ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-      : ListView.builder(
-          padding: const EdgeInsets.all(24),
-          itemCount: _reviews.length,
-          itemBuilder: (context, i) => Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.03), borderRadius: BorderRadius.circular(20)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(_reviews[i]['profiles']['full_name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text(_reviews[i]['content'], style: const TextStyle(color: Colors.white54, fontSize: 13)),
-            ]),
-          ),
-        );
-  }
-
-  Widget _buildBottomBar() {
+  Widget _buildInspectionStatus(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: const Color(0xFF16181A), border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05)))),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.greenAccent.withOpacity(0.03),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.greenAccent.withOpacity(0.15)),
+      ),
       child: Row(
         children: [
+          const Icon(Icons.verified_user_rounded, color: Colors.greenAccent, size: 24),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('STARTING FROM', style: TextStyle(color: Colors.white38, fontSize: 10, fontWeight: FontWeight.bold)),
-                Text('₹${widget.room.basePrice.toInt()}/mo', style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                Text(
+                  'CERTIFIED SMART ALLOTMENT UNIT',
+                  style: GoogleFonts.outfit(
+                    color: Colors.greenAccent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 1,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Passed lock grid, plumbing nodes, and electrical checkups for immediate move-in.',
+                  style: TextStyle(color: Colors.white54, fontSize: 10),
+                ),
               ],
             ),
           ),
-          const SizedBox(width: 20),
-         ElevatedButton(
-  onPressed: () {},
-  style: ElevatedButton.styleFrom(
-    backgroundColor: Colors.indigoAccent,
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-    ),
-  ),
-  child: const Text(
-    'ENROLL',
-    style: TextStyle(
-      color: Colors.white,
-      fontWeight: FontWeight.bold,
-    ),
-  ),
-),
         ],
       ),
     );
   }
-}
 
-
-class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
-  _SliverAppBarDelegate({
-    required this.preferredHeight,
-    required this.child,
-  });
-
-  final double preferredHeight;
-  final Widget child;
-
-  @override
-  double get minExtent => preferredHeight;
-
-  @override
-  double get maxExtent => preferredHeight;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return child;
+  Widget _buildReviewsSection(bool isDark, Color bg) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'RESIDENT REVIEWS',
+          style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1),
+        ),
+        const SizedBox(height: 16),
+        _isLoadingReviews
+            ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+            : _reviews.isEmpty
+                ? const Text(
+                    'No reviews recorded yet.',
+                    style: TextStyle(color: Colors.white24, fontSize: 12, fontStyle: FontStyle.italic),
+                  )
+                : ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _reviews.length,
+                    itemBuilder: (context, i) {
+                      final r = _reviews[i];
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: bg,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  r['profiles'] != null ? r['profiles']['full_name'] ?? 'Resident' : 'Resident',
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                ),
+                                Text(
+                                  DateFormat('dd MMM yy').format(DateTime.parse(r['created_at'])),
+                                  style: const TextStyle(color: Colors.white24, fontSize: 9),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              r['content'] ?? '',
+                              style: const TextStyle(color: Colors.white60, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+      ],
+    );
   }
 
-  @override
-  bool shouldRebuild(_SliverAppBarDelegate oldDelegate) => false;
+  Widget _buildBottomBar(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF16181A),
+        border: Border(top: BorderSide(color: Colors.white.withOpacity(0.05))),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('STARTING FROM', style: TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 2),
+                  Text('₹${widget.room.basePrice.toInt()}/mo', style: GoogleFonts.outfit(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () => _showBookingSheet(context, isDark),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigoAccent,
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+              ),
+              child: Text(
+                'ENROLL / BOOK NOW',
+                style: GoogleFonts.outfit(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showBookingSheet(BuildContext context, bool isDark) async {
+    final client = Supabase.instance.client;
+    final user = client.auth.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please log in to register/book rooms.'), backgroundColor: Colors.orangeAccent),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        double totalMonthly = widget.room.basePrice;
+        final selectedAddons = <String>{};
+        List<dynamic> feePackages = [];
+        bool isLoadingFees = true;
+
+        int currentStep = 1; 
+        String selectedPaymentMethod = 'Wallet';
+        File? upiScreenshot;
+        bool isProcessingCheckout = false;
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            if (isLoadingFees) {
+              client.from('fee_structure').select().then((res) {
+                setSheetState(() {
+                  feePackages = res;
+                  isLoadingFees = false;
+                });
+              }).catchError((_) {
+                setSheetState(() {
+                  isLoadingFees = false;
+                });
+              });
+
+              return Container(
+                height: 400,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF16181A),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+                child: const Center(child: CircularProgressIndicator(color: Colors.indigoAccent)),
+              );
+            }
+
+            final addonsOnly = feePackages.where((p) => p['category'] != 'Rent').toList();
+
+            if (currentStep == 1) {
+              return Container(
+                padding: EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 24,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+                ),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF16181A),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'BOOKING & INCLUSIONS',
+                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'UNIT ${widget.room.roomNumber} • ${widget.room.buildingName?.toUpperCase() ?? 'CAMPUS BLOCK'}',
+                        style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'SELECT OPTIONAL SERVICE ADD-ONS',
+                        style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 1.5),
+                      ),
+                      const SizedBox(height: 12),
+                      ...addonsOnly.map((pkg) {
+                        final name = pkg['service_name'];
+                        final price = (pkg['price'] as num?)?.toDouble() ?? 0.0;
+                        final isSelected = selectedAddons.contains(name);
+                        final isMess = pkg['category'] == 'Mess';
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          decoration: BoxDecoration(
+                            color: isSelected ? Colors.indigoAccent.withOpacity(0.08) : Colors.white.withOpacity(0.02),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: isSelected ? Colors.indigoAccent : Colors.transparent),
+                          ),
+                          child: CheckboxListTile(
+                            activeColor: Colors.indigoAccent,
+                            title: Text(
+                              name.toString().toUpperCase(),
+                              style: GoogleFonts.outfit(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+                            ),
+                            subtitle: Text(
+                              isMess ? 'Includes Mess Card / Meal QR access' : 'Standard monthly campus add-on',
+                              style: const TextStyle(fontSize: 10, color: Colors.white38),
+                            ),
+                            secondary: Text(
+                              '₹${price.toInt()}/mo',
+                              style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: Colors.indigoAccent),
+                            ),
+                            value: isSelected,
+                            onChanged: (val) {
+                              setSheetState(() {
+                                if (val == true) {
+                                  selectedAddons.add(name);
+                                  totalMonthly += price;
+                                } else {
+                                  selectedAddons.remove(name);
+                                  totalMonthly -= price;
+                                }
+                              });
+                            },
+                          ),
+                        );
+                      }).toList(),
+                      const SizedBox(height: 24),
+                      const Divider(color: Colors.white10),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('TOTAL MONTHLY ESTIMATE', style: TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 4),
+                              Text('₹${totalMonthly.toInt()}/mo', style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w900, color: Colors.greenAccent)),
+                            ],
+                          ),
+                          ElevatedButton(
+                            onPressed: () {
+                              setSheetState(() {
+                                currentStep = 2;
+                              });
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.indigoAccent,
+                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: Text('PROCEED TO CHECKOUT', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 12)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            if (currentStep == 2) {
+              return Container(
+                padding: EdgeInsets.only(
+                  left: 24,
+                  right: 24,
+                  top: 24,
+                  bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+                ),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF16181A),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Center(
+                        child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.white24, borderRadius: BorderRadius.circular(2))),
+                      ),
+                      const SizedBox(height: 24),
+                      Text(
+                        'SECURE MOCK CHECKOUT',
+                        style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5),
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.02),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withOpacity(0.05)),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text('Allotment Price', style: TextStyle(color: Colors.white70, fontSize: 12)),
+                            Text('₹${totalMonthly.toInt()}', style: GoogleFonts.outfit(color: Colors.greenAccent, fontWeight: FontWeight.w900, fontSize: 16)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      Text('CHOOSE PAYMENT METHOD', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 1.5)),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setSheetState(() => selectedPaymentMethod = 'Wallet'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                decoration: BoxDecoration(
+                                  color: selectedPaymentMethod == 'Wallet' ? Colors.indigoAccent.withOpacity(0.1) : Colors.white.withOpacity(0.01),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: selectedPaymentMethod == 'Wallet' ? Colors.indigoAccent : Colors.white12),
+                                ),
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.account_balance_wallet_outlined, color: Colors.white),
+                                    const SizedBox(height: 8),
+                                    Text('Wallet', style: GoogleFonts.outfit(fontSize: 12, color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setSheetState(() => selectedPaymentMethod = 'UPI'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                decoration: BoxDecoration(
+                                  color: selectedPaymentMethod == 'UPI' ? Colors.indigoAccent.withOpacity(0.1) : Colors.white.withOpacity(0.01),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: selectedPaymentMethod == 'UPI' ? Colors.indigoAccent : Colors.white12),
+                                ),
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.qr_code_scanner_outlined, color: Colors.white),
+                                    const SizedBox(height: 8),
+                                    Text('UPI / QR', style: GoogleFonts.outfit(fontSize: 12, color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: InkWell(
+                              onTap: () => setSheetState(() => selectedPaymentMethod = 'Cash'),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                decoration: BoxDecoration(
+                                  color: selectedPaymentMethod == 'Cash' ? Colors.indigoAccent.withOpacity(0.1) : Colors.white.withOpacity(0.01),
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: selectedPaymentMethod == 'Cash' ? Colors.indigoAccent : Colors.white12),
+                                ),
+                                child: Column(
+                                  children: [
+                                    const Icon(Icons.payments_outlined, color: Colors.white),
+                                    const SizedBox(height: 8),
+                                    Text('Cash', style: GoogleFonts.outfit(fontSize: 12, color: Colors.white)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (selectedPaymentMethod == 'UPI') ...[
+                        const SizedBox(height: 24),
+                        Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: Image.network(
+                              'https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=hostelshop@upi&pn=HostelShop&am=${totalMonthly.toInt()}',
+                              height: 120,
+                              width: 120,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        const Center(child: Text('SCAN TO PAY MOCK UPI AMOUNT', style: TextStyle(color: Colors.white30, fontSize: 9, fontWeight: FontWeight.bold))),
+                        const SizedBox(height: 16),
+                        ListTile(
+                          tileColor: Colors.white.withOpacity(0.02),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          leading: const Icon(Icons.cloud_upload_outlined, color: Colors.indigoAccent),
+                          title: const Text('UPLOAD RECEIPT SCREENSHOT', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+                          subtitle: Text(upiScreenshot != null ? 'Screenshot Attached' : 'Tap to pick image from gallery', style: const TextStyle(color: Colors.white30, fontSize: 9)),
+                          onTap: () async {
+                            final picker = ImagePicker();
+                            final img = await picker.pickImage(source: ImageSource.gallery);
+                            if (img != null) {
+                              setSheetState(() {
+                                upiScreenshot = File(img.path);
+                              });
+                            }
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 32),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => setSheetState(() => currentStep = 1),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                side: const BorderSide(color: Colors.white24),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              child: const Text('BACK', style: TextStyle(color: Colors.white)),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: isProcessingCheckout ? null : () async {
+                                setSheetState(() {
+                                  isProcessingCheckout = true;
+                                });
+
+                                try {
+                                  final Map<String, dynamic> selectedPackages = {
+                                    'room_plan': widget.room.roomType ?? 'Standard',
+                                    'add_ons': selectedAddons.toList(),
+                                  };
+
+                                  await client.from('hostel_enrollments').upsert({
+                                    'user_id': user.id,
+                                    'room_id': widget.room.id,
+                                    'total_price': totalMonthly,
+                                    'paid_amount': selectedPaymentMethod == 'Wallet' ? totalMonthly : 0.0,
+                                    'status': 'Active',
+                                    'payment_status': selectedPaymentMethod == 'Wallet' ? 'Paid' : 'Pending',
+                                    'selected_packages': selectedPackages,
+                                    'created_at': DateTime.now().toIso8601String(),
+                                  }, onConflict: 'user_id');
+
+                                  if (selectedAddons.any((addon) => addon.toUpperCase().contains('MESS'))) {
+                                    final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String().split('T')[0];
+                                    await client.from('mess_cards').upsert({
+                                      'user_id': user.id,
+                                      'card_number': 'MESS-${user.id.substring(0, 8).toUpperCase()}',
+                                      'status': 'Active',
+                                      'expiry_date': expiry,
+                                      'meals_allowed': ['B', 'L', 'T', 'D'],
+                                      'is_nfc_synced': false,
+                                      'temp_balance': 0.0,
+                                      'last_sync_at': DateTime.now().toIso8601String(),
+                                    }, onConflict: 'user_id');
+                                  }
+
+                                  await client.from('hostel_rooms').update({
+                                    'is_active': true, 
+                                  }).eq('id', widget.room.id);
+
+                                  setSheetState(() {
+                                    isProcessingCheckout = false;
+                                    currentStep = 3;
+                                  });
+                                } catch (e) {
+                                  setSheetState(() {
+                                    isProcessingCheckout = false;
+                                  });
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('Checkout failed: $e'), backgroundColor: Colors.redAccent),
+                                  );
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.greenAccent,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              ),
+                              child: isProcessingCheckout
+                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
+                                  : Text('AUTHORIZE & PAY', style: GoogleFonts.outfit(color: Colors.black, fontWeight: FontWeight.w900)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return Container(
+              padding: const EdgeInsets.all(32),
+              decoration: const BoxDecoration(
+                color: Color(0xFF16181A),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.check_circle_outline_rounded, color: Colors.greenAccent, size: 64),
+                  const SizedBox(height: 24),
+                  Text(
+                    'ALLOTMENT CONFIRMED',
+                    style: GoogleFonts.outfit(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Unit ${widget.room.roomNumber} is now registered under your student dossier profile.',
+                    style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 32),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 50,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _fetchReviews();
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.indigoAccent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('DISMISS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }

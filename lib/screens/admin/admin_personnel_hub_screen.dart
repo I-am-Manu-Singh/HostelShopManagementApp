@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import '../../services/database_service.dart';
 import '../student/attendance_calendar_screen.dart';
 import '../employee/payroll_terminal_screen.dart';
@@ -15,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
 import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../utils/csv_web_helper.dart';
+import '../../utils/csv_range_dialog.dart';
 
 class AdminPersonnelHubScreen extends StatefulWidget {
   const AdminPersonnelHubScreen({super.key});
@@ -39,16 +41,42 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
   }
 
   Future<void> _exportProfilesToCSV() async {
+    final String activeRole = _tabController.index == 0 ? 'staff' : (_tabController.index == 1 ? 'hostel_student' : 'mess_student');
+    final String roleLabel = _tabController.index == 0 ? 'Staff' : (_tabController.index == 1 ? 'Hostel' : 'Mess');
+
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: '$roleLabel Registry',
+      isImport: false,
+    );
+    if (range == null) return;
+
     try {
       final List<String> csvHeaders = [
         'id', 'full_name', 'email', 'phone_no', 'role', 'xp', 'balance',
-        'is_verified', 'institute', 'institute_roll_no', 'city', 'delivery_address'
+        'is_verified', 'institute', 'institute_roll_no', 'city', 'state',
+        'delivery_address', 'home_address', 'blood_group', 'medical_info',
+        'emergency_contact_no', 'father_name', 'father_phone', 'father_whatsapp',
+        'mother_name', 'mother_phone', 'mother_whatsapp', 'school_city',
+        'session_year', 'passport_url', 'aadhar_url', 'medical_certificate_url',
+        'delivery_location', 'created_at'
       ];
       
       final buffer = StringBuffer();
       buffer.writeln(csvHeaders.join(','));
       
-      for (var p in _allPersonnel) {
+      final targetProfiles = _allPersonnel.where((p) {
+        if (p['role']?.toString().toLowerCase() != activeRole) return false;
+        if (p['created_at'] != null) {
+          final dt = DateTime.tryParse(p['created_at'].toString());
+          if (dt != null) {
+            return dt.isAfter(range.startDate) && dt.isBefore(range.endDate);
+          }
+        }
+        return true;
+      }).toList();
+
+      for (var p in targetProfiles) {
         final List<String> row = [
           p['id']?.toString() ?? '',
           '"${(p['full_name'] ?? '').toString().replaceAll('"', '""')}"',
@@ -61,14 +89,35 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
           '"${(p['institute'] ?? '').toString().replaceAll('"', '""')}"',
           p['institute_roll_no']?.toString() ?? '',
           '"${(p['city'] ?? '').toString().replaceAll('"', '""')}"',
+          '"${(p['state'] ?? '').toString().replaceAll('"', '""')}"',
           '"${(p['delivery_address'] ?? '').toString().replaceAll('"', '""')}"',
+          '"${(p['home_address'] ?? '').toString().replaceAll('"', '""')}"',
+          p['blood_group']?.toString() ?? '',
+          '"${(p['medical_info'] ?? '').toString().replaceAll('"', '""')}"',
+          p['emergency_contact_no']?.toString() ?? '',
+          '"${(p['father_name'] ?? '').toString().replaceAll('"', '""')}"',
+          p['father_phone']?.toString() ?? '',
+          p['father_whatsapp']?.toString() ?? '',
+          '"${(p['mother_name'] ?? '').toString().replaceAll('"', '""')}"',
+          p['mother_phone']?.toString() ?? '',
+          p['mother_whatsapp']?.toString() ?? '',
+          '"${(p['school_city'] ?? '').toString().replaceAll('"', '""')}"',
+          p['session_year']?.toString() ?? '',
+          p['passport_url']?.toString() ?? '',
+          p['aadhar_url']?.toString() ?? '',
+          p['medical_certificate_url']?.toString() ?? '',
+          '"${(p['delivery_location'] ?? '').toString().replaceAll('"', '""')}"',
+          p['created_at']?.toString() ?? '',
         ];
         buffer.writeln(row.join(','));
       }
       
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = '${activeRole}_registry_$dateLabel.csv';
+
       if (kIsWeb) {
         try {
-          downloadCsvFile(buffer.toString(), 'central_registry_export.csv');
+          downloadCsvFile(buffer.toString(), filename);
         } catch (_) {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Export failed or not supported.'), backgroundColor: Colors.orangeAccent));
@@ -77,9 +126,9 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
         return;
       }
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/central_registry_export.csv');
+      final file = File('${tempDir.path}/$filename');
       await file.writeAsString(buffer.toString());
-      await Share.shareXFiles([XFile(file.path)], text: 'Central Biodata Registry Export');
+      await Share.shareXFiles([XFile(file.path)], text: '$roleLabel Registry Export');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent));
@@ -88,6 +137,16 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
   }
 
   Future<void> _importProfilesFromCSV() async {
+    final String activeRole = _tabController.index == 0 ? 'staff' : (_tabController.index == 1 ? 'hostel_student' : 'mess_student');
+    final String roleLabel = _tabController.index == 0 ? 'Staff' : (_tabController.index == 1 ? 'Hostel' : 'Mess');
+
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: '$roleLabel Registry',
+      isImport: true,
+    );
+    if (range == null) return;
+
     try {
       final FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -167,6 +226,11 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
           }
         }
         
+        // Enforce active role import separation
+        if (payload['role']?.toString().toLowerCase() != activeRole) {
+          continue;
+        }
+        
         if (profileId != null) {
           await _client.from('profiles').update(payload).eq('id', profileId);
           successCount++;
@@ -174,7 +238,7 @@ class _AdminPersonnelHubScreenState extends State<AdminPersonnelHubScreen> with 
       }
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Successfully updated $successCount profile records'), backgroundColor: Colors.indigoAccent));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Successfully updated $successCount $roleLabel profile records'), backgroundColor: Colors.indigoAccent));
         _fetchPersonnel();
       }
     } catch (e) {
