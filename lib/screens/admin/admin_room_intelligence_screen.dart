@@ -441,7 +441,7 @@ class _AdminRoomIntelligenceScreenState extends State<AdminRoomIntelligenceScree
           if (currentEnrollment != null) {
              await _client.from('hostel_enrollments').update({'room_id': selRoom, 'building_name': widget.blockName}).eq('id', currentEnrollment['id']);
           } else {
-             await _client.from('hostel_enrollments').insert({'user_id': selStudent, 'room_id': selRoom, 'building_name': widget.blockName, 'total_price': room['base_price'] ?? 6500, 'paid_amount': 0, 'status': 'Approved', 'payment_status': 'Approved'});
+             await _client.from('hostel_enrollments').insert({'user_id': selStudent, 'room_id': selRoom, 'building_name': widget.blockName, 'total_price': room['base_price'] ?? 0, 'paid_amount': 0, 'status': 'Approved', 'payment_status': 'Approved'});
           }
           Navigator.pop(ctx); _fetchData();
        }, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent), child: Text(currentEnrollment != null ? 'TRANSFER RESIDENT' : 'CONFIRM DEPLOYMENT'))),

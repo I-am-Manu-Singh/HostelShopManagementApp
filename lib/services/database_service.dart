@@ -87,11 +87,18 @@ class DatabaseService {
     }
   }
 
-  Future<ShopItem?> fetchItemByQR(String qrCode) async {
+  Future<ShopItem?> fetchItemByQR(String code) async {
     try {
-      return await _client.from('shop_items').select().eq('sku_qr', qrCode).maybeSingle().then((val) => val != null ? ShopItem.fromJson(val) : null);
+      final clean = code.trim();
+      // Try barcode column
+      var item = await _client.from('shop_items').select().eq('barcode', clean).maybeSingle();
+      // Try sku_qr column
+      item ??= await _client.from('shop_items').select().eq('sku_qr', clean).maybeSingle();
+      // Try id
+      item ??= await _client.from('shop_items').select().eq('id', clean).maybeSingle();
+      return item != null ? ShopItem.fromJson(item) : null;
     } catch (e) {
-      debugPrint('Error fetching item by QR: $e');
+      debugPrint('Error fetching item by QR/Barcode: $e');
       return null;
     }
   }

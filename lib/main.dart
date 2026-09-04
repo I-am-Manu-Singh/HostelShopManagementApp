@@ -3,20 +3,20 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-import 'screens/home_screen.dart';
-import 'screens/login_screen.dart';
+import 'screens/home/home_screen.dart';
+import 'screens/auth/login_screen.dart';
 import 'services/supabase_service.dart';
 import 'package:overlay_support/overlay_support.dart';
 import 'services/notification_service.dart';
 import 'services/preferences_service.dart';
-import 'screens/room_inventory_screen.dart';
-import 'screens/shop_browse_screen.dart';
+import 'screens/campus/room_inventory_screen.dart';
+import 'screens/shop/shop_browse_screen.dart';
 import 'screens/student/attendance_screen.dart';
 import 'screens/user/complaint_screen.dart';
 import 'services/cart_service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'screens/web_landing_screen.dart';
+import 'screens/home/web_landing_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,62 +54,244 @@ class HostelShopMgmtApp extends StatelessWidget {
             debugShowCheckedModeBanner: false,
             themeMode: mode,
             theme: ThemeData(
+            brightness: Brightness.light,
+
+            // Warm creamy background instead of cold blue-white
+            scaffoldBackgroundColor: const Color(0xFFF7F3EC),
+
+            primaryColor: const Color(0xFF6366F1),
+
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF6366F1),
               brightness: Brightness.light,
-              scaffoldBackgroundColor: const Color(0xFFF8FAFC),
-              primaryColor: const Color(0xFF6366F1),
-              colorScheme: ColorScheme.fromSeed(
-                seedColor: const Color(0xFF6366F1),
-                secondary: const Color(0xFFA855F7),
-                surface: Colors.white,
-              ),
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Colors.white,
-                foregroundColor: Colors.black,
-                elevation: 0,
-                centerTitle: false,
-              ),
-              textTheme: GoogleFonts.outfitTextTheme(Theme.of(context).textTheme).copyWith(
-                bodyLarge: const TextStyle(fontSize: 17, height: 1.4),
-                bodyMedium: const TextStyle(fontSize: 15, height: 1.4),
-                bodySmall: const TextStyle(fontSize: 13, height: 1.3),
-                labelLarge: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                labelMedium: const TextStyle(fontSize: 13),
-                labelSmall: const TextStyle(fontSize: 11),
-                titleLarge: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                titleMedium: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                titleSmall: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              useMaterial3: true,
+
+              // Main accent
+              primary: const Color(0xFF5B5CE2),
+              secondary: const Color(0xFFA855F7),
+
+              // Creamy surfaces
+              surface: const Color(0xFFFFFCF7),
+              surfaceContainerHighest: const Color(0xFFEDE8DF),
+
+              // Better contrast
+              onSurface: const Color(0xFF202124),
+              onPrimary: Colors.white,
             ),
-            darkTheme: ThemeData(
+
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFFF7F3EC),
+              foregroundColor: Color(0xFF202124),
+              elevation: 0,
+              centerTitle: false,
+              scrolledUnderElevation: 0,
+            ),
+
+            cardTheme: const CardThemeData(
+              color: Color(0xFFFFFCF7),
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              surfaceTintColor: Colors.transparent,
+            ),
+
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: const Color(0xFFFFFCF7),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFFE2DDD4),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFFE2DDD4),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFF6366F1),
+                  width: 1.5,
+                ),
+              ),
+            ),
+
+            dividerTheme: const DividerThemeData(
+              color: Color(0xFFE5E0D8),
+              thickness: 1,
+            ),
+
+            textTheme: GoogleFonts.outfitTextTheme(
+              Theme.of(context).textTheme,
+            ).copyWith(
+              bodyLarge: const TextStyle(
+                fontSize: 17,
+                height: 1.4,
+                color: Color(0xFF202124),
+              ),
+              bodyMedium: const TextStyle(
+                fontSize: 15,
+                height: 1.4,
+                color: Color(0xFF4B4B4B),
+              ),
+              bodySmall: const TextStyle(
+                fontSize: 13,
+                height: 1.3,
+                color: Color(0xFF77736D),
+              ),
+              labelLarge: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF202124),
+              ),
+              labelMedium: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFF5F5B56),
+              ),
+              labelSmall: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF77736D),
+              ),
+              titleLarge: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF18181B),
+              ),
+              titleMedium: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF18181B),
+              ),
+              titleSmall: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF18181B),
+              ),
+            ),
+
+            useMaterial3: true,
+          ),
+
+          darkTheme: ThemeData(
+            brightness: Brightness.dark,
+
+            // Near-black, but not dead-black
+            scaffoldBackgroundColor: const Color(0xFF090A0C),
+
+            primaryColor: const Color(0xFF7779FF),
+
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: const Color(0xFF6366F1),
               brightness: Brightness.dark,
-              scaffoldBackgroundColor: const Color(0xFF08090A),
-              primaryColor: const Color(0xFF6366F1),
-              colorScheme: ColorScheme.fromSeed(
-                brightness: Brightness.dark,
-                seedColor: const Color(0xFF6366F1),
-                secondary: const Color(0xFFA855F7),
-                surface: const Color(0xFF16181A),
-              ),
-              appBarTheme: const AppBarTheme(
-                backgroundColor: Color(0xFF08090A),
-                foregroundColor: Colors.white,
-                elevation: 0,
-                centerTitle: false,
-              ),
-              textTheme: GoogleFonts.outfitTextTheme(ThemeData.dark().textTheme).copyWith(
-                bodyLarge: const TextStyle(fontSize: 17, height: 1.4, color: Colors.white),
-                bodyMedium: const TextStyle(fontSize: 15, height: 1.4, color: Colors.white70),
-                bodySmall: const TextStyle(fontSize: 13, height: 1.3, color: Colors.white60),
-                labelLarge: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white),
-                labelMedium: const TextStyle(fontSize: 13, color: Colors.white70),
-                labelSmall: const TextStyle(fontSize: 11, color: Colors.white60),
-                titleLarge: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-                titleMedium: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                titleSmall: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
-              ),
-              useMaterial3: true,
+
+              primary: const Color(0xFF7779FF),
+              secondary: const Color(0xFFB56CFF),
+
+              // Subtle charcoal surfaces
+              surface: const Color(0xFF111316),
+              surfaceContainer: const Color(0xFF15171A),
+              surfaceContainerHigh: const Color(0xFF1B1E22),
+              surfaceContainerHighest: const Color(0xFF22252A),
+
+              onSurface: const Color(0xFFF4F4F5),
+              onPrimary: Colors.white,
             ),
+
+            appBarTheme: const AppBarTheme(
+              backgroundColor: Color(0xFF090A0C),
+              foregroundColor: Color(0xFFF4F4F5),
+              elevation: 0,
+              centerTitle: false,
+              scrolledUnderElevation: 0,
+            ),
+
+            cardTheme: const CardThemeData(
+              color: Color(0xFF111316),
+              elevation: 0,
+              margin: EdgeInsets.zero,
+              surfaceTintColor: Colors.transparent,
+            ),
+
+            inputDecorationTheme: InputDecorationTheme(
+              filled: true,
+              fillColor: const Color(0xFF15171A),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFF292D33),
+                ),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFF292D33),
+                ),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: const BorderSide(
+                  color: Color(0xFF7779FF),
+                  width: 1.5,
+                ),
+              ),
+            ),
+
+            dividerTheme: const DividerThemeData(
+              color: Color(0xFF25282D),
+              thickness: 1,
+            ),
+
+            textTheme: GoogleFonts.outfitTextTheme(
+              ThemeData.dark().textTheme,
+            ).copyWith(
+              bodyLarge: const TextStyle(
+                fontSize: 17,
+                height: 1.4,
+                color: Color(0xFFF4F4F5),
+              ),
+              bodyMedium: const TextStyle(
+                fontSize: 15,
+                height: 1.4,
+                color: Color(0xFFC5C7CC),
+              ),
+              bodySmall: const TextStyle(
+                fontSize: 13,
+                height: 1.3,
+                color: Color(0xFF92959C),
+              ),
+              labelLarge: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFF4F4F5),
+              ),
+              labelMedium: const TextStyle(
+                fontSize: 13,
+                color: Color(0xFFC5C7CC),
+              ),
+              labelSmall: const TextStyle(
+                fontSize: 11,
+                color: Color(0xFF92959C),
+              ),
+              titleLarge: const TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFF8F8F8),
+              ),
+              titleMedium: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFF8F8F8),
+              ),
+              titleSmall: const TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFFF8F8F8),
+              ),
+            ),
+
+            useMaterial3: true,
+          ),
             home: const AuthGuard(),
             scrollBehavior: const MaterialScrollBehavior().copyWith(
               dragDevices: {

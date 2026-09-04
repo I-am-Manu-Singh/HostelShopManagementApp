@@ -53,7 +53,19 @@ class _GlobalUnreadBadgeState extends State<GlobalUnreadBadge> {
       final firstName = fullName.split(' ').first;
 
       // Communication channels based on CampusChatListScreen
-      List<String> roomIds = ['hostel_gen', 'mess_community', 'student_council', 'admin_support', 'shop_manager'];
+      List<String> roomIds = ['hostel_gen', 'mess_community', 'student_council'];
+
+      if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
+        // Find all student threads
+        try {
+          final activeThreads = await _client.from('messages').select('room_id').like('room_id', 'admin_support_%');
+          final threadIds = (activeThreads as List).map((t) => t['room_id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+          roomIds.addAll(threadIds);
+        } catch (_) {}
+      } else {
+        roomIds.add('admin_support_${user.id}');
+        roomIds.add('shop_manager_${user.id}');
+      }
 
       if (roomIds.isEmpty) {
         if (mounted) setState(() { _totalUnread = 0; _hasMention = false; });

@@ -96,10 +96,10 @@ class ReceiptService {
                   final wQty = it['weight_qty'] != null ? (it['weight_qty'] as num).toDouble() : null;
                   final wUnit = it['weight_unit']?.toString();
                   
-                  String qtyWeightStr = qty.toString();
+                  String qtyWeightStr = '$qty';
                   double totalMultiplier = qty.toDouble();
                   if (wQty != null && wQty != 1.0) {
-                    qtyWeightStr = '$qty x ${wQty} ${wUnit ?? 'kg'}';
+                    qtyWeightStr = '$qty x $wQty ${wUnit ?? 'kg'}';
                     totalMultiplier = qty * wQty;
                   }
                   return [
@@ -143,16 +143,78 @@ class ReceiptService {
   }
 
   // ── Hostel / Mess Rent & Electricity Receipt ────────────────────────────────
-  static Future<void> generateFiscalReceipt(dynamic col, String? studentName) async {
+  static Future<void> generateFiscalReceipt(
+    dynamic col, 
+    String? studentName, {
+    String? roomNumber,
+    String? buildingName,
+    String? phone,
+    String? roomPlan,
+    List<dynamic>? addOns,
+    DateTime? cycleStart,
+    DateTime? cycleEnd,
+    int? daysBilled,
+  }) async {
     final pdf = pw.Document();
     final date = DateFormat('MMM dd, yyyy').format(DateTime.parse(col['created_at']));
     final receiptId = col['id'].toString().substring(0, 8).toUpperCase();
     final type = col['collection_type'] ?? 'PAYMENT';
 
     // Advanced detailed attributes
-    final baseRent = (col['base_rent'] as num? ?? 6500.0).toDouble();
+    final baseRent = (col['base_rent'] as num? ?? (col['room_rent'] as num?) ?? 6500.0).toDouble();
     final electricityCharges = (col['electricity_charges'] as num? ?? 0.0).toDouble();
-    final totalAmount = (col['amount'] as num? ?? (baseRent + electricityCharges)).toDouble();
+    final serviceFees = (col['service_fees'] as num? ?? 0.0).toDouble();
+    final totalAmount = (col['amount'] as num? ?? (baseRent + electricityCharges + serviceFees)).toDouble();
+
+    // Cycle date calculations
+    String cycleStr = DateFormat('MMMM yyyy').format(DateTime.parse(col['created_at']));
+    if (cycleStart != null && cycleEnd != null) {
+      cycleStr = '${DateFormat('dd MMM yyyy').format(cycleStart)} to ${DateFormat('dd MMM yyyy').format(cycleEnd)} (${daysBilled ?? cycleEnd.difference(cycleStart).inDays} Days)';
+    } else if (col['billing_start_date'] != null && col['billing_end_date'] != null) {
+      final s = DateTime.tryParse(col['billing_start_date'].toString());
+      final e = DateTime.tryParse(col['billing_end_date'].toString());
+      if (s != null && e != null) {
+        cycleStr = '${DateFormat('dd MMM yyyy').format(s)} to ${DateFormat('dd MMM yyyy').format(e)} (${col['days_billed'] ?? e.difference(s).inDays} Days)';
+      }
+    }
+
+    final List<List<String>> tableData = [
+      [
+        'Base Accommodation (${roomPlan ?? "Standard Plan"})',
+        'Rs. ${baseRent.toStringAsFixed(2)}',
+        'Rs. 0.00',
+        'Rs. ${baseRent.toStringAsFixed(2)}'
+      ],
+    ];
+
+    if (addOns != null && addOns.isNotEmpty) {
+      for (var add in addOns) {
+        tableData.add([
+          'Add-on Service: ${add.toString().toUpperCase()}',
+          'Included / Subscribed',
+          '-',
+          '-'
+        ]);
+      }
+    }
+
+    if (electricityCharges > 0) {
+      tableData.add([
+        'Electricity Surcharge (Delta Consumption Units)',
+        'Rs. 0.00',
+        'Rs. ${electricityCharges.toStringAsFixed(2)}',
+        'Rs. ${electricityCharges.toStringAsFixed(2)}'
+      ]);
+    }
+
+    if (serviceFees > 0) {
+      tableData.add([
+        'Service & Facility Maintenance Dues',
+        'Rs. 0.00',
+        'Rs. ${serviceFees.toStringAsFixed(2)}',
+        'Rs. ${serviceFees.toStringAsFixed(2)}'
+      ]);
+    }
 
     pdf.addPage(
       pw.Page(
@@ -196,54 +258,46 @@ class ReceiptService {
                     children: [
                       pw.Text('RESIDENT MEMBER:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
                       pw.Text(studentName?.toUpperCase() ?? 'CAMPUS RESIDENT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                      pw.Text('Status: Verified Tenant', style: const pw.TextStyle(fontSize: 10)),
+                      if (phone != null && phone.isNotEmpty)
+                        pw.Text('Contact: $phone', style: const pw.TextStyle(fontSize: 10)),
+                      if (roomNumber != null && roomNumber.isNotEmpty)
+                        pw.Text('Allocated: Room $roomNumber ${buildingName != null ? "($buildingName)" : ""}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.indigo800)),
+                      pw.Text('Status: Verified Resident Tenant', style: const pw.TextStyle(fontSize: 10)),
                     ],
                   ),
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
-                      pw.Text('PAYMENT METRICS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
+                      pw.Text('BILLING METRICS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
+                      pw.Text('Billing Cycle: $cycleStr', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                       pw.Text('Date Issued: $date', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('Mode: ${col['payment_method'] ?? 'Digital Wallet/UPI'}', style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text('Mode: ${col['payment_method'] ?? 'Digital Wallet / UPI'}', style: const pw.TextStyle(fontSize: 10)),
                     ],
                   ),
                 ],
               ),
-              pw.SizedBox(height: 32),
+              pw.SizedBox(height: 24),
 
               // Breakdown Table
-              pw.Text('ITEMIZED BILLING:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.indigo900)),
+              pw.Text('ITEMIZED BILLING & SUBSCRIPTION BREAKDOWN:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.indigo900)),
               pw.SizedBox(height: 8),
               pw.TableHelper.fromTextArray(
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
                 headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
                 headers: ['BILLING COMPONENT', 'BASE PRICE', 'CHARGES / EXTRA', 'NET PAYABLE'],
-                data: [
-                  [
-                    'Base Rent (${DateFormat('MMMM yyyy').format(DateTime.parse(col['created_at']))})',
-                    'Rs. ${baseRent.toStringAsFixed(2)}',
-                    'Rs. 0.00',
-                    'Rs. ${baseRent.toStringAsFixed(2)}'
-                  ],
-                  [
-                    'Electricity Surcharge (Delta Consumption)',
-                    'Rs. 0.00',
-                    'Rs. ${electricityCharges.toStringAsFixed(2)}',
-                    'Rs. ${electricityCharges.toStringAsFixed(2)}'
-                  ]
-                ],
+                data: tableData,
               ),
               pw.SizedBox(height: 20),
               pw.Divider(thickness: 1, color: PdfColors.grey300),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.end,
                 children: [
-                  pw.Text('TOTAL PAID: Rs. ${totalAmount.toStringAsFixed(2)}', 
+                  pw.Text('TOTAL AMOUNT: Rs. ${totalAmount.toStringAsFixed(2)}', 
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, color: PdfColors.indigo900)),
                 ],
               ),
               if (col['remark'] != null) ...[
-                pw.SizedBox(height: 24),
+                pw.SizedBox(height: 16),
                 pw.Text('OFFICIAL AUDIT NOTES:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
                 pw.Text(col['remark'].toString(), style: pw.TextStyle(fontSize: 9, color: PdfColors.grey800, fontStyle: pw.FontStyle.italic)),
               ],

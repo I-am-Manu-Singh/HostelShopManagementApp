@@ -15,6 +15,14 @@ class ShopItem {
   final String? rateDate;
   final bool isMandi;
 
+  // POS & Tax extensions
+  final String? barcode;
+  final String? hsnCode;
+  final double taxRate; // 0, 5, 12, 18, 28 %
+  final double? costPrice; // Wholesale purchase price
+  final bool isTaxInclusive;
+  final int minStockAlert;
+
   ShopItem({
     required this.id,
     required this.name,
@@ -40,6 +48,12 @@ class ShopItem {
     this.unit = 'pcs',
     this.rateDate,
     this.isMandi = false,
+    this.barcode,
+    this.hsnCode,
+    this.taxRate = 0.0,
+    this.costPrice,
+    this.isTaxInclusive = true,
+    this.minStockAlert = 5,
   });
 
   final String? brand;
@@ -80,6 +94,12 @@ class ShopItem {
       unit: json['unit'] ?? 'pcs',
       rateDate: json['rate_date'],
       isMandi: json['is_mandi'] ?? false,
+      barcode: json['barcode'] ?? json['sku_qr'],
+      hsnCode: json['hsn_code']?.toString(),
+      taxRate: (json['tax_rate'] as num?)?.toDouble() ?? 0.0,
+      costPrice: (json['cost_price'] as num?)?.toDouble(),
+      isTaxInclusive: json['is_tax_inclusive'] ?? true,
+      minStockAlert: json['min_stock_alert'] ?? 5,
     );
   }
 
@@ -110,6 +130,12 @@ class ShopItem {
       'unit': unit,
       'rate_date': rateDate,
       'is_mandi': isMandi,
+      'barcode': barcode,
+      'hsn_code': hsnCode,
+      'tax_rate': taxRate,
+      'cost_price': costPrice,
+      'is_tax_inclusive': isTaxInclusive,
+      'min_stock_alert': minStockAlert,
     };
   }
 }

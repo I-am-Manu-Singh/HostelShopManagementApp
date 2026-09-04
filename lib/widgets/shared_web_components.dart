@@ -8,22 +8,22 @@ import '../screens/legal/safety_protocols_screen.dart';
 
 List<String> getRoleLabels(String role, bool isGuest) {
   if (isGuest) {
-    return ['CAMPUS SHOP', 'MANDI MARKET', 'LOGIN'];
+    return ['CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'LOGIN'];
   }
   if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
-    return ['CAMPUS SHOP', 'MANDI MARKET', 'FINANCES', 'CHATS', 'PROFILE'];
+    return ['CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'FINANCES', 'CHATS', 'PROFILE'];
   } else if (role == 'staff') {
-    return ['EMPLOYEE TERMINAL', 'WORKPLACE', 'TASKS', 'CHATS', 'PROFILE'];
+    return ['EMPLOYEE TERMINAL', 'WORKPLACE', 'FAST FOOD', 'TASKS', 'CHATS', 'PROFILE'];
   } else if (role == 'hostel_student') {
-    return ['TERMINAL', 'CAMPUS SHOP', 'MANDI MARKET', 'SUITE', 'CHATS', 'PROFILE'];
+    return ['TERMINAL', 'CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'SUITE', 'CHATS', 'PROFILE'];
   } else if (role == 'mess_student') {
-    return ['CAMPUS SHOP', 'MANDI MARKET', 'MESS CARD', 'CHATS', 'PROFILE'];
+    return ['CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'MESS CARD', 'CHATS', 'PROFILE'];
   } else if (role == 'delivery_partner') {
-    return ['LOGISTICS', 'CHATS', 'PROFILE'];
+    return ['LOGISTICS', 'FAST FOOD', 'CHATS', 'PROFILE'];
   } else if (role == 'farmer_seller') {
-    return ['MARKET', 'CHATS', 'PROFILE'];
+    return ['MARKET', 'FAST FOOD', 'CHATS', 'PROFILE'];
   }
-  return ['CAMPUS SHOP', 'MANDI MARKET', 'PROFILE'];
+  return ['CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'PROFILE'];
 }
 
 class WebHeader extends StatelessWidget {

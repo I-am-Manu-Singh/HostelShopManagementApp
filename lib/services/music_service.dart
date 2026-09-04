@@ -72,12 +72,12 @@ class MusicService {
   }
 
   final List<Map<String, String>> _focusLibrary = [
-    {'id': 'lofi_1', 'title': 'Lofi Study Sync', 'url': 'https://lumen-assets.s3.amazonaws.com/lofi.mp3'},
-    {'id': 'tick_1', 'title': 'Metronome Tick', 'url': 'https://lumen-assets.s3.amazonaws.com/tick.mp3'}, 
-    {'id': 'waves_1', 'title': 'Ocean Waves Crush', 'url': 'https://lumen-assets.s3.amazonaws.com/waves.mp3'},
-    {'id': 'forest_1', 'title': 'Forest Atmosphere', 'url': 'https://lumen-assets.s3.amazonaws.com/forest.mp3'},
-    {'id': 'study_1', 'title': 'Deep Dive Classical', 'url': 'https://lumen-assets.s3.amazonaws.com/study.mp3'},
-    {'id': 'zen_1', 'title': 'Binaural Zen Flow', 'url': 'https://lumen-assets.s3.amazonaws.com/zen.mp3'},
+    {'id': 'lofi_1', 'title': 'Lofi Study Sync', 'url': 'assets/audio/lofi.mp3'},
+    {'id': 'tick_1', 'title': 'Metronome Tick', 'url': 'assets/audio/tick.mp3'}, 
+    {'id': 'waves_1', 'title': 'Ocean Waves Crush', 'url': 'assets/audio/waves.mp3'},
+    {'id': 'forest_1', 'title': 'Forest Atmosphere', 'url': 'assets/audio/forest.mp3'},
+    {'id': 'study_1', 'title': 'Deep Dive Classical', 'url': 'assets/audio/study.mp3'},
+    {'id': 'zen_1', 'title': 'Binaural Zen Flow', 'url': 'assets/audio/zen.mp3'},
   ];
 
   Future<void> playFocusBeats({required int trackIndex}) async {
@@ -86,8 +86,8 @@ class MusicService {
     final track = _focusLibrary[trackIndex];
     try {
       await _player.setAudioSource(
-        AudioSource.uri(
-          Uri.parse(track['url']!),
+        AudioSource.asset(
+          track['url']!,
           tag: MediaItem(
             id: track['id']!,
             album: "Focus Ecosystem",

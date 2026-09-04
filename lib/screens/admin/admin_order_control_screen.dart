@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../services/receipt_service.dart';
+import '../../services/pos_hardware_service.dart';
 import '../../utils/csv_web_helper.dart';
 import '../../utils/csv_range_dialog.dart';
 
@@ -488,21 +489,71 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
                       Text(o['order_instructions'], style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
                     ],
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: () {
-                          ReceiptService.generateAndShareReceipt(o);
-                        },
-                        icon: const Icon(Icons.receipt_long_rounded, size: 16),
-                        label: const Text('DOWNLOAD / SHARE INVOICE RECEIPT', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1)),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.indigoAccent,
-                          side: const BorderSide(color: Colors.indigoAccent),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              ReceiptService.generateAndShareReceipt(o);
+                            },
+                            icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                            label: const Text('A4 INVOICE', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 0.5)),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.indigoAccent,
+                              side: const BorderSide(color: Colors.indigoAccent),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: () async {
+                              final items = (o['items'] as List? ?? []).map((it) => PosReceiptItem(
+                                name: it['name']?.toString() ?? 'Item',
+                                quantity: (it['quantity'] ?? it['qty'] ?? 1) as int,
+                                unitPrice: (it['price'] as num? ?? 0.0).toDouble(),
+                                totalPrice: ((it['quantity'] ?? it['qty'] ?? 1) as int) * (it['price'] as num? ?? 0.0).toDouble(),
+                              )).toList();
+
+                              final total = (o['total_price'] as num? ?? 0.0).toDouble();
+                              final receiptData = PosReceiptData(
+                                storeName: PosHardwareService().storeName,
+                                storeAddress: PosHardwareService().storeAddress,
+                                storeGstin: PosHardwareService().storeGstin,
+                                storePhone: PosHardwareService().storePhone,
+                                invoiceNumber: "INV-${o['id'].toString().substring(0, 8).toUpperCase()}",
+                                dateTime: DateTime.tryParse(o['created_at']?.toString() ?? '') ?? DateTime.now(),
+                                customerName: o['profiles']?['full_name']?.toString() ?? 'Customer',
+                                items: items,
+                                subtotal: total,
+                                total: total,
+                                paymentMode: (o['payment_status'] ?? 'paid').toString().toLowerCase(),
+                                templateStyle: PosHardwareService().templateStyle,
+                                footerNote: PosHardwareService().footerNote,
+                              );
+
+                              final success = await PosHardwareService().printThermalReceipt(receiptData);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(success ? 'Thermal ticket sent to printer' : 'Print canceled'),
+                                    backgroundColor: success ? Colors.green : Colors.orange,
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.print_rounded, size: 16, color: Colors.black),
+                            label: const Text('THERMAL POS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: Colors.black, letterSpacing: 0.5)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.amberAccent,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const Divider(height: 32),
                     Row(

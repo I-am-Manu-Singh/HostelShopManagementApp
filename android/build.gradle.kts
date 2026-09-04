@@ -75,7 +75,12 @@ subprojects {
 //////////////////////////////////////////////////////////////
 val copyDebugApkForFlutter = tasks.register<Copy>("copyDebugApkForFlutter") {
     from("$rootDir/app/build/outputs/apk/debug/app-debug.apk")
-    into("$rootDir/../build/app/outputs/flutter-apk") // ✅ FIXED
+    into("$rootDir/../build/app/outputs/flutter-apk")
+}
+
+val copyReleaseApkForFlutter = tasks.register<Copy>("copyReleaseApkForFlutter") {
+    from("$rootDir/app/build/outputs/apk/release")
+    into("$rootDir/../build/app/outputs/flutter-apk")
 }
 
 afterEvaluate {
@@ -86,6 +91,11 @@ afterEvaluate {
             .configureEach {
                 finalizedBy(copyDebugApkForFlutter)
                 println(">>> Hooked copyDebugApkForFlutter to assembleDebug")
+            }
+        appProject.tasks.matching { it.name == "assembleRelease" }
+            .configureEach {
+                finalizedBy(copyReleaseApkForFlutter)
+                println(">>> Hooked copyReleaseApkForFlutter to assembleRelease")
             }
     } else {
         println(">>> :app module not found")

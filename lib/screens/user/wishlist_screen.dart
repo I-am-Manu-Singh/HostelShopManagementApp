@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../product_detail_screen.dart';
+import '../shop/product_detail_screen.dart';
 import '../../models/shop.dart';
 import '../../services/cart_service.dart';
 import 'package:provider/provider.dart';

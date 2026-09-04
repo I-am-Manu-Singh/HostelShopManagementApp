@@ -1,8 +1,6 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
@@ -26,14 +24,46 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   bool _canReview = false;
   int _currentImageIndex = 0;
   String _role = 'user';
+  List<String> _galleryImages = [];
 
   @override
   void initState() {
     super.initState();
+    _initGalleryImages();
     _checkSavedStatus();
     _checkReviewEligibility();
     _fetchReviews();
     _checkUserRole();
+  }
+
+  Future<void> _initGalleryImages() async {
+    final initialList = <String>[];
+    if (widget.room.imageUrl != null && widget.room.imageUrl!.isNotEmpty) {
+      initialList.add(widget.room.imageUrl!);
+    }
+    try {
+      final res = await _client.from('hostel_rooms').select('images, image_url').eq('id', widget.room.id).maybeSingle();
+      if (res != null) {
+        if (res['images'] is List && (res['images'] as List).isNotEmpty) {
+          for (var img in (res['images'] as List)) {
+            final s = img?.toString();
+            if (s != null && s.isNotEmpty && !initialList.contains(s)) {
+              initialList.add(s);
+            }
+          }
+        }
+        if (res['image_url'] != null && res['image_url'].toString().isNotEmpty) {
+          final u = res['image_url'].toString();
+          if (!initialList.contains(u)) initialList.insert(0, u);
+        }
+      }
+    } catch (_) {}
+
+    if (initialList.isEmpty) {
+      initialList.add('https://images.unsplash.com/photo-1555854817-5b273417735e');
+    }
+
+    if (mounted) setState(() => _galleryImages = initialList);
   }
 
   Future<void> _checkUserRole() async {
@@ -180,14 +210,23 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         background: Stack(
           children: [
             Positioned.fill(
-              child: CachedNetworkImage(
-                imageUrl: widget.room.imageUrl ?? 'https://images.unsplash.com/photo-1555854817-5b273417735e',
-                fit: BoxFit.cover,
-                errorWidget: (c, e, s) => Container(
-                  color: Colors.indigoAccent.withOpacity(0.1),
-                  child: const Icon(Icons.bed_rounded, color: Colors.indigoAccent, size: 64),
-                ),
-              ),
+              child: _galleryImages.isEmpty
+                  ? Container(
+                      color: Colors.indigoAccent.withOpacity(0.1),
+                      child: const Icon(Icons.bed_rounded, color: Colors.indigoAccent, size: 64),
+                    )
+                  : PageView.builder(
+                      itemCount: _galleryImages.length,
+                      onPageChanged: (i) => setState(() => _currentImageIndex = i),
+                      itemBuilder: (context, i) => CachedNetworkImage(
+                        imageUrl: _galleryImages[i],
+                        fit: BoxFit.cover,
+                        errorWidget: (c, e, s) => Container(
+                          color: Colors.indigoAccent.withOpacity(0.1),
+                          child: const Icon(Icons.bed_rounded, color: Colors.indigoAccent, size: 64),
+                        ),
+                      ),
+                    ),
             ),
             Positioned.fill(
               child: Container(
@@ -200,6 +239,22 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                 ),
               ),
             ),
+            if (_galleryImages.length > 1)
+              Positioned(
+                bottom: 16,
+                right: 20,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${_currentImageIndex + 1}/${_galleryImages.length}',
+                    style: GoogleFonts.outfit(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

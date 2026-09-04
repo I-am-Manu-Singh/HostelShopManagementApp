@@ -1,9 +1,15 @@
 import 'dart:ui';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../utils/csv_range_dialog.dart';
+import '../../utils/csv_web_helper.dart';
 
 class AdminMessMenuScreen extends StatefulWidget {
   const AdminMessMenuScreen({super.key});
@@ -17,6 +23,13 @@ class _AdminMessMenuScreenState extends State<AdminMessMenuScreen> {
   bool _isLoading = true;
   List<dynamic> _menu = [];
   final List<String> _days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+  DateTime _selectedWeekDate = DateTime.now();
+
+  int get _currentWeekNumber {
+    final firstDayOfYear = DateTime(_selectedWeekDate.year, 1, 1);
+    final daysDiff = _selectedWeekDate.difference(firstDayOfYear).inDays;
+    return (daysDiff / 7).ceil();
+  }
 
   @override
   void initState() {
@@ -28,10 +41,111 @@ class _AdminMessMenuScreenState extends State<AdminMessMenuScreen> {
     if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      final res = await _client.from('mess_menu').select().order('id');
+      final weekNum = _currentWeekNumber;
+      final year = _selectedWeekDate.year;
+
+      // Try fetching week-specific menu
+      var res = await _client
+          .from('mess_menu')
+          .select()
+          .eq('week_number', weekNum)
+          .eq('year', year)
+          .order('id');
+
+      // If no menu configured for this specific week yet, fallback to default schedule (week_number 0 or any baseline)
+      if (res.isEmpty) {
+        res = await _client.from('mess_menu').select().eq('week_number', 0).order('id');
+      }
+      // If still empty, fetch any available rows
+      if (res.isEmpty) {
+        res = await _client.from('mess_menu').select().order('id');
+      }
+
       if (mounted) setState(() { _menu = res; _isLoading = false; });
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _pickWeek() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedWeekDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2028),
+      helpText: 'SELECT WEEK DATE TO VIEW / EDIT',
+    );
+    if (picked != null) {
+      setState(() => _selectedWeekDate = picked);
+      _fetchMenu();
+    }
+  }
+
+  Future<void> _exportMessMenuToCSV() async {
+    final range = await showCsvRangeDialog(
+      context: context,
+      title: 'Mess Menu Schedule',
+      isImport: false,
+    );
+    if (range == null) return;
+
+    try {
+      final List<String> csvHeaders = [
+        'week_number',
+        'year',
+        'day',
+        'breakfast',
+        'lunch',
+        'tea',
+        'dinner',
+        'updated_at'
+      ];
+      final buffer = StringBuffer();
+      buffer.writeln(csvHeaders.join(','));
+
+      // Fetch all menus from database or use currently loaded menu
+      List<dynamic> allMenus = [];
+      try {
+        allMenus = await _client.from('mess_menu').select().order('day');
+      } catch (_) {
+        allMenus = _menu;
+      }
+      if (allMenus.isEmpty) {
+        allMenus = _menu;
+      }
+
+      for (var item in allMenus) {
+        final List<String> row = [
+          item['week_number']?.toString() ?? '0',
+          item['year']?.toString() ?? '2026',
+          '"${(item['day']?.toString() ?? '').replaceAll('"', '""')}"',
+          '"${(item['breakfast']?.toString() ?? '').replaceAll('"', '""')}"',
+          '"${(item['lunch']?.toString() ?? '').replaceAll('"', '""')}"',
+          '"${(item['tea']?.toString() ?? '').replaceAll('"', '""')}"',
+          '"${(item['dinner']?.toString() ?? '').replaceAll('"', '""')}"',
+          item['updated_at']?.toString() ?? item['created_at']?.toString() ?? '',
+        ];
+        buffer.writeln(row.join(','));
+      }
+
+      final dateLabel = '${DateFormat('yyyyMMdd').format(range.startDate)}_to_${DateFormat('yyyyMMdd').format(range.endDate)}';
+      final filename = 'mess_menu_schedule_$dateLabel.csv';
+
+      if (kIsWeb) {
+        downloadCsvFile(buffer.toString(), filename);
+        return;
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/$filename');
+      await file.writeAsString(buffer.toString());
+      await Share.shareXFiles([XFile(file.path)], text: 'Mess Menu Schedule Export ($dateLabel)');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
     }
   }
 
@@ -40,16 +154,38 @@ class _AdminMessMenuScreenState extends State<AdminMessMenuScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = isDark ? const Color(0xFF08090A) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black;
+    final weekStart = _selectedWeekDate.subtract(Duration(days: _selectedWeekDate.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final weekLabel = '${DateFormat('dd MMM').format(weekStart)} - ${DateFormat('dd MMM yyyy').format(weekEnd)} (Wk $_currentWeekNumber)';
 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('MESS SCHEDULE MANAGER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('MESS SCHEDULE MANAGER', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+            Text(weekLabel, style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+          ],
+        ),
         backgroundColor: Colors.transparent, elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(icon: Icon(Icons.event_note_rounded, color: Colors.indigoAccent), onPressed: _checkDateMenu),
-          IconButton(icon: Icon(Icons.refresh_rounded, color: Colors.indigoAccent), onPressed: _fetchMenu),
+          IconButton(
+            tooltip: 'Export Menu (CSV/Dates)',
+            icon: const Icon(Icons.file_download_rounded, color: Colors.indigoAccent),
+            onPressed: _exportMessMenuToCSV,
+          ),
+          IconButton(
+            tooltip: 'Pick Week',
+            icon: const Icon(Icons.calendar_month_rounded, color: Colors.indigoAccent), 
+            onPressed: _pickWeek,
+          ),
+          IconButton(
+            tooltip: 'Refresh Menu',
+            icon: const Icon(Icons.refresh_rounded, color: Colors.indigoAccent), 
+            onPressed: _fetchMenu,
+          ),
         ],
       ),
       body: _isLoading 
@@ -160,11 +296,39 @@ class _AdminMessMenuScreenState extends State<AdminMessMenuScreen> {
               const SizedBox(height: 40),
               SizedBox(width: double.infinity, height: 65, child: ElevatedButton(onPressed: () async {
                  try {
-                   await _client.from('mess_menu').upsert({'day': data['day'], 'breakfast': bCtrl.text, 'lunch': lCtrl.text, 'tea': tCtrl.text, 'dinner': dCtrl.text}, onConflict: 'day');
+                   final weekNum = _currentWeekNumber;
+                   final year = _selectedWeekDate.year;
+                   final updatePayload = {
+                     'week_number': weekNum,
+                     'year': year,
+                     'day': data['day'],
+                     'breakfast': bCtrl.text.trim(),
+                     'lunch': lCtrl.text.trim(),
+                     'tea': tCtrl.text.trim(),
+                     'dinner': dCtrl.text.trim(),
+                   };
+
+                   // 1. Save specific week menu
+                   await _client.from('mess_menu').upsert(
+                     updatePayload,
+                     onConflict: 'week_number, year, day',
+                   );
+
+                   // 2. Also keep default base schedule in sync if editing current week
+                   await _client.from('mess_menu').upsert({
+                     'week_number': 0,
+                     'year': 2026,
+                     'day': data['day'],
+                     'breakfast': bCtrl.text.trim(),
+                     'lunch': lCtrl.text.trim(),
+                     'tea': tCtrl.text.trim(),
+                     'dinner': dCtrl.text.trim(),
+                   }, onConflict: 'week_number, year, day');
+
                    if (mounted) {
                      Navigator.pop(ctx);
                      _fetchMenu();
-                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${data['day']} MENU UPDATED'), backgroundColor: Colors.indigoAccent));
+                     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${data['day']} (WK $weekNum) MENU SAVED TO DATABASE'), backgroundColor: Colors.indigoAccent));
                    }
                  } catch (e) {
                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('DEPLOYMENT_ERROR: $e'), backgroundColor: Colors.redAccent));

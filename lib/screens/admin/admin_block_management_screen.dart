@@ -208,21 +208,26 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
   Future<void> _fetchHostels() async {
     setState(() => _isLoading = true);
     try {
-      // 🧠 Fetch from building_name
-      final response = await _client.from('hostel_rooms').select('building_name, floor');
+      // 🧠 Fetch rooms with full attributes
+      final response = await _client.from('hostel_rooms').select();
       
-      final Map<String, List<int>> map = {};
+      final Map<String, List<Map<String, dynamic>>> map = {};
       for (var r in (response as List)) {
-        final b = r['building_name'] ?? 'General Building';
-        final f = int.tryParse(r['floor']?.toString() ?? '0') ?? 0;
-        if (!map.containsKey(b)) map[b] = [];
-        if (!map[b]!.contains(f)) map[b]!.add(f);
+        final b = r['building_name']?.toString() ?? 'General Building';
+        map.putIfAbsent(b, () => []).add(r);
       }
 
       final List<Map<String, dynamic>> list = [];
       map.forEach((k, v) {
-        v.sort();
-        list.add({'name': k, 'floors': v});
+        final floors = v.map((r) => int.tryParse(r['floor']?.toString() ?? '0') ?? 0).toSet().toList()..sort();
+        final roomNos = v.map((r) => r['room_number']?.toString() ?? '').where((n) => n.isNotEmpty).toList()..sort();
+        list.add({
+          'name': k,
+          'floors': floors,
+          'rooms': v,
+          'room_count': v.length,
+          'room_numbers': roomNos,
+        });
       });
 
       // 🧬 Fetch valid types from Headquarters
@@ -326,9 +331,50 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
                  ]),
               ]),
               const SizedBox(height: 12),
-              Text('${hostel['floors'].length} OPERATIONAL FLOORS', style: TextStyle(color: isDark?Colors.white24:Colors.black26, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-              const SizedBox(height: 24),
-              Wrap(spacing: 8, runSpacing: 8, children: (hostel['floors'] as List).map((f) => Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(10)), child: Text('F$f', style: const TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.w900)))).toList()),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('${hostel['floors'].length} OPERATIONAL FLOORS', style: TextStyle(color: isDark?Colors.white24:Colors.black26, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+                  Text('${hostel['room_count'] ?? 0} UNITS CONSTRUCTED', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Floor tags
+              Wrap(
+                spacing: 8, 
+                runSpacing: 8, 
+                children: (hostel['floors'] as List).map((f) => Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), 
+                  decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), 
+                  child: Text('FLOOR $f', style: const TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.w900))
+                )).toList()
+              ),
+              const SizedBox(height: 16),
+              // Room numbers chips
+              if ((hostel['room_numbers'] as List? ?? []).isNotEmpty) ...[
+                Text('ROOM UNITS:', style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: (hostel['room_numbers'] as List).take(12).map((rn) => Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                    ),
+                    child: Text('R-$rn', style: GoogleFonts.outfit(fontSize: 9, fontWeight: FontWeight.bold, color: isDark ? Colors.white70 : Colors.black87)),
+                  )).toList()..addAll(
+                    (hostel['room_numbers'] as List).length > 12 
+                      ? [Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                          child: Text('+${(hostel['room_numbers'] as List).length - 12} more', style: const TextStyle(fontSize: 8, color: Colors.indigoAccent, fontWeight: FontWeight.bold)),
+                        )]
+                      : []
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -496,9 +542,10 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
                     try {
                        if (selType == null && _feePackages.isNotEmpty) throw 'Select a valid Room Type';
                        
-                       double basePrice = 6500.0;
+                       double defaultFeePrice = _feePackages.isNotEmpty ? (double.tryParse(_feePackages.first['price']?.toString() ?? '0') ?? 0.0) : 0.0;
+                       double basePrice = defaultFeePrice;
                        if (_feePackages.isNotEmpty && selType != null) {
-                          basePrice = double.tryParse(_feePackages.firstWhere((p) => p['service_name'] == selType)['price']?.toString() ?? '6500') ?? 6500;
+                          basePrice = double.tryParse(_feePackages.firstWhere((p) => p['service_name'] == selType, orElse: () => {'price': defaultFeePrice})['price']?.toString() ?? defaultFeePrice.toString()) ?? defaultFeePrice;
                        }
                        
                        // Define final room type for deployment
@@ -508,8 +555,8 @@ class _AdminBlockManagementScreenState extends State<AdminBlockManagementScreen>
                        floorMap.forEach((floor, units) {
                           for (var unit in units) {
                              final double bPrice = (_feePackages.isNotEmpty && unit['type'] != null)
-                                ? double.tryParse(_feePackages.firstWhere((p) => p['service_name'] == unit['type'], orElse: () => {'price': '6500'})['price']?.toString() ?? '6500') ?? 6500
-                                : 6500;
+                                ? double.tryParse(_feePackages.firstWhere((p) => p['service_name'] == unit['type'], orElse: () => {'price': defaultFeePrice})['price']?.toString() ?? defaultFeePrice.toString()) ?? defaultFeePrice
+                                : defaultFeePrice;
 
                              roomsToInsert.add({
                                 'building_name': nameCtrl.text.trim(),

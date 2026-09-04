@@ -348,16 +348,35 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
           ),
           IconButton(
             icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.indigoAccent),
+            tooltip: 'Barcode Scanner (Single & Batch)',
             onPressed: () async {
-              final String? result = await Navigator.push(context, MaterialPageRoute(builder: (_) => const InventoryScannerScreen()));
+              final dynamic result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => InventoryScannerScreen(existingCatalog: _allItems)),
+              );
               if (result != null) {
-                // Try finding item
-                final item = _allItems.cast<ShopItem?>().firstWhere((i) => i?.skuQr == result, orElse: () => null);
-                if (item != null) {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item))).then((_) => _fetchInventory());
-                } else {
-                  // Not found, open Add screen with SKU pre-filled
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(scannedSku: result))).then((_) => _fetchInventory());
+                if (!mounted) return;
+                if (result is int && result > 0) {
+                  // Batch mode completed and saved products directly
+                  _fetchInventory();
+                  return;
+                }
+                
+                if (result is String && result.trim().isNotEmpty) {
+                  final cleanResult = result.trim().toLowerCase();
+                  // Try finding item by barcode or sku_qr
+                  final item = _allItems.cast<ShopItem?>().firstWhere(
+                    (i) => (i?.barcode?.trim().toLowerCase() == cleanResult) ||
+                           (i?.skuQr?.trim().toLowerCase() == cleanResult) ||
+                           (i?.id.trim().toLowerCase() == cleanResult),
+                    orElse: () => null,
+                  );
+                  if (item != null) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item))).then((_) => _fetchInventory());
+                  } else {
+                    // Not found, open Add screen with SKU pre-filled (auto-resolves from online registries, allows manual edits & saving)
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(scannedSku: result.trim()))).then((_) => _fetchInventory());
+                  }
                 }
               }
             },

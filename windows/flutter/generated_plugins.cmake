@@ -9,6 +9,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_tts
   local_auth_windows
   permission_handler_windows
+  print_bluetooth_thermal
   printing
   share_plus
   url_launcher_windows

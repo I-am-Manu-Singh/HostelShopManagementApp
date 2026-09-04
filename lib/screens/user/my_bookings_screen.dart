@@ -4,9 +4,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../chat_screen.dart';
-import '../student/room_detail_screen.dart';
+import '../social/chat_screen.dart';
 import '../../services/receipt_service.dart';
+import '../../services/pos_hardware_service.dart';
 
 class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({super.key});
@@ -287,17 +287,55 @@ class _MyBookingsScreenState extends State<MyBookingsScreen> with SingleTickerPr
                        Text('Order Details', style: GoogleFonts.outfit(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                      ],
                    ),
-                   IconButton(
-                     icon: const Icon(Icons.download_for_offline_rounded, color: Colors.greenAccent, size: 28),
-                     onPressed: () async {
-                       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating Invoice PDF...')));
-                       try {
-                         await ReceiptService.generateAndShareReceipt(o);
-                       } catch (e) {
-                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
-                       }
-                     },
-                   )
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.print_rounded, color: Colors.amberAccent, size: 26),
+                          tooltip: 'Print Thermal Ticket',
+                          onPressed: () async {
+                            final items = (o['items'] as List? ?? []).map((it) => PosReceiptItem(
+                              name: it['name']?.toString() ?? 'Item',
+                              quantity: (it['quantity'] ?? it['qty'] ?? 1) as int,
+                              unitPrice: (it['price'] as num? ?? 0.0).toDouble(),
+                              totalPrice: ((it['quantity'] ?? it['qty'] ?? 1) as int) * (it['price'] as num? ?? 0.0).toDouble(),
+                            )).toList();
+
+                            final total = (o['total_price'] as num? ?? 0.0).toDouble();
+                            final receiptData = PosReceiptData(
+                              storeName: PosHardwareService().storeName,
+                              storeAddress: PosHardwareService().storeAddress,
+                              storeGstin: PosHardwareService().storeGstin,
+                              storePhone: PosHardwareService().storePhone,
+                              invoiceNumber: "INV-${o['id'].toString().substring(0, 8).toUpperCase()}",
+                              dateTime: DateTime.tryParse(o['created_at']?.toString() ?? '') ?? DateTime.now(),
+                              customerName: 'Customer',
+                              items: items,
+                              subtotal: total,
+                              total: total,
+                              paymentMode: (o['payment_status'] ?? 'paid').toString().toLowerCase(),
+                              templateStyle: PosHardwareService().templateStyle,
+                              footerNote: PosHardwareService().footerNote,
+                            );
+
+                            await PosHardwareService().printThermalReceipt(receiptData);
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.download_for_offline_rounded, color: Colors.greenAccent, size: 28),
+                          tooltip: 'A4 PDF Invoice',
+                          onPressed: () async {
+                            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generating Invoice PDF...')));
+                            try {
+                              await ReceiptService.generateAndShareReceipt(o);
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                              }
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                  ],
                ),
                const SizedBox(height: 24),

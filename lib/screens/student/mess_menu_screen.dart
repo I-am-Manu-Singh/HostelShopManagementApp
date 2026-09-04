@@ -2,72 +2,175 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:intl/intl.dart';
 import '../mess_menu_calendar_screen.dart';
 
-class MessMenuScreen extends StatelessWidget {
+class MessMenuScreen extends StatefulWidget {
   const MessMenuScreen({super.key});
+
+  @override
+  State<MessMenuScreen> createState() => _MessMenuScreenState();
+}
+
+class _MessMenuScreenState extends State<MessMenuScreen> {
+  final _client = Supabase.instance.client;
+  bool _isLoading = true;
+  List<dynamic> _menu = [];
+  DateTime _selectedDate = DateTime.now();
+
+  final List<String> _days = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY'];
+
+  int get _weekNumber {
+    final firstDayOfYear = DateTime(_selectedDate.year, 1, 1);
+    final diff = _selectedDate.difference(firstDayOfYear).inDays;
+    return (diff / 7).ceil();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchMenu();
+  }
+
+  Future<void> _fetchMenu() async {
+    setState(() => _isLoading = true);
+    try {
+      final week = _weekNumber;
+      final year = _selectedDate.year;
+
+      var res = await _client
+          .from('mess_menu')
+          .select()
+          .eq('week_number', week)
+          .eq('year', year)
+          .order('id');
+
+      if (res.isEmpty) {
+        res = await _client.from('mess_menu').select().eq('week_number', 0).order('id');
+      }
+      if (res.isEmpty) {
+        res = await _client.from('mess_menu').select().order('id');
+      }
+
+      if (mounted) {
+        setState(() {
+          _menu = res;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _selectWeekCalendar() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(2028),
+      helpText: 'SELECT WEEK DATE',
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+      _fetchMenu();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final textColor = isDark ? Colors.white : Colors.black;
-
-    final List<Map<String, dynamic>> menu = [
-      {'day': 'MONDAY', 'breakfast': 'Poha & Chai', 'lunch': 'Rajma Chawal', 'tea': 'Samosa & Tea', 'dinner': 'Paneer & Roti', 'calories': '2100'},
-      {'day': 'TUESDAY', 'breakfast': 'Aloo Paratha', 'lunch': 'Kadadi Chawal', 'tea': 'Biscuits & Coffee', 'dinner': 'Mix Veg & Roti', 'calories': '2300'},
-      {'day': 'WEDNESDAY', 'breakfast': 'Idli Sambhar', 'lunch': 'Chole Bhature', 'tea': 'Bread Pakora & Tea', 'dinner': 'Dal Tadka & Rice', 'calories': '2250'},
-      {'day': 'THURSDAY', 'breakfast': 'Oatmeal & Fruits', 'lunch': 'Veg Biryani', 'tea': 'Puff Pastry & Tea', 'dinner': 'Malai Kofta & Roti', 'calories': '2400'},
-      {'day': 'FRIDAY', 'breakfast': 'Sandwich & Coffee', 'lunch': 'Pasta & Salad', 'tea': 'Maggie & Cold Drinks', 'dinner': 'Palak Paneer', 'calories': '2150'},
-      {'day': 'SATURDAY', 'breakfast': 'Puri Bhaji', 'lunch': 'Fried Rice', 'tea': 'Dhokla & Tea', 'dinner': 'Special Thali', 'calories': '2600'},
-      {'day': 'SUNDAY', 'breakfast': 'Stuffed Paratha', 'lunch': 'Paneer Lababdar', 'tea': 'Cake & Coffee', 'dinner': 'Veg Pulao & Raita', 'calories': '2500'},
-    ];
+    final weekStart = _selectedDate.subtract(Duration(days: _selectedDate.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 6));
+    final weekLabel = '${DateFormat('dd MMM').format(weekStart)} - ${DateFormat('dd MMM yyyy').format(weekEnd)}';
 
     return Scaffold(
       backgroundColor: bgColor,
       appBar: AppBar(
-        title: Text('MESS MENU', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('MESS MENU', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+            Text(weekLabel, style: GoogleFonts.outfit(color: Colors.orangeAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+          ],
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(icon: const Icon(Icons.calendar_month_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MessMenuCalendarScreen()))),
-        ],
-      ),
-      body: Stack(
-        children: [
-          _buildRefractionOrbs(),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final crossCount = constraints.maxWidth > 900 ? 3 : (constraints.maxWidth > 600 ? 2 : 1);
-              if (crossCount > 1) {
-                return GridView.builder(
-                  padding: const EdgeInsets.all(24),
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: crossCount,
-                    crossAxisSpacing: 20,
-                    mainAxisSpacing: 20,
-                    childAspectRatio: 0.95,
-                  ),
-                  itemCount: menu.length,
-                  itemBuilder: (context, i) => FadeInUp(
-                    delay: Duration(milliseconds: i * 50),
-                    child: _buildDayCard(menu[i], isDark),
-                  ),
-                );
-              }
-              return ListView.builder(
-                padding: const EdgeInsets.all(24),
-                itemCount: menu.length,
-                itemBuilder: (context, i) => FadeInUp(
-                  delay: Duration(milliseconds: i * 100),
-                  child: _buildDayCard(menu[i], isDark),
-                ),
-              );
-            }
+          IconButton(
+            tooltip: 'Choose Week',
+            icon: const Icon(Icons.calendar_month_rounded, color: Colors.orangeAccent),
+            onPressed: _selectWeekCalendar,
+          ),
+          IconButton(
+            tooltip: 'Calendar Archive',
+            icon: const Icon(Icons.history_toggle_off_rounded, color: Colors.indigoAccent), 
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MessMenuCalendarScreen())),
           ),
         ],
       ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator(color: Colors.orangeAccent))
+        : Stack(
+            children: [
+              _buildRefractionOrbs(),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final crossCount = constraints.maxWidth > 900 ? 3 : (constraints.maxWidth > 600 ? 2 : 1);
+                  if (crossCount > 1) {
+                    return GridView.builder(
+                      padding: const EdgeInsets.all(24),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossCount,
+                        crossAxisSpacing: 20,
+                        mainAxisSpacing: 20,
+                        childAspectRatio: 0.95,
+                      ),
+                      itemCount: _days.length,
+                      itemBuilder: (context, i) {
+                        final d = _days[i];
+                        final dayData = _menu.firstWhere((m) => m['day']?.toString().toUpperCase() == d, orElse: () => {
+                          'day': d,
+                          'breakfast': 'Poha & Hot Tea',
+                          'lunch': 'Dal Tadka & Rice',
+                          'tea': 'Snacks & Tea',
+                          'dinner': 'Seasonal Sabzi & Roti',
+                          'calories': '2200'
+                        });
+                        return FadeInUp(
+                          delay: Duration(milliseconds: i * 50),
+                          child: _buildDayCard(dayData, isDark),
+                        );
+                      },
+                    );
+                  }
+                  return ListView.builder(
+                    padding: const EdgeInsets.all(24),
+                    itemCount: _days.length,
+                    itemBuilder: (context, i) {
+                      final d = _days[i];
+                      final dayData = _menu.firstWhere((m) => m['day']?.toString().toUpperCase() == d, orElse: () => {
+                        'day': d,
+                        'breakfast': 'Poha & Hot Tea',
+                        'lunch': 'Dal Tadka & Rice',
+                        'tea': 'Snacks & Tea',
+                        'dinner': 'Seasonal Sabzi & Roti',
+                        'calories': '2200'
+                      });
+                      return FadeInUp(
+                        delay: Duration(milliseconds: i * 100),
+                        child: _buildDayCard(dayData, isDark),
+                      );
+                    },
+                  );
+                }
+              ),
+            ],
+          ),
     );
   }
 

@@ -17,6 +17,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../utils/csv_range_dialog.dart';
 import '../../utils/csv_web_helper.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AdminFinanceHubScreen extends StatefulWidget {
   final bool hideAppBar;
@@ -644,6 +645,19 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
       children: [
         _buildLiquidityCard(isDark),
         const SizedBox(height: 24),
+        if (_pendingApprovals.isNotEmpty) ...[
+          _sectionHeader('ALL PENDING PAYMENT PROOFS (${_pendingApprovals.length})', color: Colors.orangeAccent),
+          const SizedBox(height: 12),
+          Text(
+            'Review incoming UPI/screenshot proofs across Hostel, Mess, Shop, Mandi & Fast Food',
+            style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11),
+          ),
+          const SizedBox(height: 16),
+          ..._pendingApprovals.map((a) => _buildApprovalTile(a, isDark)).toList(),
+          const SizedBox(height: 32),
+          Divider(color: isDark ? Colors.white10 : Colors.black12),
+          const SizedBox(height: 24),
+        ],
         Row(children: [
            Expanded(child: _miniStat('TODAY REV', '₹${_todayRevenue.toInt()}', Colors.indigoAccent, isDark)),
            const SizedBox(width: 12),
@@ -670,11 +684,15 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
         _sectionHeader('FINANCE TOOLS'),
         const SizedBox(height: 16),
         Row(children: [
-            _heroAction('UNIVERSAL LEDGER', Icons.receipt_long_rounded, Colors.indigoAccent, isDark, onTap: () {
+          Expanded(
+            child: _heroAction('UNIVERSAL LEDGER', Icons.receipt_long_rounded, Colors.indigoAccent, isDark, onTap: () {
               Navigator.push(context, MaterialPageRoute(builder: (_) => const UniversalCampusLedger()));
             }),
-           const SizedBox(width: 12),
-           _heroAction('GENERATE REPORT', Icons.summarize_outlined, Colors.tealAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UniversalCampusLedger()))),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: _heroAction('GENERATE REPORT', Icons.summarize_outlined, Colors.tealAccent, isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UniversalCampusLedger()))),
+          ),
         ]),
       ],
     );
@@ -804,16 +822,33 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
 
   Future<void> _approvePayment(dynamic a) async {
     try {
-      if (a['payment_type'] == 'Rent') {
-         await _client.from('fiscal_collections').insert({
-           'user_id': a['user_id'],
-           'amount': a['amount'],
-           'collection_type': 'Rent',
-           'payment_method': 'UPI',
-         });
-      } else {
-         final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String();
-          await _client.from('mess_cards').upsert({'user_id': a['user_id'], 'expiry_date': expiry, 'card_type': 'Standard', 'status': 'Active'}, onConflict: 'user_id');
+      final pType = (a['payment_type'] ?? 'Rent').toString();
+      if (pType == 'Rent') {
+        await _client.from('fiscal_collections').insert({
+          'student_id': a['user_id'],
+          'total_amount': a['amount'],
+          'room_rent': a['amount'],
+          'collection_cycle': DateFormat('MMMM yyyy').format(DateTime.now()),
+          'status': 'Approved',
+        });
+      } else if (pType == 'Mess' || pType == 'MessCard') {
+        final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String();
+        await _client.from('mess_cards').upsert({
+          'user_id': a['user_id'], 
+          'expiry_date': expiry, 
+          'card_type': 'Standard', 
+          'status': 'Active'
+        }, onConflict: 'user_id');
+      } else if (pType.toLowerCase().contains('shop') || pType.toLowerCase().contains('mandi') || pType.toLowerCase().contains('fastfood')) {
+        // Mark related shop order paid if order_id is present
+        if (a['order_id'] != null) {
+          try {
+            await _client.from('shop_orders').update({
+              'payment_status': 'Paid',
+              'order_status': 'Completed'
+            }).eq('id', a['order_id']);
+          } catch (_) {}
+        }
       }
       await _client.from('payment_approvals').update({'status': 'Approved'}).eq('id', a['id']);
       _loadFinanceData();
@@ -825,11 +860,20 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
     _loadFinanceData();
   }
 
-  void _showCashEntryDialog(String type, bool isDark) {
+  void _showCashEntryDialog(String type, bool isDark) async {
      final userSearchCtrl = TextEditingController();
-     final amountCtrl = TextEditingController(text: type == 'Rent' ? '6500' : (type == 'Mess' ? '2500' : '500'));
+     double defaultAmt = 0;
+     try {
+       final cat = type == 'Rent' ? 'Hostel' : (type == 'Mess' ? 'Mess' : 'Laundry');
+       final feeRow = await _client.from('fee_structure').select().eq('category', cat).limit(1).maybeSingle();
+       if (feeRow != null && feeRow['price'] != null) {
+         defaultAmt = (feeRow['price'] as num).toDouble();
+       }
+     } catch (_) {}
+     final amountCtrl = TextEditingController(text: defaultAmt > 0 ? defaultAmt.toInt().toString() : '');
      List<dynamic> searchResults = [];
 
+     if (!mounted) return;
      showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (context, setModalState) => BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: AlertDialog(
        backgroundColor: isDark ? const Color(0xFF08090A) : Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
        title: Text('ADMIN ${type.toUpperCase()}', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 1)),
@@ -880,6 +924,41 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
   }
 
   // REUSABLE HELPERS
+  Future<void> _sendWhatsAppReminder({
+    required String phone,
+    required String studentName,
+    required String title,
+    required double amount,
+    String? details,
+  }) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9]'), '');
+    final msg = Uri.encodeComponent(
+      'Hello $studentName,\n\n'
+      'This is an official payment notice from Campus Administration regarding your *$title*.\n\n'
+      'Pending Amount Due: ₹${amount.toInt()}\n'
+      '${details != null && details.isNotEmpty ? "Details: $details\n" : ""}'
+      'Date Issued: ${DateFormat("dd MMM yyyy").format(DateTime.now())}\n\n'
+      'Please clear your dues promptly via the Campus App or UPI to avoid interruption of hostel/mess services.\n'
+      'Thank you.'
+    );
+    final url = Uri.parse('https://wa.me/$cleanPhone?text=$msg');
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not launch WhatsApp')));
+    }
+  }
+
+  Future<void> _makePhoneCall(String phone) async {
+    final cleanPhone = phone.replaceAll(RegExp(r'[^0-9+]'), '');
+    final url = Uri.parse('tel:$cleanPhone');
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not place call')));
+    }
+  }
+
   Widget _buildResidentTile(dynamic s, bool isDark, {bool isDefaulter = false}) {
      final enrollment = s['hostel_rooms'] != null ? s : s['hostel_enrollments']?[0];
      final room = s['hostel_rooms'] ?? enrollment?['hostel_rooms'];
@@ -889,28 +968,63 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
      final double total = double.tryParse(enrollment?['total_price']?.toString() ?? '0') ?? 0;
      final double paid = double.tryParse(enrollment?['paid_amount']?.toString() ?? '0') ?? 0;
      final double due = (total - paid).clamp(0, double.infinity);
+     final String phone = profile?['phone_no'] ?? s['phone_no'] ?? '';
+     final String name = profile?['full_name'] ?? 'STUDENT';
+     final String roomNum = room != null ? room['room_number']?.toString() ?? '' : '';
 
      return Container(
        margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(20),
-       decoration: BoxDecoration(color: isDefaulter ? Colors.redAccent.withOpacity(0.04) : (isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02)), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDefaulter ? Colors.redAccent.withOpacity(0.2) : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)))),
+       decoration: BoxDecoration(
+         color: isDefaulter ? Colors.redAccent.withOpacity(0.06) : (isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02)), 
+         borderRadius: BorderRadius.circular(24), 
+         border: Border.all(color: isDefaulter ? Colors.redAccent.withOpacity(0.4) : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)), width: isDefaulter ? 1.5 : 1)
+       ),
        child: Column(children: [
          Row(children: [
-           UserAvatar(imageUrl: profile?['avatar_url'], radius: 25, verified: isVerified, name: profile?['full_name'] ?? 'STUDENT'),
+           UserAvatar(imageUrl: profile?['avatar_url'], radius: 25, verified: isVerified, name: name),
            const SizedBox(width: 16),
            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(profile?['full_name'] ?? 'STUDENT', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 15)),
+              Text(name, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 15)),
               Text(due > 0 ? 'PENDING DUE: ₹${due.toInt()}' : 'CLEARED', style: TextStyle(color: due > 0 ? Colors.redAccent : Colors.greenAccent, fontSize: 10, fontWeight: FontWeight.bold)),
            ])),
-           if (room != null) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text('ROOM ${room['room_number']}', style: const TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.w900))),
+           if (room != null) Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text('ROOM $roomNum', style: const TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.w900))),
          ]),
          const SizedBox(height: 16),
          Divider(color: isDark ? Colors.white10 : Colors.black12),
          const SizedBox(height: 12),
          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            _miniContact(Icons.phone_outlined, s['phone_no'] ?? 'N/A', Colors.greenAccent, isDark),
+            _miniContact(Icons.phone_outlined, phone.isNotEmpty ? phone : 'N/A', Colors.greenAccent, isDark),
             _miniContact(Icons.verified_user_outlined, isVerified ? 'VERIFIED' : 'PENDING', isVerified ? Colors.blueAccent : Colors.orangeAccent, isDark),
             _miniContact(Icons.bloodtype_outlined, s['blood_group'] ?? 'UNK', Colors.redAccent, isDark),
          ]),
+         if (isDefaulter && phone.isNotEmpty) ...[
+           const SizedBox(height: 14),
+           Row(
+             children: [
+               Expanded(
+                 child: ElevatedButton.icon(
+                   onPressed: () => _sendWhatsAppReminder(
+                     phone: phone,
+                     studentName: name,
+                     title: 'Hostel Accommodation Rent',
+                     amount: due,
+                     details: 'Room $roomNum dues pending. Total Fee: ₹${total.toInt()}, Paid: ₹${paid.toInt()}',
+                   ),
+                   icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.white),
+                   label: const Text('WHATSAPP REMINDER', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                   style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 10)),
+                 ),
+               ),
+               const SizedBox(width: 8),
+               ElevatedButton.icon(
+                 onPressed: () => _makePhoneCall(phone),
+                 icon: const Icon(Icons.call_rounded, size: 14, color: Colors.white),
+                 label: const Text('CALL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900)),
+                 style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10)),
+               ),
+             ],
+           ),
+         ],
        ]),
      );
   }
@@ -919,24 +1033,77 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
     final profile = m['profiles'];
     if (m['expiry_date'] == null) return const SizedBox.shrink();
     final expiry = DateTime.parse(m['expiry_date']);
+    final isExpiringSoon = !isExpired && expiry.difference(DateTime.now()).inDays <= 3;
+    final displayColor = isExpired ? Colors.redAccent : (isExpiringSoon ? Colors.amberAccent : color);
+    final String phone = profile?['phone_no'] ?? '';
+    final String name = profile?['full_name'] ?? 'STUDENT';
+    final double cardPrice = double.tryParse(m['price']?.toString() ?? '2500') ?? 2500;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: color.withOpacity(0.04), borderRadius: BorderRadius.circular(24), border: Border.all(color: color.withOpacity(0.1))),
+      decoration: BoxDecoration(
+        color: displayColor.withOpacity(isExpired ? 0.08 : 0.04), 
+        borderRadius: BorderRadius.circular(24), 
+        border: Border.all(color: displayColor.withOpacity(isExpired ? 0.5 : 0.2), width: isExpired ? 1.5 : 1)
+      ),
       child: Column(children: [
           Row(children: [
-            Icon(Icons.restaurant_rounded, color: color, size: 24),
-            const SizedBox(width: 20),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: displayColor.withOpacity(0.15), shape: BoxShape.circle),
+              child: Icon(Icons.restaurant_rounded, color: displayColor, size: 22),
+            ),
+            const SizedBox(width: 16),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(profile?['full_name'] ?? 'STUDENT', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
-              Text('Expires: ${DateFormat('MMM dd, yyyy').format(DateTime.parse(m['expiry_date']))}', style: TextStyle(color: color.withOpacity(0.7), fontSize: 10, fontWeight: FontWeight.bold)),
+              Row(
+                children: [
+                  Text(name, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
+                  if (isExpired) ...[
+                    const SizedBox(width: 6),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(6)), child: const Text('EXPIRED', style: TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900))),
+                  ] else if (isExpiringSoon) ...[
+                    const SizedBox(width: 6),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.amberAccent, borderRadius: BorderRadius.circular(6)), child: const Text('EXPIRING SOON', style: TextStyle(color: Colors.black, fontSize: 7, fontWeight: FontWeight.w900))),
+                  ],
+                ],
+              ),
+              Text('Expires: ${DateFormat('MMM dd, yyyy').format(expiry)} (${isExpired ? "EXPIRED" : "${expiry.difference(DateTime.now()).inDays} days left"})', style: TextStyle(color: displayColor, fontSize: 10, fontWeight: FontWeight.bold)),
             ])),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(m['card_type'].toString().toUpperCase(), style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: displayColor.withOpacity(0.1), borderRadius: BorderRadius.circular(8)), child: Text(m['card_type'].toString().toUpperCase(), style: TextStyle(color: displayColor, fontSize: 8, fontWeight: FontWeight.w900))),
           ]),
           const SizedBox(height: 12), Divider(color: isDark ? Colors.white10 : Colors.black12), const SizedBox(height: 8),
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-               _miniDetail('PHONE', profile?['phone_no'] ?? 'N/A', Colors.white24, isDark),
-               _miniDetail('STATUS', isExpired ? 'RENEWAL REQD' : 'ACTIVE', color, isDark),
+               _miniDetail('PHONE', phone.isNotEmpty ? phone : 'N/A', Colors.white24, isDark),
+               _miniDetail('STATUS', isExpired ? 'RENEWAL REQD' : (isExpiringSoon ? 'EXPIRING' : 'ACTIVE'), displayColor, isDark),
           ]),
+          if ((isExpired || isExpiringSoon) && phone.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () => _sendWhatsAppReminder(
+                      phone: phone,
+                      studentName: name,
+                      title: 'Mess Card Renewal (${m['card_type']})',
+                      amount: cardPrice,
+                      details: 'Mess Card ${isExpired ? "expired on ${DateFormat('dd MMM').format(expiry)}" : "expires on ${DateFormat('dd MMM').format(expiry)}"}. Renewal Plan: ₹${cardPrice.toInt()}',
+                    ),
+                    icon: const Icon(Icons.chat_bubble_outline_rounded, size: 14, color: Colors.white),
+                    label: const Text('WHATSAPP RENEWAL NOTICE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                    style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 10)),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton.icon(
+                  onPressed: () => _makePhoneCall(phone),
+                  icon: const Icon(Icons.call_rounded, size: 14, color: Colors.white),
+                  label: const Text('CALL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w900)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10)),
+                ),
+              ],
+            ),
+          ],
       ]),
     );
   }
@@ -1097,9 +1264,9 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
           Text('₹${_liquidity.toInt()}', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 48, fontWeight: FontWeight.w900, letterSpacing: -1)),
           const SizedBox(height: 32),
           Row(children: [
-            _heroAction('GENERATE REPORT', Icons.summarize_outlined, Colors.indigoAccent, isDark),
+            Expanded(child: _heroAction('GENERATE REPORT', Icons.summarize_outlined, Colors.indigoAccent, isDark)),
             const SizedBox(width: 12),
-            _heroAction('UNIVERSAL LEDGER', Icons.book_outlined, isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03), isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => UniversalCampusLedger()))),
+            Expanded(child: _heroAction('UNIVERSAL LEDGER', Icons.book_outlined, isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03), isDark, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UniversalCampusLedger())))),
           ]),
       ]),
     );
@@ -1127,7 +1294,21 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
   
   Widget _buildRevenueGraph(bool isDark) => Container(height: 200, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(32), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [_sectionHeader('REVENUE TRENDS / 7D'), const Spacer(), Center(child: Text('GRAPH DATA SYNCING...', style: TextStyle(color: isDark ? Colors.white12 : Colors.black12, fontSize: 10)))]));
   
-  Widget _heroAction(String l, IconData i, Color bg, bool isDark, {VoidCallback? onTap}) => Expanded(child: GestureDetector(onTap: onTap, child: Container(height: 55, decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(15)), child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(i, color: bg == Colors.greenAccent ? Colors.black : Colors.white, size: 16), const SizedBox(width: 12), Text(l, style: TextStyle(color: bg == Colors.greenAccent ? Colors.black : Colors.white60, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1))]))));
+  Widget _heroAction(String l, IconData i, Color bg, bool isDark, {VoidCallback? onTap}) => GestureDetector(
+    onTap: onTap,
+    child: Container(
+      height: 55,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(15)),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(i, color: bg == Colors.greenAccent ? Colors.black : Colors.white, size: 16),
+          const SizedBox(width: 12),
+          Text(l, style: TextStyle(color: bg == Colors.greenAccent ? Colors.black : Colors.white60, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 1)),
+        ],
+      ),
+    ),
+  );
   
   Widget _sectionHeader(String l, {Color color = Colors.indigoAccent}) => Text(l, style: GoogleFonts.outfit(color: color, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2.5));
   

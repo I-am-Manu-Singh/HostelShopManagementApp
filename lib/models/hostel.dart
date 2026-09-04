@@ -41,7 +41,11 @@ class HostelRoom {
       basePrice: (json['base_price'] as num? ?? 6500.0).toDouble(),
       roomType: json['room_type']?.toString() ?? 'Standard',
       amenities: List<String>.from(json['amenities'] ?? []),
-      imageUrl: json['image_url'],
+      imageUrl: (json['image_url'] != null && json['image_url'].toString().trim().isNotEmpty)
+          ? json['image_url'].toString()
+          : ((json['images'] is List && (json['images'] as List).isNotEmpty)
+              ? (json['images'] as List).first.toString()
+              : 'https://images.unsplash.com/photo-1555854817-5b273417735e'),
       description: json['description'],
       isActive: json['is_active'] ?? true,
     );

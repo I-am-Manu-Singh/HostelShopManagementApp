@@ -35,8 +35,11 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
   List<String> _buildings = [];
   String? _selectedBuilding;
 
-  // Month range (last N months ending this month)
-  int _monthCount = 6;
+  // Month range (Date Range Picker)
+  DateTimeRange _dateRange = DateTimeRange(
+    start: DateTime(DateTime.now().year, DateTime.now().month - 5, 1),
+    end: DateTime(DateTime.now().year, DateTime.now().month, 1),
+  );
 
   // Rooms fetched for selected building
   List<Map<String, dynamic>> _rooms = [];
@@ -158,20 +161,178 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
     }
   }
 
+  Future<void> _dispatchSingleIntelReading(dynamic u) async {
+    setState(() => _intelLoading = true);
+    String monthStr = DateFormat('yyyy-MM-01').format(_selectedMonth);
+    try {
+      final roomId = u['hostel_rooms']['id'];
+      final studentId = u['user_id'];
+      final double lastR = _intelLastReadings[roomId] ?? 0.0;
+      final reading = double.tryParse(_intelControllers[roomId]?.text ?? '');
+
+      if (reading == null || reading < lastR) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Please enter a valid reading greater than or equal to previous reading.'),
+          backgroundColor: Colors.orangeAccent,
+        ));
+        setState(() => _intelLoading = false);
+        return;
+      }
+
+      final double units = (reading - lastR).clamp(0.0, double.infinity);
+      final double electricityCharges = units * _unitRate;
+      final roomData = u['hostel_rooms'];
+
+      // Calculate base rent taking into account booked fee packages or room base price
+      double baseRent = (roomData?['base_price'] as num? ?? 0.0).toDouble();
+      if (u['total_price'] != null && (u['total_price'] as num) > 0) {
+        baseRent = (u['total_price'] as num).toDouble();
+      } else if (u['selected_packages'] is Map) {
+        final pkgs = u['selected_packages'] as Map<String, dynamic>;
+        final String? roomPlan = pkgs['room_plan'];
+        final List<dynamic> addOns = pkgs['add_ons'] ?? [];
+        try {
+          final rates = await _client.from('fee_structure').select();
+          double calculated = 0;
+          if (roomPlan != null) {
+            final plan = rates.cast<Map<String, dynamic>>().firstWhere(
+              (r) => r['service_name'].toString().toUpperCase() == roomPlan.toUpperCase(),
+              orElse: () => {},
+            );
+            if (plan.isNotEmpty) calculated += (plan['price'] as num).toDouble();
+          }
+          for (var a in addOns) {
+            final addon = rates.cast<Map<String, dynamic>>().firstWhere(
+              (r) => r['service_name'].toString().toUpperCase() == a.toString().toUpperCase(),
+              orElse: () => {},
+            );
+            if (addon.isNotEmpty) calculated += (addon['price'] as num).toDouble();
+          }
+          if (calculated > 0) baseRent = calculated;
+        } catch (_) {}
+      }
+
+      // Compute cycle dates from student enrollment joining date
+      DateTime startDate = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
+      final joiningDateStr = u['created_at']?.toString();
+      if (joiningDateStr != null) {
+        final dt = DateTime.tryParse(joiningDateStr);
+        if (dt != null) {
+          int joinDay = dt.day;
+          // Calculate start date in selected month with matching joining day
+          int daysInSelectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+          int actualStartDay = joinDay > daysInSelectedMonth ? daysInSelectedMonth : joinDay;
+          startDate = DateTime(_selectedMonth.year, _selectedMonth.month, actualStartDay);
+        }
+      }
+      // Calculate end date: exactly 1 month later
+      DateTime nextMonthSameDate = DateTime(startDate.year, startDate.month + 1, startDate.day);
+      final int billedDays = nextMonthSameDate.difference(startDate).inDays;
+
+      await _client.from('meter_readings').upsert({
+        'room_id': roomId,
+        'student_id': studentId,
+        'previous_reading': lastR,
+        'latest_reading': reading,
+        'month_period': monthStr,
+        'reading_date': DateTime.now().toIso8601String().split('T')[0],
+        'electricity_charges': electricityCharges,
+        'building_name': roomData?['building_name'] ?? '',
+      }, onConflict: 'room_id, month_period');
+
+      // Also upsert fiscal bill collection breakdown with date range if studentId exists
+      if (studentId != null) {
+        try {
+          await _client.from('fiscal_collections').upsert({
+            'student_id': studentId,
+            'collection_cycle': DateFormat('MMMM yyyy').format(_selectedMonth),
+            'room_rent': baseRent,
+            'electricity_charges': electricityCharges,
+            'service_fees': 0.0,
+            'total_amount': baseRent + electricityCharges,
+            'billing_start_date': DateFormat('yyyy-MM-dd').format(startDate),
+            'billing_end_date': DateFormat('yyyy-MM-dd').format(nextMonthSameDate),
+            'days_billed': billedDays,
+            'status': 'Pending',
+          }, onConflict: 'student_id, collection_cycle');
+        } catch (_) {}
+      }
+
+      await _fetchIntelligenceData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Bill dispatched for Unit ${roomData?['room_number']}: ₹${electricityCharges.toStringAsFixed(0)} (Units: $units)'),
+          backgroundColor: Colors.greenAccent.shade700,
+        ));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Dispatch failed: $e'),
+          backgroundColor: Colors.redAccent,
+        ));
+        setState(() => _intelLoading = false);
+      }
+    }
+  }
+
   Future<void> _submitAllIntelReadings() async {
     setState(() => _intelLoading = true);
     bool anySuccess = false;
     String monthStr = DateFormat('yyyy-MM-01').format(_selectedMonth);
     try {
+      final rates = await _client.from('fee_structure').select();
       for (var u in _intelUnits) {
         final roomId = u['hostel_rooms']['id'];
         final studentId = u['user_id'];
         final double lastR = _intelLastReadings[roomId] ?? 0.0;
         final reading = double.tryParse(_intelControllers[roomId]?.text ?? '');
-        if (reading != null && reading > lastR) {
+        if (reading != null && reading >= lastR) {
           final double units = reading - lastR;
           final double electricityCharges = units * _unitRate;
           final roomData = u['hostel_rooms'];
+
+          // Calculate base rent taking into account booked fee packages
+          double baseRent = (roomData?['base_price'] as num? ?? 0.0).toDouble();
+          if (u['total_price'] != null && (u['total_price'] as num) > 0) {
+            baseRent = (u['total_price'] as num).toDouble();
+          } else if (u['selected_packages'] is Map) {
+            final pkgs = u['selected_packages'] as Map<String, dynamic>;
+            final String? roomPlan = pkgs['room_plan'];
+            final List<dynamic> addOns = pkgs['add_ons'] ?? [];
+            double calculated = 0;
+            if (roomPlan != null) {
+              final plan = rates.cast<Map<String, dynamic>>().firstWhere(
+                (r) => r['service_name'].toString().toUpperCase() == roomPlan.toUpperCase(),
+                orElse: () => {},
+              );
+              if (plan.isNotEmpty) calculated += (plan['price'] as num).toDouble();
+            }
+            for (var a in addOns) {
+              final addon = rates.cast<Map<String, dynamic>>().firstWhere(
+                (r) => r['service_name'].toString().toUpperCase() == a.toString().toUpperCase(),
+                orElse: () => {},
+              );
+              if (addon.isNotEmpty) calculated += (addon['price'] as num).toDouble();
+            }
+            if (calculated > 0) baseRent = calculated;
+          }
+
+          // Compute cycle dates from student enrollment joining date
+          DateTime startDate = DateTime(_selectedMonth.year, _selectedMonth.month, 1);
+          final joiningDateStr = u['created_at']?.toString();
+          if (joiningDateStr != null) {
+            final dt = DateTime.tryParse(joiningDateStr);
+            if (dt != null) {
+              int joinDay = dt.day;
+              int daysInSelectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1, 0).day;
+              int actualStartDay = joinDay > daysInSelectedMonth ? daysInSelectedMonth : joinDay;
+              startDate = DateTime(_selectedMonth.year, _selectedMonth.month, actualStartDay);
+            }
+          }
+          DateTime nextMonthSameDate = DateTime(startDate.year, startDate.month + 1, startDate.day);
+          final int billedDays = nextMonthSameDate.difference(startDate).inDays;
+
           await _client.from('meter_readings').upsert({
             'room_id': roomId,
             'student_id': studentId,
@@ -182,13 +343,30 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
             'electricity_charges': electricityCharges,
             'building_name': roomData?['building_name'] ?? '',
           }, onConflict: 'room_id, month_period');
+
+          if (studentId != null) {
+            try {
+              await _client.from('fiscal_collections').upsert({
+                'student_id': studentId,
+                'collection_cycle': DateFormat('MMMM yyyy').format(_selectedMonth),
+                'room_rent': baseRent,
+                'electricity_charges': electricityCharges,
+                'service_fees': 0.0,
+                'total_amount': baseRent + electricityCharges,
+                'billing_start_date': DateFormat('yyyy-MM-dd').format(startDate),
+                'billing_end_date': DateFormat('yyyy-MM-dd').format(nextMonthSameDate),
+                'days_billed': billedDays,
+                'status': 'Pending',
+              }, onConflict: 'student_id, collection_cycle');
+            } catch (_) {}
+          }
           anySuccess = true;
         }
       }
       _fetchIntelligenceData();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text(anySuccess ? 'Power audit synced and bills dispatched.' : 'No new readings detected.'),
+          content: Text(anySuccess ? 'Power audit synced and net bills dispatched.' : 'No new readings detected.'),
           backgroundColor: anySuccess ? Colors.greenAccent : Colors.orangeAccent,
         ));
       }
@@ -201,18 +379,14 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
   // ── Helpers ──────────────────────────────────────────────────────────────
 
   List<DateTime> _computeMonths() {
-    final now = DateTime.now();
     final months = <DateTime>[];
-    for (int i = _monthCount - 1; i >= 0; i--) {
-      int month = now.month - i;
-      int year = now.year;
-      while (month <= 0) {
-        month += 12;
-        year -= 1;
-      }
-      months.add(DateTime(year, month, 1));
+    DateTime cur = DateTime(_dateRange.start.year, _dateRange.start.month, 1);
+    final end = DateTime(_dateRange.end.year, _dateRange.end.month, 1);
+    while (!cur.isAfter(end)) {
+      months.add(cur);
+      cur = DateTime(cur.year, cur.month + 1, 1);
     }
-    return months;
+    return months.isEmpty ? [DateTime(DateTime.now().year, DateTime.now().month, 1)] : months;
   }
 
   String _monthStr(DateTime d) => DateFormat('yyyy-MM-01').format(d);
@@ -287,11 +461,13 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
         final rawPeriod = r['month_period'].toString();
         final mp = rawPeriod.length >= 7 ? rawPeriod.substring(0, 7) : rawPeriod;
         readingMap[rid] ??= {};
-        readingMap[rid]![mp] = {
+        final entry = {
           'latest_reading': (r['latest_reading'] as num?)?.toDouble(),
           'previous_reading': (r['previous_reading'] as num?)?.toDouble(),
           'electricity_charges': (r['electricity_charges'] as num?)?.toDouble(),
         };
+        readingMap[rid]![mp] = entry;
+        readingMap[rid]![rawPeriod] = entry;
       }
 
       // Dispose old controllers
@@ -991,16 +1167,24 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
                                     Text(lastReading.toStringAsFixed(1), style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13)),
                                   ],
                                 )),
-                                Expanded(child: TextField(
-                                  controller: _intelControllers[roomId],
-                                  keyboardType: TextInputType.number,
-                                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                                  decoration: const InputDecoration(
-                                    hintText: '000.0',
-                                    contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                    border: OutlineInputBorder(),
+                                Expanded(
+                                  flex: 2,
+                                  child: TextField(
+                                    controller: _intelControllers[roomId],
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                                    decoration: InputDecoration(
+                                      hintText: '000.0',
+                                      contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      border: const OutlineInputBorder(),
+                                      suffixIcon: IconButton(
+                                        icon: const Icon(Icons.send_rounded, color: Colors.amberAccent, size: 16),
+                                        tooltip: 'Dispatch Bill for this Unit',
+                                        onPressed: () => _dispatchSingleIntelReading(u),
+                                      ),
+                                    ),
                                   ),
-                                )),
+                                ),
                               ],
                             ),
                           );
@@ -1109,19 +1293,53 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              flex: 2,
-              child: _buildDropdown(
-                hint: 'Months',
-                value: _monthCount.toString(),
-                items: ['3', '6', '9', '12'],
-                icon: Icons.calendar_view_month_rounded,
-                color: Colors.amberAccent,
-                isDark: isDark,
-                onChanged: (val) {
-                  setState(() => _monthCount = int.parse(val!));
+            InkWell(
+              onTap: () async {
+                final picked = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime(2020),
+                  lastDate: DateTime(2030),
+                  initialDateRange: _dateRange,
+                  builder: (context, child) {
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: Theme.of(context).colorScheme.copyWith(
+                          primary: Colors.indigoAccent,
+                          onPrimary: Colors.white,
+                        ),
+                      ),
+                      child: child!,
+                    );
+                  },
+                );
+                if (picked != null) {
+                  setState(() => _dateRange = picked);
                   _fetchData();
-                },
+                }
+              },
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.date_range_rounded, color: Colors.amberAccent, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${DateFormat('MMM yy').format(_dateRange.start)} - ${DateFormat('MMM yy').format(_dateRange.end)}',
+                      style: GoogleFonts.outfit(
+                        color: isDark ? Colors.white : Colors.black87,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -1356,6 +1574,27 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
           controller: ctrl,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           textAlign: TextAlign.center,
+          onChanged: (val) {
+            final currR = double.tryParse(val);
+            if (currR != null) {
+              final prevMonth = month.month == 1
+                  ? DateTime(month.year - 1, 12, 1)
+                  : DateTime(month.year, month.month - 1, 1);
+              final prevMp = _monthStr(prevMonth).substring(0, 7);
+              final startingMeter = (_readings[roomId]?['INITIAL']?['latest_reading'] as num? ?? 0.0).toDouble();
+              final prevR = _readings[roomId]?[prevMp]?['latest_reading'] ?? startingMeter;
+              final units = (currR - prevR).clamp(0.0, double.infinity);
+              final bill = units * _unitRate;
+
+              setState(() {
+                _readings[roomId] ??= {};
+                _readings[roomId]![mp] ??= {};
+                _readings[roomId]![mp]!['latest_reading'] = currR;
+                _readings[roomId]![mp]!['previous_reading'] = prevR;
+                _readings[roomId]![mp]!['electricity_charges'] = bill;
+              });
+            }
+          },
           style: GoogleFonts.outfit(
               fontSize: 12,
               fontWeight: hasData ? FontWeight.w600 : FontWeight.normal,
@@ -1412,11 +1651,6 @@ class _MeterReadingMatrixScreenState extends State<MeterReadingMatrixScreen>
           _legendDot(Colors.indigoAccent, 'Meter reading (kWh)'),
           const SizedBox(width: 20),
           _legendDot(Colors.greenAccent.shade700, '₹ Bill = units × ₹${_unitRate.toStringAsFixed(0)}'),
-          const Spacer(),
-          Text(
-            'Tap Room No for Starting Meter/Occupant Intel • Save icon to submit all',
-            style: GoogleFonts.outfit(fontSize: 10, color: isDark ? Colors.white38 : Colors.black38),
-          ),
         ],
       ),
     );

@@ -2,10 +2,11 @@ import 'dart:io';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:intl/intl.dart';
+import '../../services/receipt_service.dart';
 
 class StudentPaymentScreen extends StatefulWidget {
   final String? initialType; // 'Rent' or 'MessCard'
@@ -18,13 +19,24 @@ class StudentPaymentScreen extends StatefulWidget {
 class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
   final _client = Supabase.instance.client;
   String _paymentType = 'Rent';
-  final _amountCtrl = TextEditingController(text: '6500');
+  final _amountCtrl = TextEditingController(text: '0');
   File? _screenshot;
   bool _isUploading = false;
   String _role = 'hostel_student';
-  double _baseRent = 6500;
+  double _baseRent = 0;
   double _powerBill = 0;
-  double _totalRent = 6500;
+  double _totalRent = 0;
+  double _messPrice = 0;
+
+  // Student & cycle details
+  Map<String, dynamic>? _profile;
+  Map<String, dynamic>? _enrollment;
+  DateTime? _cycleStartDate;
+  DateTime? _cycleEndDate;
+  int _cycleDays = 30;
+  String? _roomPlan;
+  List<dynamic> _addOns = [];
+  dynamic _latestCollection;
 
   @override
   void initState() {
@@ -46,7 +58,6 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
       
       // Fetch current rates from fee_structure
       final rates = await _client.from('fee_structure').select();
-      final powerRate = (rates.firstWhere((r) => r['service_name'] == 'Power', orElse: () => {'price': 12.0})['price'] as num).toDouble();
       
       double calculatedBase = 0;
       
@@ -54,8 +65,12 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
       if (roomPlanName != null) {
         final Map<String, dynamic>? plan = rates.cast<Map<String, dynamic>>().firstWhere((r) => r['service_name'].toString().toUpperCase() == roomPlanName.toUpperCase(), orElse: () => {});
         if (plan != null && plan.isNotEmpty) calculatedBase += (plan['price'] as num).toDouble();
+      } else if (enrollment?['total_price'] != null) {
+        calculatedBase = (enrollment!['total_price'] as num).toDouble();
       } else {
-        calculatedBase = (enrollment?['total_price'] as num? ?? 6500).toDouble();
+        // Dynamic fallback from fee_structure Accommodation category
+        final roomFeePlan = rates.cast<Map<String, dynamic>>().firstWhere((r) => r['category'] == 'Hostel' || r['category'] == 'Accommodation', orElse: () => {});
+        calculatedBase = roomFeePlan.isNotEmpty ? (roomFeePlan['price'] as num).toDouble() : 0.0;
       }
 
       // 2. Add dynamic Add-ons
@@ -64,10 +79,14 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
         if (addon != null && addon.isNotEmpty) calculatedBase += (addon['price'] as num).toDouble();
       }
 
-      // 3. Inject Mess Card if not already in add-ons
-      if (messCard != null && !addonNames.any((a) => a.toString().toUpperCase() =='MESS')) {
-        final Map<String, dynamic>? messPlan = rates.cast<Map<String, dynamic>>().firstWhere((r) => r['category'] == 'Mess', orElse: () => {});
-        if (messPlan != null && messPlan.isNotEmpty) calculatedBase += (messPlan['price'] as num).toDouble();
+      // 3. Determine Mess Card price dynamically from fee_structure
+      double messFee = 0.0;
+      final Map<String, dynamic>? messPlan = rates.cast<Map<String, dynamic>>().firstWhere((r) => r['category'] == 'Mess', orElse: () => {});
+      if (messPlan != null && messPlan.isNotEmpty) {
+        messFee = (messPlan['price'] as num).toDouble();
+      }
+      if (messCard != null && !addonNames.any((a) => a.toString().toUpperCase() == 'MESS')) {
+        calculatedBase += messFee;
       }
 
       // 4. Calculate latest power bill
@@ -77,29 +96,140 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
         power = (lastReading['electricity_charges'] as num? ?? 0.0).toDouble();
       }
 
+      // 5. Determine Billing Cycle from joining date (created_at)
+      DateTime? startDate;
+      DateTime? endDate;
+      int cycleDuration = 30;
+
+      final joinDateStr = enrollment?['created_at'];
+      if (joinDateStr != null) {
+        final joined = DateTime.parse(joinDateStr);
+        final now = DateTime.now();
+        final joinDay = joined.day;
+
+        // Current cycle start: day of month matching join day
+        final candidateStart = DateTime(now.year, now.month, joinDay > 28 ? 28 : joinDay);
+        if (now.isBefore(candidateStart)) {
+          // In previous month's cycle
+          final prevMonth = now.month == 1 ? 12 : now.month - 1;
+          final prevYear = now.month == 1 ? now.year - 1 : now.year;
+          startDate = DateTime(prevYear, prevMonth, joinDay > 28 ? 28 : joinDay);
+          endDate = candidateStart;
+        } else {
+          startDate = candidateStart;
+          final nextMonth = now.month == 12 ? 1 : now.month + 1;
+          final nextYear = now.month == 12 ? now.year + 1 : now.year;
+          endDate = DateTime(nextYear, nextMonth, joinDay > 28 ? 28 : joinDay);
+        }
+        cycleDuration = endDate.difference(startDate).inDays;
+      }
+
+      // Fetch latest fiscal collection record if any
+      final lastCol = await _client.from('fiscal_collections').select().eq('user_id', user.id).order('created_at', ascending: false).limit(1).maybeSingle();
+
       if (mounted) {
         setState(() {
+          _profile = profile;
+          _enrollment = enrollment;
           _role = profile?['role'] ?? 'hostel_student';
           _baseRent = calculatedBase;
           _powerBill = power;
           _totalRent = _baseRent + _powerBill;
+          _messPrice = messFee;
+          _cycleStartDate = startDate;
+          _cycleEndDate = endDate;
+          _cycleDays = cycleDuration;
+          _roomPlan = roomPlanName;
+          _addOns = addonNames;
+          _latestCollection = lastCol;
           
           if (widget.initialType != null) {
             _paymentType = widget.initialType!;
           } else {
              _paymentType = (_role == 'mess_student' || _role == 'hostel_student') ? 'Rent' : 'MessCard';
           }
-          _amountCtrl.text = _paymentType == 'Rent' ? _totalRent.toStringAsFixed(0) : '2500';
+          _amountCtrl.text = _paymentType == 'Rent' ? _totalRent.toStringAsFixed(0) : _messPrice.toStringAsFixed(0);
         });
       }
     } catch (_) {}
   }
 
+  Future<void> _downloadReceiptPdf() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    
+    final roomData = _enrollment?['hostel_rooms'];
+    final roomNum = roomData?['room_number']?.toString() ?? 'N/A';
+    final building = roomData?['building']?.toString() ?? 'Campus';
+    
+    final receiptData = _latestCollection ?? {
+      'id': 'BILL-${DateTime.now().millisecondsSinceEpoch}',
+      'created_at': DateTime.now().toIso8601String(),
+      'collection_type': _paymentType,
+      'base_rent': _baseRent,
+      'electricity_charges': _powerBill,
+      'amount': _paymentType == 'Rent' ? _totalRent : _messPrice,
+      'payment_method': 'UPI / Digital Bank',
+      'billing_start_date': _cycleStartDate?.toIso8601String(),
+      'billing_end_date': _cycleEndDate?.toIso8601String(),
+      'days_billed': _cycleDays,
+    };
+
+    await ReceiptService.generateFiscalReceipt(
+      receiptData,
+      _profile?['full_name'] ?? 'Student Member',
+      roomNumber: roomNum,
+      buildingName: building,
+      phone: _profile?['phone_no'],
+      roomPlan: _roomPlan ?? (_paymentType == 'Rent' ? 'Standard Room' : 'Mess Card Meal Plan'),
+      addOns: _addOns,
+      cycleStart: _cycleStartDate,
+      cycleEnd: _cycleEndDate,
+      daysBilled: _cycleDays,
+    );
+  }
+
   Future<void> _pickScreenshot() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
-      setState(() => _screenshot = File(image.path));
+    // Ask whether to take photo with Camera or pick from Gallery
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Theme.of(context).cardColor,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('SELECT PAYMENT PROOF', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1.5)),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: Colors.indigoAccent),
+                title: Text('Take Photo with Camera', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13)),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded, color: Colors.indigoAccent),
+                title: Text('Select from Gallery / Files', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13)),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    if (source == null) return;
+    try {
+      final image = await picker.pickImage(source: source);
+      if (image != null) {
+        setState(() => _screenshot = File(image.path));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not access camera/storage: $e'), backgroundColor: Colors.redAccent));
+      }
     }
   }
 
@@ -113,18 +243,19 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
       final user = _client.auth.currentUser;
       final fileName = 'approvals/${user!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       
-      // Usually we'd upload to Supabase Storage:
-      // await _client.storage.from('documents').upload(fileName, _screenshot!);
-      // String url = _client.storage.from('documents').getPublicUrl(fileName);
-      
-      // MOCK for now since we're and-box
-      String mockUrl = 'https://hostel-assets.s3.amazonaws.com/proofs/upi_success.png';
+      String screenshotUrl = 'https://hostel-assets.s3.amazonaws.com/proofs/upi_success.png';
+      try {
+        await _client.storage.from('documents').upload(fileName, _screenshot!);
+        screenshotUrl = _client.storage.from('documents').getPublicUrl(fileName);
+      } catch (storageErr) {
+        debugPrint('Storage upload note (using fallback): $storageErr');
+      }
 
       await _client.from('payment_approvals').insert({
         'user_id': user.id,
         'payment_type': _paymentType,
         'amount': double.parse(_amountCtrl.text),
-        'screenshot_url': mockUrl,
+        'screenshot_url': screenshotUrl,
         'status': 'Pending',
       });
 
@@ -132,7 +263,12 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Payment request submitted. Awaiting approval.'), backgroundColor: Colors.indigoAccent));
       }
-    } catch (_) { if (mounted) setState(() => _isUploading = false); }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Payment error: $e'), backgroundColor: Colors.redAccent));
+      }
+    }
   }
 
   @override
@@ -147,6 +283,13 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
         title: Text('MAKE PAYMENT', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          IconButton(
+            tooltip: 'Download / Share Receipt PDF',
+            icon: const Icon(Icons.picture_as_pdf_rounded, color: Colors.indigoAccent),
+            onPressed: _downloadReceiptPdf,
+          ),
+        ],
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
       ),
       body: Stack(
@@ -157,7 +300,9 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
             children: [
                 _buildTypeSelector(isDark),
                 const SizedBox(height: 16),
-                if (_paymentType == 'Rent') _buildBillingBreakdown(isDark),
+                _buildBillingBreakdown(isDark),
+                const SizedBox(height: 24),
+                _buildReceiptDownloadButton(isDark),
                 const SizedBox(height: 32),
                 _buildUPINexus(isDark),
                const SizedBox(height: 32),
@@ -182,11 +327,24 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
     );
   }
 
+  Widget _buildReceiptDownloadButton(bool isDark) {
+    return OutlinedButton.icon(
+      onPressed: _downloadReceiptPdf,
+      icon: const Icon(Icons.download_rounded, color: Colors.indigoAccent, size: 18),
+      label: Text('DOWNLOAD ITEMISED STATEMENT PDF', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.indigoAccent, letterSpacing: 1)),
+      style: OutlinedButton.styleFrom(
+        side: BorderSide(color: Colors.indigoAccent.withOpacity(0.4)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+      ),
+    );
+  }
+
   Widget _buildTypeSelector(bool isDark) {
     List<String> types = _role == 'mess_student' ? ['MessCard'] : ['Rent', 'MessCard'];
     return Row(children: types.map((t) {
       bool sel = _paymentType == t;
-      return Expanded(child: GestureDetector(onTap: () => setState(() { _paymentType = t; _amountCtrl.text = t == 'Rent' ? _totalRent.toStringAsFixed(0) : '2500'; }), child: Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.symmetric(vertical: 16), decoration: BoxDecoration(color: sel ? Colors.indigoAccent : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.04)), borderRadius: BorderRadius.circular(15), border: Border.all(color: sel ? Colors.indigoAccent : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)))), child: Center(child: Text(t.toUpperCase(), style: GoogleFonts.outfit(color: sel ? Colors.white : (isDark ? Colors.white24 : Colors.black26), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1))))));
+      return Expanded(child: GestureDetector(onTap: () => setState(() { _paymentType = t; _amountCtrl.text = t == 'Rent' ? _totalRent.toStringAsFixed(0) : _messPrice.toStringAsFixed(0); }), child: Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.symmetric(vertical: 16), decoration: BoxDecoration(color: sel ? Colors.indigoAccent : (isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.04)), borderRadius: BorderRadius.circular(15), border: Border.all(color: sel ? Colors.indigoAccent : (isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)))), child: Center(child: Text(t.toUpperCase(), style: GoogleFonts.outfit(color: sel ? Colors.white : (isDark ? Colors.white24 : Colors.black26), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1))))));
     }).toList());
   }
 
@@ -225,13 +383,43 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
   }
 
   Widget _buildBillingBreakdown(bool isDark) {
+    final cycleText = (_cycleStartDate != null && _cycleEndDate != null)
+        ? '${DateFormat('dd MMM').format(_cycleStartDate!)} - ${DateFormat('dd MMM yyyy').format(_cycleEndDate!)} ($_cycleDays Days)'
+        : 'Monthly Calendar Cycle';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(20), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
-      child: Column(children: [
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.only(bottom: 16),
+          decoration: BoxDecoration(
+            color: Colors.indigoAccent.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.indigoAccent.withOpacity(0.2)),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.date_range_rounded, size: 16, color: Colors.indigoAccent),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('CURRENT BILLING CYCLE: $cycleText', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+              ),
+            ],
+          ),
+        ),
+        if (_roomPlan != null) ...[
+          _billingRow('PLAN: ${_roomPlan!.toUpperCase()}', 'INCLUDED', isDark),
+          const SizedBox(height: 8),
+        ],
+        for (var add in _addOns) ...[
+          _billingRow('+ ADD-ON: ${add.toString().toUpperCase()}', 'ACTIVE', isDark, color: Colors.tealAccent),
+          const SizedBox(height: 8),
+        ],
         _billingRow('BASE RENT', '₹${_baseRent.toInt()}', isDark),
         const SizedBox(height: 12),
-        _billingRow('POWER (LATEST)', '₹${_powerBill.toInt()}', isDark, color: Colors.amberAccent),
+        _billingRow('POWER CHARGES', '₹${_powerBill.toInt()}', isDark, color: Colors.amberAccent),
         const Divider(height: 24, color: Colors.white10),
         _billingRow('TOTAL TO PAY', '₹${_totalRent.toInt()}', isDark, isTotal: true),
       ]),
@@ -240,7 +428,7 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
 
   Widget _billingRow(String l, String v, bool isDark, {Color? color, bool isTotal = false}) {
     return Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(l, style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+      Text(l, style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
       Text(v, style: GoogleFonts.outfit(color: color ?? (isDark ? Colors.white : Colors.black), fontSize: isTotal ? 16 : 13, fontWeight: FontWeight.w900)),
     ]);
   }

@@ -10,8 +10,18 @@ class PlaceholderService {
     if (cat.contains('HYGIENE')) return Icons.clean_hands_rounded;
     if (cat.contains('DAIRY')) return Icons.egg_rounded;
     if (cat.contains('PERSONAL')) return Icons.spa_rounded;
-    if (cat.contains('MEDICINE')) return Icons.medication_rounded;
-    if (cat.contains('GROCERY')) return Icons.shopping_basket_rounded;
+    if (cat.contains('MEDICINE') || cat.contains('WELLNESS') || cat.contains('FIRST AID')) return Icons.medication_rounded;
+    if (cat.contains('GROCERY') || cat.contains('KIRYANA') || cat.contains('STAPLES') || cat.contains('PULSES')) return Icons.shopping_basket_rounded;
+    if (cat.contains('EXOTIC') || cat.contains('FRUIT')) return Icons.apple_rounded;
+    if (cat.contains('VEGETABLE') || cat.contains('GREENS') || cat.contains('ORGANIC') || cat.contains('HERBS')) return Icons.eco_rounded;
+    if (cat.contains('TECH') || cat.contains('ELECTRONIC') || cat.contains('CABLE')) return Icons.devices_other_rounded;
+    if (cat.contains('KITCHEN') || cat.contains('DORM')) return Icons.kitchen_rounded;
+    if (cat.contains('BAKERY')) return Icons.bakery_dining_rounded;
+    if (cat.contains('BURGER')) return Icons.lunch_dining_rounded;
+    if (cat.contains('MOMO')) return Icons.cookie_rounded;
+    if (cat.contains('ROLL')) return Icons.wrap_text_rounded;
+    if (cat.contains('PIZZA')) return Icons.local_pizza_rounded;
+    if (cat.contains('PASTA') || cat.contains('NOODLE')) return Icons.ramen_dining_rounded;
     
     // Generic Hashing for New Categories
     final List<IconData> genericIcons = [

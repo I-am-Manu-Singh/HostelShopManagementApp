@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'mess_menu_screen.dart';
+import 'student_payment_screen.dart';
 
 class MessStudentCardScreen extends StatefulWidget {
   const MessStudentCardScreen({super.key});
@@ -22,6 +23,7 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
   Map<String, dynamic>? _card;
   int _attendedDays = 0;
   int _skippedDays = 0;
+  double _messPackagePrice = 0.0;
 
   @override
   void initState() {
@@ -37,6 +39,25 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
       final profile = await _client.from('profiles').select().eq('id', user.id).maybeSingle();
       final card = await _client.from('mess_cards').select().eq('user_id', user.id).maybeSingle();
       final att = await _client.from('attendance').select().eq('user_id', user.id).eq('attendance_type', 'mess').order('date', ascending: false);
+      final enrollment = await _client.from('hostel_enrollments').select().eq('user_id', user.id).maybeSingle();
+      
+      // Determine Mess card package price dynamically from card record or fee_structure
+      double messPrice = card != null && card['price'] != null ? (card['price'] as num).toDouble() : 0.0;
+      try {
+        final feeRes = await _client.from('fee_structure').select().eq('category', 'Mess').maybeSingle();
+        if (feeRes != null && feeRes['price'] != null) {
+          messPrice = (feeRes['price'] as num).toDouble();
+        }
+      } catch (_) {}
+
+      // If student enrolled with specific packages, check if mess is an add-on or custom package
+      if (enrollment != null && enrollment['selected_packages'] is Map) {
+        final pkgs = enrollment['selected_packages'] as Map<String, dynamic>;
+        final List<dynamic> addOns = pkgs['add_ons'] ?? [];
+        if (addOns.any((a) => a.toString().toUpperCase().contains('MESS'))) {
+          // Custom mess add-on package found
+        }
+      }
 
       if (mounted) {
         final now = DateTime.now();
@@ -50,6 +71,7 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
           _attendance = att;
           _attendedDays = attended;
           _skippedDays = skipped;
+          _messPackagePrice = messPrice;
           _isLoading = false;
         });
       }
@@ -183,13 +205,21 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
   }
 
   Widget _buildPhysicalCard(bool hasActiveCard, bool isDark) {
-    final expiryStr = _card != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['expiry_date'])) : 'NO ACTIVE PLAN';
-    final planStr = _card != null ? _card!['card_type'] : 'TRIAL ACCESS';
-    final meals = _card?['meal_plan'] ?? '';
+    final startStr = _card != null && _card!['start_date'] != null 
+        ? DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['start_date'])) 
+        : (_card != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['created_at'])) : 'NOT STARTED');
+    final expiryStr = _card != null && _card!['expiry_date'] != null 
+        ? DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['expiry_date'])) 
+        : 'NO ACTIVE PLAN';
+    final planStr = _card != null ? (_card!['card_type'] ?? 'MESS PASS') : 'TRIAL ACCESS';
+    final meals = _card?['meal_plan'] ?? 'BLTD';
+    final int customDays = _card?['custom_days'] ?? (_card != null && _card!['expiry_date'] != null && _card!['start_date'] != null 
+        ? DateTime.parse(_card!['expiry_date']).difference(DateTime.parse(_card!['start_date'])).inDays 
+        : 30);
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: hasActiveCard ? [const Color(0xFFFF8C00), const Color(0xFFFF4500)] : [Colors.grey.shade800, Colors.grey.shade900], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(32),
@@ -200,13 +230,53 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
         children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             const Icon(Icons.restaurant_menu_rounded, color: Colors.white, size: 28),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(8)), child: Text(planStr.toUpperCase(), style: GoogleFonts.outfit(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1))),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                  child: Text('₹${_messPackagePrice.toInt()} ($customDays DAYS)', style: GoogleFonts.outfit(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(8)),
+                  child: Text(planStr.toString().toUpperCase(), style: GoogleFonts.outfit(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                ),
+              ],
+            ),
           ]),
-          const SizedBox(height: 48),
+          const SizedBox(height: 36),
           Text(_profile?['full_name']?.toUpperCase() ?? 'RESIDENT', style: GoogleFonts.outfit(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1)),
-          const SizedBox(height: 4),
-          Text('EXPIRES ON: $expiryStr', style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
-          const SizedBox(height: 32),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.2), borderRadius: BorderRadius.circular(10)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.date_range_rounded, color: Colors.white70, size: 14),
+                const SizedBox(width: 6),
+                Text('CYCLE: $startStr  ➔  $expiryStr', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('$customDays-DAY PLAN PERIOD', style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+              GestureDetector(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentPaymentScreen(initialType: 'MessCard'))),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+                  child: Text(hasActiveCard ? 'RENEW / EXTEND' : 'ACTIVATE', style: GoogleFonts.outfit(color: Colors.deepOrange, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [

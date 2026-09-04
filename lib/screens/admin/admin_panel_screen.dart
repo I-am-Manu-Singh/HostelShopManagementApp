@@ -30,6 +30,7 @@ import '../central_attendance_log_screen.dart';
 import 'admin_room_inspection_screen.dart';
 import 'admin_fleet_console_screen.dart';
 import 'meter_reading_matrix_screen.dart';
+import '../pos/tablet_pos_terminal_screen.dart';
 
 class AdminPanelScreen extends StatefulWidget {
   const AdminPanelScreen({super.key});
@@ -411,6 +412,13 @@ Widget _buildHubGrid(bool isDark) {
             'value': '$_lowStockCount LOW',
             'color': Colors.orangeAccent,
             'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminInventoryManagementScreen())),
+          },
+          {
+            'icon': Icons.point_of_sale_rounded,
+            'label': 'POS Terminal',
+            'value': 'TABLET POS',
+            'color': Colors.amberAccent,
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TabletPosTerminalScreen())),
           },
           {
             'icon': Icons.campaign_rounded,
