@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'add_blog_screen.dart';
+import '../social/add_blog_screen.dart';
 
 class CampusStoriesScreen extends StatefulWidget {
   const CampusStoriesScreen({super.key});

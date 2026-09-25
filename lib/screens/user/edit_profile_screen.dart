@@ -5,6 +5,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../services/storage_upload_service.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -386,27 +387,59 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Future<void> _replaceDoc(String field, String title) async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery);
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+      maxWidth: 1920,
+      maxHeight: 1920,
+    );
     if (file != null) {
       setState(() => _isLoading = true);
       try {
-        String mockUrl = 'https://hostel-mgmt.up.railway.app/users/docs/${file.name}';
-        await _client.from('profiles').update({field: mockUrl}).eq('id', _client.auth.currentUser!.id);
+        final uploadedUrl = await StorageUploadService().uploadFile(
+          file: File(file.path),
+          preferredBucket: 'documents',
+          pathPrefix: 'kyc_docs',
+        );
+        await _client.from('profiles').update({field: uploadedUrl}).eq('id', _client.auth.currentUser!.id);
         _fetchData();
-      } catch (_) {} finally { setState(() => _isLoading = false); }
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$title uploaded successfully!'), backgroundColor: Colors.greenAccent));
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to upload $title: $e'), backgroundColor: Colors.redAccent));
+        }
+      } finally { setState(() => _isLoading = false); }
     }
   }
 
   Future<void> _pickAndUploadPhoto() async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(source: ImageSource.gallery);
+    final file = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 75,
+      maxWidth: 1200,
+      maxHeight: 1200,
+    );
     if (file != null) {
        setState(() => _isLoading = true);
        try {
-         String mockUrl = 'https://hostel-mgmt.up.railway.app/users/photos/${file.name}';
-         await _client.from('profiles').update({'latest_photo_url': mockUrl}).eq('id', _client.auth.currentUser!.id);
+         final uploadedUrl = await StorageUploadService().uploadFile(
+           file: File(file.path),
+           preferredBucket: 'profiles',
+           pathPrefix: 'avatars',
+         );
+         await _client.from('profiles').update({'latest_photo_url': uploadedUrl}).eq('id', _client.auth.currentUser!.id);
          _fetchData();
-       } catch (_) {} finally { setState(() => _isLoading = false); }
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Profile photo updated!'), backgroundColor: Colors.greenAccent));
+         }
+       } catch (e) {
+         if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Photo upload failed: $e'), backgroundColor: Colors.redAccent));
+         }
+       } finally { setState(() => _isLoading = false); }
     }
   }
 }

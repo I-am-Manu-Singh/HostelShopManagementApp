@@ -4,7 +4,7 @@ import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import '../hostel_security_terminal_screen.dart';
+import '../security/hostel_security_terminal_screen.dart';
 
 class AdminOutpassScreen extends StatefulWidget {
   final bool hideAppBar;
@@ -75,7 +75,7 @@ class _AdminOutpassScreenState extends State<AdminOutpassScreen> {
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : Colors.black, size: 18), onPressed: () => Navigator.pop(context)),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HostelSecurityTerminalScreen())),
+        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => HostelSecurityTerminalScreen())),
         backgroundColor: Colors.indigoAccent,
         icon: const Icon(Icons.security_rounded, color: Colors.white),
         label: Text('OPEN SECURITY GATE', style: GoogleFonts.outfit(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),

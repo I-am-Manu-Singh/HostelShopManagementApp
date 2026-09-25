@@ -43,18 +43,26 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
       
       final now = DateTime.now();
       final dateStr = DateFormat('yyyy-MM-dd').format(now);
-      final att = await client.from('attendance').select().eq('user_id', user!.id).eq('date', dateStr).maybeSingle();
+      final att = await client.from('attendance')
+          .select()
+          .eq('user_id', user!.id)
+          .eq('date', dateStr)
+          .maybeSingle();
 
-      final monthStart = DateTime(now.year, now.month, 1).toIso8601String().split('T')[0];
-      final attList = await client.from('attendance').select().eq('user_id', user!.id).gte('date', monthStart);
+      final firstDayOfMonth = DateTime(now.year, now.month, 1);
+      final monthStart = DateFormat('yyyy-MM-dd').format(firstDayOfMonth);
+      final attList = await client.from('attendance')
+          .select()
+          .eq('user_id', user!.id)
+          .gte('date', monthStart);
       
       Map<String, int> metrics = {'present': 0, 'half': 0, 'unpaid': 0, 'paid': 0};
-      for (var a in attList) {
-        final s = a['status']?.toString().toLowerCase() ?? '';
+      for (var a in (attList as List)) {
+        final s = a['status']?.toString().toLowerCase().trim() ?? '';
         if (s == 'present') metrics['present'] = (metrics['present'] ?? 0) + 1;
-        else if (s == 'half') metrics['half'] = (metrics['half'] ?? 0) + 1;
-        else if (s == 'unpaid') metrics['unpaid'] = (metrics['unpaid'] ?? 0) + 1;
-        else if (s == 'paid') metrics['paid'] = (metrics['paid'] ?? 0) + 1;
+        else if (s == 'half' || s == 'half_day') metrics['half'] = (metrics['half'] ?? 0) + 1;
+        else if (s == 'unpaid' || s == 'leave' || s == 'unpaid_leave') metrics['unpaid'] = (metrics['unpaid'] ?? 0) + 1;
+        else if (s == 'paid' || s == 'paid_leave') metrics['paid'] = (metrics['paid'] ?? 0) + 1;
       }
 
       if (mounted) {
@@ -71,18 +79,23 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
   }
 
   Future<void> _markAttendanceStatus(String status) async {
-    if (_hasCheckedIn) return;
     setState(() => _isLoading = true);
     try {
       final ok = await DatabaseService().markAttendance(type: 'staff', status: status);
-      if (ok && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Marked $status for today.'), backgroundColor: Colors.indigoAccent));
-        _loadData();
+      if (mounted) {
+        if (ok) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Marked $status for today.'), backgroundColor: Colors.indigoAccent),
+          );
+        }
+        await _loadData(); // refresh stats + check-in status
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.redAccent),
+        );
       }
     }
   }
@@ -103,7 +116,7 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
         title: Text('STAFF DASHBOARD', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
+        // leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
           IconButton(icon: const Icon(Icons.notifications_none_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
           _liveBadge(isDark),
@@ -208,6 +221,7 @@ class _EmployeeTerminalScreenState extends State<EmployeeTerminalScreen> {
             Text(_hasCheckedIn ? 'CHECKED IN' : 'READY TO START?', style: GoogleFonts.outfit(color: textColor, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: 1)),
             const SizedBox(height: 8),
             Text(_hasCheckedIn ? "You are marked present for today" : "Tap below to mark your attendance", style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 11, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
             if (!_hasCheckedIn) ...[
               Row(
                 children: [

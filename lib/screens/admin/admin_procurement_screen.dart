@@ -12,7 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../utils/csv_web_helper.dart';
 import '../../utils/csv_range_dialog.dart';
-import '../add_procurement_screen.dart';
+import '../common/add_procurement_screen.dart';
 
 class AdminProcurementScreen extends StatefulWidget {
   final bool isMandiPOFilter;
@@ -54,7 +54,7 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
 
   Future<void> _fetchStaff() async {
     try {
-      final roleFilter = _isMandiPOFilter ? ['farmer_seller'] : ['staff', 'admin', 'hostel_manager'];
+      final roleFilter = _isMandiPOFilter ? ['farmer_seller'] : ['staff', 'admin', 'hostel_manager', 'hostel_student', 'mess_student', 'student'];
       final res = await _client.from('profiles').select().inFilter('role', roleFilter);
       if (mounted) setState(() => _staffList = res);
     } catch (_) {}
@@ -282,7 +282,7 @@ class _AdminProcurementScreenState extends State<AdminProcurementScreen> {
           IconButton(icon: const Icon(Icons.file_upload_rounded, color: Colors.blueAccent), onPressed: _importProcurementsFromCSV, tooltip: 'Import CSV'),
           IconButton(icon: const Icon(Icons.file_download_rounded, color: Colors.greenAccent), onPressed: _exportProcurementsToCSV, tooltip: 'Export CSV'),
           IconButton(icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.indigoAccent), onPressed: () {
-            Navigator.push(context, MaterialPageRoute(builder: (_) => const AddProcurementScreen())).then((_) => _fetchProcurements());
+            Navigator.push(context, MaterialPageRoute(builder: (_) => AddProcurementScreen())).then((_) => _fetchProcurements());
           }),
         ],
       ),

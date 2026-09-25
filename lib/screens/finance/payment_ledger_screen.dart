@@ -122,6 +122,7 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
           'type': 'Approval',
           'is_income': isAdmin,
           'status': a['status'], 
+          'admin_notes': a['admin_notes'],
           'icon': Icons.hourglass_top_rounded,
           'color': a['status'] == 'Approved' ? Colors.greenAccent : (a['status'] == 'Rejected' ? Colors.redAccent : Colors.amberAccent),
         });
@@ -471,16 +472,65 @@ class _PaymentLedgerScreenState extends State<PaymentLedgerScreen> {
   Widget _buildTransactionCard(Map<String, dynamic> tx, bool isDark) {
     final bool isIncome = tx['is_income'] ?? false;
     final Color color = tx['color'] ?? (isIncome ? Colors.greenAccent : Colors.redAccent);
+    final String? status = tx['status'];
+    final String? notes = tx['admin_notes'];
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
-      child: Row(children: [
-        Container(width: 48, height: 48, decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(16)), child: Icon(tx['icon'] ?? (isIncome ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded), color: color, size: 20)),
-        const SizedBox(width: 16),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(tx['title'], style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis), const SizedBox(height: 4), Text(DateFormat('MMM dd, yyyy • HH:mm').format(DateTime.parse(tx['date'].toString())), style: GoogleFonts.outfit(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold))])),
-        const SizedBox(width: 12),
-        Text('${isIncome ? "+" : "-"}₹${tx['amount'].toInt()}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, color: color)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Container(width: 48, height: 48, decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(16)), child: Icon(tx['icon'] ?? (isIncome ? Icons.keyboard_arrow_down_rounded : Icons.keyboard_arrow_up_rounded), color: color, size: 20)),
+            const SizedBox(width: 16),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(
+                children: [
+                  Expanded(child: Text(tx['title'], style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: isDark ? Colors.white : Colors.black87), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                  if (status != null) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        status.toUpperCase(),
+                        style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(DateFormat('MMM dd, yyyy • HH:mm').format(DateTime.parse(tx['date'].toString())), style: GoogleFonts.outfit(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold)),
+            ])),
+            const SizedBox(width: 12),
+            Text('${isIncome ? "+" : "-"}₹${tx['amount'].toInt()}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 16, color: color)),
+          ]),
+          if (notes != null && notes.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.black26 : Colors.black.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline_rounded, size: 12, color: Colors.grey),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text('HQ note: $notes', style: TextStyle(color: isDark ? Colors.white60 : Colors.black54, fontSize: 10, fontStyle: FontStyle.italic)),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

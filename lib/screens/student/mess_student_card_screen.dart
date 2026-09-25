@@ -25,6 +25,8 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
   int _skippedDays = 0;
   double _messPackagePrice = 0.0;
 
+  Map<String, dynamic>? _todayMenuFromDb;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +42,32 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
       final card = await _client.from('mess_cards').select().eq('user_id', user.id).maybeSingle();
       final att = await _client.from('attendance').select().eq('user_id', user.id).eq('attendance_type', 'mess').order('date', ascending: false);
       final enrollment = await _client.from('hostel_enrollments').select().eq('user_id', user.id).maybeSingle();
+
+      // Fetch live mess menu from database for today
+      Map<String, dynamic>? liveMenu;
+      try {
+        final now = DateTime.now();
+        final dayName = DateFormat('EEEE').format(now);
+        // Calculate week of year
+        final firstDayOfYear = DateTime(now.year, 1, 1);
+        final weekNum = ((now.difference(firstDayOfYear).inDays + firstDayOfYear.weekday - 1) / 7).floor() + 1;
+        
+        // 1. Try to find menu for specific week
+        final specificWeekMenu = await _client.from('mess_menu').select()
+            .ilike('day', dayName)
+            .eq('week_number', weekNum)
+            .maybeSingle();
+
+        if (specificWeekMenu != null) {
+          liveMenu = specificWeekMenu;
+        } else {
+          // 2. Try default schedule (week_number 0 or any available)
+          final defaultMenu = await _client.from('mess_menu').select()
+              .ilike('day', dayName)
+              .maybeSingle();
+          liveMenu = defaultMenu;
+        }
+      } catch (_) {}
       
       // Determine Mess card package price dynamically from card record or fee_structure
       double messPrice = card != null && card['price'] != null ? (card['price'] as num).toDouble() : 0.0;
@@ -49,15 +77,6 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
           messPrice = (feeRes['price'] as num).toDouble();
         }
       } catch (_) {}
-
-      // If student enrolled with specific packages, check if mess is an add-on or custom package
-      if (enrollment != null && enrollment['selected_packages'] is Map) {
-        final pkgs = enrollment['selected_packages'] as Map<String, dynamic>;
-        final List<dynamic> addOns = pkgs['add_ons'] ?? [];
-        if (addOns.any((a) => a.toString().toUpperCase().contains('MESS'))) {
-          // Custom mess add-on package found
-        }
-      }
 
       if (mounted) {
         final now = DateTime.now();
@@ -72,6 +91,7 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
           _attendedDays = attended;
           _skippedDays = skipped;
           _messPackagePrice = messPrice;
+          _todayMenuFromDb = liveMenu;
           _isLoading = false;
         });
       }
@@ -295,37 +315,49 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
     final now = DateTime.now();
     final dayName = DateFormat('EEEE').format(now).toUpperCase();
     
-    // Static mapping for demo (matching MessMenuScreen)
-    final menuMap = {
-      'MONDAY': {'B': 'Poha & Chai', 'L': 'Rajma Chawal', 'T': 'Samosa & Tea', 'D': 'Paneer & Roti'},
-      'TUESDAY': {'B': 'Aloo Paratha', 'L': 'Kadadi Chawal', 'T': 'Biscuits & Coffee', 'D': 'Mix Veg & Roti'},
-      'WEDNESDAY': {'B': 'Idli Sambhar', 'L': 'Chole Bhature', 'T': 'Bread Pakora & Tea', 'D': 'Dal Tadka & Rice'},
-      'THURSDAY': {'B': 'Oatmeal & Fruits', 'L': 'Veg Biryani', 'T': 'Puff Pastry & Tea', 'D': 'Malai Kofta & Roti'},
-      'FRIDAY': {'B': 'Sandwich & Coffee', 'L': 'Pasta & Salad', 'T': 'Maggie & Cold Drinks', 'D': 'Palak Paneer'},
-      'SATURDAY': {'B': 'Puri Bhaji', 'L': 'Fried Rice', 'T': 'Dhokla & Tea', 'D': 'Special Thali'},
-      'SUNDAY': {'B': 'Stuffed Paratha', 'L': 'Paneer Lababdar', 'T': 'Cake & Coffee', 'D': 'Veg Pulao & Raita'},
-    };
-
-    final todayMenu = menuMap[dayName] ?? menuMap['MONDAY']!;
+    // Live database values with fallback
+    final bFast = (_todayMenuFromDb?['breakfast']?.toString().trim().isNotEmpty == true)
+        ? _todayMenuFromDb!['breakfast'].toString()
+        : 'Poha & Chai';
+    final lunch = (_todayMenuFromDb?['lunch']?.toString().trim().isNotEmpty == true)
+        ? _todayMenuFromDb!['lunch'].toString()
+        : 'Dal, Roti & Seasonal Sabzi';
+    final tea = (_todayMenuFromDb?['tea']?.toString().trim().isNotEmpty == true)
+        ? _todayMenuFromDb!['tea'].toString()
+        : 'Snacks & Hot Tea';
+    final dinner = (_todayMenuFromDb?['dinner']?.toString().trim().isNotEmpty == true)
+        ? _todayMenuFromDb!['dinner'].toString()
+        : 'Special Paneer / Curries & Rice';
 
     return FadeInUp(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionHeader('TODAY\'S MENU - $dayName', isDark),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _buildSectionHeader('TODAY\'S MENU - $dayName', isDark),
+              if (_todayMenuFromDb != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(6)),
+                  child: const Text('LIVE ACTIVE', style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.bold)),
+                ),
+            ],
+          ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03), borderRadius: BorderRadius.circular(28), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
             child: Column(
               children: [
-                _menuRow('MORNING', todayMenu['B']!, Icons.wb_sunny_outlined, Colors.amberAccent),
+                _menuRow('BREAKFAST', bFast, Icons.wb_sunny_outlined, Colors.amberAccent),
                 const Divider(height: 32, color: Colors.white10),
-                _menuRow('AFTERNOON', todayMenu['L']!, Icons.wb_cloudy_outlined, Colors.blueAccent),
+                _menuRow('LUNCH', lunch, Icons.wb_cloudy_outlined, Colors.blueAccent),
                 const Divider(height: 32, color: Colors.white10),
-                _menuRow('EVENING', todayMenu['T']!, Icons.local_cafe_outlined, Colors.orangeAccent),
+                _menuRow('TEA & SNACKS', tea, Icons.local_cafe_outlined, Colors.orangeAccent),
                 const Divider(height: 32, color: Colors.white10),
-                _menuRow('NIGHT', todayMenu['D']!, Icons.nightlight_round_outlined, Colors.purpleAccent),
+                _menuRow('DINNER', dinner, Icons.nightlight_round_outlined, Colors.purpleAccent),
               ],
             ),
           ),

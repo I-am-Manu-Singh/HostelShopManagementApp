@@ -308,22 +308,41 @@ class _AdminMessMenuScreenState extends State<AdminMessMenuScreen> {
                      'dinner': dCtrl.text.trim(),
                    };
 
-                   // 1. Save specific week menu
-                   await _client.from('mess_menu').upsert(
-                     updatePayload,
-                     onConflict: 'week_number, year, day',
-                   );
+                   // 1. Save specific week menu with fallback for legacy unique constraints
+                   try {
+                     await _client.from('mess_menu').upsert(
+                       updatePayload,
+                       onConflict: 'week_number, year, day',
+                     );
+                   } catch (err) {
+                     // Fallback if remote table still enforces legacy mess_menu_day_key
+                     await _client.from('mess_menu').upsert(
+                       updatePayload,
+                       onConflict: 'day',
+                     );
+                   }
 
                    // 2. Also keep default base schedule in sync if editing current week
-                   await _client.from('mess_menu').upsert({
-                     'week_number': 0,
-                     'year': 2026,
-                     'day': data['day'],
-                     'breakfast': bCtrl.text.trim(),
-                     'lunch': lCtrl.text.trim(),
-                     'tea': tCtrl.text.trim(),
-                     'dinner': dCtrl.text.trim(),
-                   }, onConflict: 'week_number, year, day');
+                   try {
+                     await _client.from('mess_menu').upsert({
+                       'week_number': 0,
+                       'year': 2026,
+                       'day': data['day'],
+                       'breakfast': bCtrl.text.trim(),
+                       'lunch': lCtrl.text.trim(),
+                       'tea': tCtrl.text.trim(),
+                       'dinner': dCtrl.text.trim(),
+                     }, onConflict: 'week_number, year, day');
+                   } catch (_) {
+                     // Fallback to day alone
+                     await _client.from('mess_menu').upsert({
+                       'day': data['day'],
+                       'breakfast': bCtrl.text.trim(),
+                       'lunch': lCtrl.text.trim(),
+                       'tea': tCtrl.text.trim(),
+                       'dinner': dCtrl.text.trim(),
+                     }, onConflict: 'day');
+                   }
 
                    if (mounted) {
                      Navigator.pop(ctx);

@@ -49,3 +49,15 @@ app.*.symbols
 
 # Obfuscation related
 app.*.map.json
+
+# Sensitive credentials, keys & environment files
+.env
+.env.*
+key.properties
+local.properties
+
+# Additional binaries and services configs
+google-services.json
+GoogleService-Info.plist
+*.apk
+*.aab

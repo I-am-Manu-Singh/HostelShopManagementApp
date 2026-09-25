@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'legal/privacy_policy_screen.dart';
-import 'legal/terms_of_service_screen.dart';
-import 'legal/refund_policy_screen.dart';
-import 'legal/safety_protocols_screen.dart';
+import '../legal/privacy_policy_screen.dart';
+import '../legal/terms_of_service_screen.dart';
+import '../legal/refund_policy_screen.dart';
+import '../legal/safety_protocols_screen.dart';
 
 class AppInfoScreen extends StatelessWidget {
   const AppInfoScreen({super.key});
 
-  final String companyName = "Hostel Shop Management";
-  final String phoneNumber = "+91 800 123 4567";
-  final String supportEmail = "support@hostelshop.com";
-  final String website = "https://hostelshopmanagement.com";
+  final String companyName = "H House";
+  final String phoneNumber = "+91 xxxxxxxxxx";
+  final String supportEmail = "[EMAIL_ADDRESS]";
+  final String website = "https://hhouse.com";
   final String version = "1.0.0-Stable";
 
   Future<void> _launchUrl(String url) async {
@@ -71,7 +71,7 @@ class AppInfoScreen extends StatelessWidget {
                   icon: Icons.share_rounded,
                   label: 'Share App',
                   isDark: isDark,
-                  onTap: () => Share.share('Download Hostel Shop Management App at $website'),
+                  onTap: () => Share.share('Download H House Management App at $website'),
                 ),
                 const SizedBox(width: 12),
                 _smallActionBtn(
@@ -94,16 +94,16 @@ class AppInfoScreen extends StatelessWidget {
             _buildSectionTitle('LEGAL', Colors.pinkAccent, isDark),
             const SizedBox(height: 16),
             _infoTile(Icons.security_rounded, 'Privacy Policy', 'Data protection rules', () {
-              Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
+              Navigator.push(context, MaterialPageRoute(builder: (_) => PrivacyPolicyScreen()));
             }, Colors.pinkAccent, isDark),
             _infoTile(Icons.gavel_rounded, 'Terms of Service', 'Usage agreements', () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()));
+               Navigator.push(context, MaterialPageRoute(builder: (_) => TermsOfServiceScreen()));
             }, Colors.pinkAccent, isDark),
             _infoTile(Icons.monetization_on_rounded, 'Refund Policy', 'Payment & returns', () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const RefundPolicyScreen()));
+               Navigator.push(context, MaterialPageRoute(builder: (_) => RefundPolicyScreen()));
             }, Colors.pinkAccent, isDark),
             _infoTile(Icons.health_and_safety_rounded, 'Safety Protocols', 'Hostel guidelines', () {
-               Navigator.push(context, MaterialPageRoute(builder: (_) => const SafetyProtocolsScreen()));
+               Navigator.push(context, MaterialPageRoute(builder: (_) => SafetyProtocolsScreen()));
             }, Colors.pinkAccent, isDark),
             
             const SizedBox(height: 60),

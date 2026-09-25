@@ -154,7 +154,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             return CustomScrollView(
               physics: const BouncingScrollPhysics(),
               slivers: [
-                _buildAppBar(textColor),
+                _buildAppBar(textColor, isDark),
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -199,13 +199,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Positioned(top: -50, right: -50, child: ImageFiltered(imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80), child: Container(width: 250, height: 250, decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.08), shape: BoxShape.circle))));
   }
 
-  Widget _buildAppBar(Color textColor) {
-    return SliverAppBar(
-      backgroundColor: Colors.transparent,
-      elevation: 0, pinned: true, centerTitle: true,
-      title: Text('PROFILE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: textColor, letterSpacing: 2.5, fontSize: 14)),
-    );
-  }
+ Widget _buildAppBar(Color textColor, bool isDark) {
+  return SliverAppBar(
+    // Set this to your app's default solid background surface color
+    backgroundColor: isDark ? const Color(0xFF121212) : Colors.white,
+    // Prevents an accidental M3 tint shift on scroll
+    surfaceTintColor: Colors.transparent, 
+    elevation: 0, 
+    pinned: true, 
+    centerTitle: true,
+    title: Text(
+      'PROFILE', 
+      style: GoogleFonts.outfit(
+        fontWeight: FontWeight.w900, 
+        color: textColor, 
+        letterSpacing: 2.5, 
+        fontSize: 14
+      ),
+    ),
+  );
+}
 
   Widget _buildProfileInfo(String name, String email, String role, bool isDark) {
     final textColor = isDark ? Colors.white : Colors.black;

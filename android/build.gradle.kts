@@ -26,7 +26,7 @@ subprojects {
                     val setNamespace = androidExt.javaClass.getMethod("setNamespace", String::class.java)
                     setNamespace.invoke(
                         androidExt,
-                        "com.hostel.placeholder." + project.name.replace("-", "_")
+                        "com.creativeblisslabs.hostelshop.placeholder." + project.name.replace("-", "_")
                     )
                     println(">>> Namespace set for ${project.name}")
                 }

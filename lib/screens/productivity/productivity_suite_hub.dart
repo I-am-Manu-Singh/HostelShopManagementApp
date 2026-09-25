@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
-import 'student/student_task_hub_screen.dart';
+import '../student/student_task_hub_screen.dart';
 import 'academic_intelligence_hub_screen.dart';
 import 'zen_protocol_screen.dart';
 import 'workout_protocol_screen.dart';
@@ -17,7 +17,7 @@ import '../../widgets/habit_tracker_card.dart';
 import 'daily_routine_screen.dart';
 import 'productivity_calendar_screen.dart';
 import 'focus_mode_screen.dart';
-import 'campus_leaderboard_screen.dart';
+import '../campus/campus_leaderboard_screen.dart';
 
 class ProductivitySuiteHub extends StatefulWidget {
   const ProductivitySuiteHub({super.key});
@@ -101,6 +101,7 @@ class _PerformanceDashboardState extends State<_PerformanceDashboard> with Singl
    DateTime _focusedDay = DateTime.now();
    DateTime? _selectedDay;
    bool _isLoading = true;
+   int _productivityScore = 75;
    late AnimationController _breathingController;
 
   @override
@@ -139,11 +140,22 @@ class _PerformanceDashboardState extends State<_PerformanceDashboard> with Singl
         }
       } catch(_) {}
 
+      // Compute dynamic productivity score
+      int calculatedScore = 50;
+      try {
+        final stats = await _db.fetchStudentDailyStats();
+        final double taskRate = (stats['rate'] as num? ?? 0.0).toDouble();
+        final focusLogs = await _db.fetchFocusLogs();
+        final int focusCount = focusLogs.length;
+        calculatedScore = ((taskRate * 50) + (focusCount > 0 ? (focusCount * 10).clamp(0, 50) : 20)).toInt().clamp(10, 100);
+      } catch (_) {}
+
       if (mounted) {
         setState(() {
           _profile = userRes;
           _reflections = reflectRes;
           _currentProtocol = current;
+          _productivityScore = calculatedScore;
           _isLoading = false;
         });
       }
@@ -562,7 +574,7 @@ class _PerformanceDashboardState extends State<_PerformanceDashboard> with Singl
   }
 
   Widget _buildProductivityScore(bool isDark) {
-    int score = 84; // Mock score for now
+    int score = _productivityScore;
     String status = score > 80 ? "EXCELLENT" : (score > 60 ? "GOOD" : "NEED FOCUS");
     Color color = score > 80 ? Colors.greenAccent : (score > 60 ? Colors.orangeAccent : Colors.redAccent);
 

@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../services/receipt_service.dart';
+import '../../services/storage_upload_service.dart';
 
 class StudentPaymentScreen extends StatefulWidget {
   final String? initialType; // 'Rent' or 'MessCard'
@@ -222,7 +223,12 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
 
     if (source == null) return;
     try {
-      final image = await picker.pickImage(source: source);
+      final image = await picker.pickImage(
+        source: source,
+        imageQuality: 75,
+        maxWidth: 1920,
+        maxHeight: 1920,
+      );
       if (image != null) {
         setState(() => _screenshot = File(image.path));
       }
@@ -241,15 +247,14 @@ class _StudentPaymentScreenState extends State<StudentPaymentScreen> {
     setState(() => _isUploading = true);
     try {
       final user = _client.auth.currentUser;
-      final fileName = 'approvals/${user!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      
-      String screenshotUrl = 'https://hostel-assets.s3.amazonaws.com/proofs/upi_success.png';
-      try {
-        await _client.storage.from('documents').upload(fileName, _screenshot!);
-        screenshotUrl = _client.storage.from('documents').getPublicUrl(fileName);
-      } catch (storageErr) {
-        debugPrint('Storage upload note (using fallback): $storageErr');
-      }
+      if (user == null) throw Exception('User not logged in');
+
+      // Upload via StorageUploadService with automatic bucket fallback (documents -> receipts -> mandi-assets)
+      final screenshotUrl = await StorageUploadService().uploadFile(
+        file: _screenshot!,
+        preferredBucket: 'documents',
+        pathPrefix: 'approvals',
+      );
 
       await _client.from('payment_approvals').insert({
         'user_id': user.id,

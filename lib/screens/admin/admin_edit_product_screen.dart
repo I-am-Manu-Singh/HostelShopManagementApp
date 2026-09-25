@@ -8,6 +8,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../models/shop.dart';
 import '../../services/product_lookup_service.dart';
+import '../../services/pos_hardware_service.dart';
+import '../../services/barcode_wedge_service.dart';
 
 class AdminEditProductScreen extends StatefulWidget {
   final ShopItem? product;
@@ -111,12 +113,31 @@ class _AdminEditProductScreenState extends State<AdminEditProductScreen> {
       _addFactField();
     }
 
+    // Hardware Scanner Listener (USB / Dongle / Bluetooth HID)
+    BarcodeWedgeService().addListener(_onHardwareBarcodeDetected);
+
     // Auto-fetch if opened with a scanned SKU
     if (widget.product == null && widget.scannedSku != null && widget.scannedSku!.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _autoFetchForBarcode(widget.scannedSku!);
       });
     }
+  }
+
+  void _onHardwareBarcodeDetected(String code) {
+    if (!mounted) return;
+    final clean = code.trim();
+    if (clean.isEmpty) return;
+    setState(() {
+      _barcodeController.text = clean;
+      if (_skuController.text.trim().isEmpty) {
+        _skuController.text = clean;
+      }
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Hardware Scanner: $clean (Fetching...)'), backgroundColor: Colors.indigoAccent),
+    );
+    _autoFetchForBarcode(clean);
   }
 
   Future<void> _autoFetchForBarcode(String barcode) async {
@@ -232,20 +253,44 @@ class _AdminEditProductScreenState extends State<AdminEditProductScreen> {
       setState(() => _isUploadingImage = true);
 
       final List<String> newUrls = List.from(_currentImageUrls);
+      final candidateBuckets = ['mandi-assets', 'products', 'shop-assets', 'documents', 'public'];
+      String activeBucket = 'mandi-assets';
+
       for (final xfile in pickedFiles) {
         final file = File(xfile.path);
         final ext = xfile.path.split('.').last;
         final fileName = 'product_${DateTime.now().millisecondsSinceEpoch}_${newUrls.length}.$ext';
 
-        await _client.storage.from('mandi-assets').upload(fileName, file);
-        final publicUrl = _client.storage.from('mandi-assets').getPublicUrl(fileName);
-        newUrls.add(publicUrl);
+        bool uploaded = false;
+        // Try activeBucket first, if fails with 404 bucket not found, try fallback buckets
+        for (final b in [activeBucket, ...candidateBuckets.where((b) => b != activeBucket)]) {
+          try {
+            await _client.storage.from(b).upload(fileName, file);
+            final publicUrl = _client.storage.from(b).getPublicUrl(fileName);
+            newUrls.add(publicUrl);
+            activeBucket = b;
+            uploaded = true;
+            break;
+          } catch (err) {
+            final errStr = err.toString().toLowerCase();
+            if (errStr.contains('bucket not found') || errStr.contains('404')) {
+              continue; // Try next bucket
+            }
+            rethrow;
+          }
+        }
+
+        if (!uploaded) {
+          throw Exception(
+            "Storage bucket not found. Please run the SQL migration in 'testsqls/pos_module_schema_fix.sql' to create the 'mandi-assets' storage bucket in Supabase.",
+          );
+        }
       }
 
       _setImageUrls(newUrls);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Uploaded ${pickedFiles.length} images successfully!'), backgroundColor: Colors.green),
+          SnackBar(content: Text('Uploaded ${pickedFiles.length} image(s) successfully!'), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -419,6 +464,7 @@ class _AdminEditProductScreenState extends State<AdminEditProductScreen> {
     _ratingController.dispose();
     _reviewsController.dispose();
     _unitController.dispose();
+    BarcodeWedgeService().removeListener(_onHardwareBarcodeDetected);
     super.dispose();
   }
 
@@ -510,6 +556,90 @@ class _AdminEditProductScreenState extends State<AdminEditProductScreen> {
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
+          if (_barcodeController.text.trim().isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.print, color: Colors.amberAccent, size: 20),
+              tooltip: 'Print Barcode Label',
+              onPressed: () {
+                final barcode = _barcodeController.text.trim();
+                final name = _nameController.text.trim().isEmpty ? 'Product' : _nameController.text.trim();
+                final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
+                final brand = _brandController.text.trim().isEmpty ? null : _brandController.text.trim();
+                final hsn = _hsnController.text.trim().isEmpty ? null : _hsnController.text.trim();
+                int copies = 1;
+                showDialog(
+                  context: context,
+                  builder: (ctx) => StatefulBuilder(
+                    builder: (context, setDlgState) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      title: Row(
+                        children: [
+                          const Icon(Icons.local_offer_rounded, color: Colors.amber),
+                          const SizedBox(width: 8),
+                          Text('Print Barcode Label', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
+                        ],
+                      ),
+                      content: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                          const SizedBox(height: 4),
+                          Text('Code: $barcode | MRP: ₹${price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          const SizedBox(height: 16),
+                          const Text('Number of Copies / Stickers:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 8),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle_outline),
+                                onPressed: copies > 1 ? () => setDlgState(() => copies--) : null,
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                                decoration: BoxDecoration(border: Border.all(color: Colors.amber), borderRadius: BorderRadius.circular(8)),
+                                child: Text('$copies', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                onPressed: copies < 100 ? () => setDlgState(() => copies++) : null,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+                          icon: const Icon(Icons.print, size: 16),
+                          label: const Text('Print Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            Navigator.pop(ctx);
+                            final ok = await PosHardwareService().printProductBarcodeLabel(
+                              name: name,
+                              barcode: barcode,
+                              price: price,
+                              brand: brand,
+                              hsn: hsn,
+                              copies: copies,
+                            );
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text(ok ? 'Label sent to printer / spooler ($copies copies)' : 'Print failed or cancelled'),
+                                backgroundColor: ok ? Colors.green : Colors.red,
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
           if (_isLoading) 
             const Center(child: Padding(padding: EdgeInsets.only(right: 16), child: CircularProgressIndicator(color: Colors.pinkAccent, strokeWidth: 2)))
           else
@@ -716,33 +846,82 @@ class _AdminEditProductScreenState extends State<AdminEditProductScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF0F172A),
-        title: const Text('Scan Barcode / QR', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-        content: SizedBox(
-          width: 320,
-          height: 260,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: MobileScanner(
-              onDetect: (capture) async {
-                final barcodes = capture.barcodes;
-                for (final b in barcodes) {
-                  final code = b.rawValue;
-                  if (code != null && code.isNotEmpty) {
-                    controller.text = code;
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Scanned: $code. Fetching details...'), backgroundColor: Colors.indigo),
-                    );
-
-                    // Fetch details from online registries
-                    await _autoFetchForBarcode(code);
-                    break;
-                  }
-                }
-              },
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.qr_code_scanner_rounded, color: Colors.amberAccent, size: 22),
+            const SizedBox(width: 10),
+            const Expanded(
+              child: Text(
+                'Barcode / SKU Scanner',
+                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
+          ],
+        ),
+        content: SizedBox(
+          width: 340,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.amberAccent.withOpacity(0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.barcode_reader, color: Colors.amberAccent, size: 20),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Hardware Barcode Gun / Reader Active\nJust pull the scanner trigger anytime to input automatically!',
+                        style: TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('OR Scan Using Device Camera:', style: TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: 320,
+                height: 220,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: MobileScanner(
+                    onDetect: (capture) async {
+                      final barcodes = capture.barcodes;
+                      for (final b in barcodes) {
+                        final code = b.rawValue;
+                        if (code != null && code.isNotEmpty) {
+                          controller.text = code;
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Scanned: $code. Fetching details...'), backgroundColor: Colors.indigo),
+                          );
+
+                          // Fetch details from online registries
+                          await _autoFetchForBarcode(code);
+                          break;
+                        }
+                      }
+                    },
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('DISMISS', style: TextStyle(color: Colors.white54)),
+          ),
+        ],
       ),
     );
   }

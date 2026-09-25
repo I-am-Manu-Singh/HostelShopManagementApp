@@ -27,14 +27,25 @@ class _HostelBrowseScreenState extends State<HostelBrowseScreen> {
   Future<void> _fetchBlocks() async {
     setState(() => _isLoading = true);
     try {
-      final response = await _supabase.from('hostel_rooms').select('building_name, floor').eq('is_active', true);
+      final response = await _supabase.from('hostel_rooms').select('building_name, floor, images, image_url').eq('is_active', true);
       
       final Map<String, Set<int>> blockMap = {};
+      final Map<String, String> blockImageMap = {};
+
       for (var r in (response as List)) {
         final b = r['building_name'] ?? 'Main Block';
         final f = int.tryParse(r['floor']?.toString() ?? '0') ?? 0;
         if (!blockMap.containsKey(b)) blockMap[b] = {};
         blockMap[b]!.add(f);
+
+        // Fetch actual room / hostel image if not yet assigned for this building block
+        if (!blockImageMap.containsKey(b)) {
+          if (r['image_url'] != null && r['image_url'].toString().trim().isNotEmpty) {
+            blockImageMap[b] = r['image_url'].toString();
+          } else if (r['images'] is List && (r['images'] as List).isNotEmpty) {
+            blockImageMap[b] = (r['images'] as List).first.toString();
+          }
+        }
       }
 
       final List<Map<String, dynamic>> list = [];
@@ -42,7 +53,7 @@ class _HostelBrowseScreenState extends State<HostelBrowseScreen> {
         list.add({
           'name': k,
           'floors': v.toList()..sort(),
-          'image': 'https://images.unsplash.com/photo-1555854817-5b273417735e' // Default architectural placeholder
+          'image': blockImageMap[k] ?? 'https://images.unsplash.com/photo-1555854817-5b273417735e'
         });
       });
 
@@ -179,49 +190,62 @@ class _HostelRoomListScreenState extends State<HostelRoomListScreen> {
           ),
     );
   }
-
-  Widget _buildRoomCard(HostelRoom room, bool isDark) {
-    return FadeInUp(
-      child: GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RoomDetailScreen(room: room))),
-        child: Container(
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                  child: Image.network(room.imageUrl ?? 'https://images.unsplash.com/photo-1555854817-5b273417735e', width: double.infinity, fit: BoxFit.cover, errorBuilder: (c,e,s) => Container(color: Colors.indigoAccent.withOpacity(0.1), child: const Icon(Icons.bed_rounded, color: Colors.indigoAccent))),
+Widget _buildRoomCard(HostelRoom room, bool isDark) {
+  return FadeInUp(
+    child: GestureDetector(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RoomDetailScreen(room: room))),
+      child: Container(
+        // FIX 1: Explicitly force the container to take full available width
+        width: double.infinity, 
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+        ),
+        child: Column(
+          // FIX 2: Force column children (like the Expanded image) to stretch full width
+          crossAxisAlignment: CrossAxisAlignment.stretch, 
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                child: Image.network(
+                  room.imageUrl ?? 'https://images.unsplash.com/photo-1555854817-5b273417735e', 
+                  width: double.infinity, 
+                  height: double.infinity, // Ensures it fills the Expanded space vertically
+                  fit: BoxFit.cover, 
+                  errorBuilder: (c, e, s) => Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    color: Colors.indigoAccent.withOpacity(0.1), 
+                    child: const Icon(Icons.bed_rounded, color: Colors.indigoAccent)
+                  ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('UNIT ${room.roomNumber}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 4),
-                    Text(room.roomType?.toUpperCase() ?? 'STANDARD', style: TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text('₹${room.basePrice.toInt()}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14)),
-                        const Icon(Icons.arrow_forward_rounded, size: 14, color: Colors.white24),
-                      ],
-                    ),
-                  ],
-                ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('UNIT ${room.roomNumber}', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 4),
+                  Text(room.roomType?.toUpperCase() ?? 'STANDARD', style: TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                  const SizedBox(height: 8),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('₹${room.basePrice.toInt()}', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14)),
+                      Icon(Icons.arrow_forward_rounded, size: 14, color: isDark ? Colors.white24 : Colors.black26),
+                    ],
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

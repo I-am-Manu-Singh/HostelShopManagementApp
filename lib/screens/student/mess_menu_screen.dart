@@ -4,7 +4,8 @@ import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
-import '../mess_menu_calendar_screen.dart';
+import '../campus/mess_menu_calendar_screen.dart';
+import '../admin/admin_mess_menu_screen.dart';
 
 class MessMenuScreen extends StatefulWidget {
   const MessMenuScreen({super.key});
@@ -27,10 +28,55 @@ class _MessMenuScreenState extends State<MessMenuScreen> {
     return (diff / 7).ceil();
   }
 
+  bool _isAdmin = false;
+  RealtimeChannel? _menuSubscription;
+
   @override
   void initState() {
     super.initState();
+    _checkRole();
     _fetchMenu();
+    _subscribeToMenuChanges();
+  }
+
+  void _checkRole() {
+    final user = _client.auth.currentUser;
+    if (user != null) {
+      _client.from('profiles').select('role').eq('id', user.id).maybeSingle().then((res) {
+        if (mounted && res != null) {
+          final role = res['role']?.toString().toLowerCase();
+          setState(() {
+            _isAdmin = role == 'admin' || role == 'owner' || role == 'hostel_manager';
+          });
+        }
+      });
+    }
+  }
+
+  void _subscribeToMenuChanges() {
+    try {
+      _menuSubscription = _client
+          .channel('public:mess_menu:realtime')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'mess_menu',
+            callback: (payload) {
+              if (mounted) {
+                _fetchMenu();
+              }
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    if (_menuSubscription != null) {
+      _client.removeChannel(_menuSubscription!);
+    }
+    super.dispose();
   }
 
   Future<void> _fetchMenu() async {
@@ -101,6 +147,15 @@ class _MessMenuScreenState extends State<MessMenuScreen> {
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
+          if (_isAdmin)
+            IconButton(
+              tooltip: 'Edit / Deploy Menu',
+              icon: const Icon(Icons.edit_note_rounded, color: Colors.greenAccent),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminMessMenuScreen()),
+              ).then((_) => _fetchMenu()),
+            ),
           IconButton(
             tooltip: 'Choose Week',
             icon: const Icon(Icons.calendar_month_rounded, color: Colors.orangeAccent),
@@ -109,7 +164,7 @@ class _MessMenuScreenState extends State<MessMenuScreen> {
           IconButton(
             tooltip: 'Calendar Archive',
             icon: const Icon(Icons.history_toggle_off_rounded, color: Colors.indigoAccent), 
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MessMenuCalendarScreen())),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => MessMenuCalendarScreen())),
           ),
         ],
       ),
@@ -179,7 +234,6 @@ class _MessMenuScreenState extends State<MessMenuScreen> {
   }
 
   Widget _buildDayCard(Map<String, dynamic> data, bool isDark) {
-    final textColor = isDark ? Colors.white : Colors.black;
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
       padding: const EdgeInsets.all(24),

@@ -4,7 +4,7 @@
     "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
     "kind": "Directory"
   },
-  "applicationId": "com.hostel.placeholder.on_audio_query_android",
+  "applicationId": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android",
   "variantName": "debug",
   "elements": [
     {

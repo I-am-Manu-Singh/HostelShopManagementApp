@@ -11,22 +11,22 @@ import 'admin_room_intelligence_screen.dart';
 import 'admin_complaints_screen.dart';
 import 'admin_block_management_screen.dart';
 import 'admin_inventory_management_screen.dart';
-import '../campus_stories_screen.dart';
+import '../campus/campus_stories_screen.dart';
 import 'admin_fee_package_screen.dart';
 import 'admin_mess_menu_screen.dart';
 import 'admin_outpass_screen.dart';
 import 'admin_procurement_screen.dart';
 import 'admin_audit_nexus_screen.dart';
-import '../live_security_dashboard.dart';
-import '../notifications_screen.dart';
+import '../security/live_security_dashboard.dart';
+import '../social/notifications_screen.dart';
 import '../employee/staff_task_hub_screen.dart';
-import '../lending_book_screen.dart';
+import '../productivity/lending_book_screen.dart';
 import 'admin_biometric_sync_screen.dart';
-import '../gate_terminal_screen.dart';
+import '../security/gate_terminal_screen.dart';
 import 'admin_guest_invitations_screen.dart';
 import 'admin_approvals_center_screen.dart';
 import 'admin_broadcast_screen.dart';
-import '../central_attendance_log_screen.dart';
+import '../security/central_attendance_log_screen.dart';
 import 'admin_room_inspection_screen.dart';
 import 'admin_fleet_console_screen.dart';
 import 'meter_reading_matrix_screen.dart';
@@ -146,7 +146,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         elevation: 0,
         actions: [
           IconButton(icon: const Icon(Icons.flash_on_rounded, color: Colors.amberAccent, size: 20), onPressed: () => print('🚀 [SYS_PING] MISSION CRITICAL PING SUCCESSFUL!')),
-          IconButton(icon: Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white : Colors.black, size: 20), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
+          IconButton(icon: Icon(Icons.notifications_none_rounded, color: isDark ? Colors.white : Colors.black, size: 20), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsScreen()))),
           _buildLiveStatus(isDark),
           const SizedBox(width: 16)
         ],
@@ -246,7 +246,7 @@ class _AdminPanelScreenState extends State<AdminPanelScreen> {
         children: [
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Revenue and Occupancy distribution', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('Revenue and Occupancy Distribution', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 16, fontWeight: FontWeight.bold)),
               Text('Real-time updates', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 10)),
             ]),
             const Icon(Icons.analytics_rounded, color: Colors.indigoAccent),
@@ -293,13 +293,12 @@ Widget _buildHubGrid(bool isDark) {
       _hubSection(
         'FINANCE',
         [
-          if (isOwner)
             {
               'icon': Icons.menu_book_rounded,
               'label': 'Lending Book',
               'value': 'ACTIVE',
               'color': Colors.amberAccent,
-              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => LendingBookScreen())),
+              'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LendingBookScreen())),
             },
           {
             'icon': Icons.account_balance_rounded,
@@ -324,7 +323,7 @@ Widget _buildHubGrid(bool isDark) {
       _hubSection(
         'RESIDENT & HOUSING',
         [
-          if (isOwner)
+          
             {
               'icon': Icons.badge_outlined,
               'label': 'Registry',
@@ -357,10 +356,17 @@ Widget _buildHubGrid(bool isDark) {
         [
           {
             'icon': Icons.restaurant_menu_rounded,
+            'label': 'Mess Menu',
+            'value': 'EDIT & DEPLOY',
+            'color': Colors.orangeAccent,
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminMessMenuScreen())),
+          },
+          {
+            'icon': Icons.how_to_reg_rounded,
             'label': 'Attendance',
             'value': 'LOG ACTIVE',
-            'color': Colors.orangeAccent,
-            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => CentralAttendanceLogScreen())),
+            'color': Colors.amberAccent,
+            'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CentralAttendanceLogScreen())),
           },
           {
             'icon': Icons.receipt_long_rounded,

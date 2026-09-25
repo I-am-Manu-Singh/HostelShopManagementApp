@@ -375,10 +375,27 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
   }
 
   Widget _buildOrderCard(dynamic o, bool isDark) {
-    final profile = o['profiles'];
+    final profile = o['profiles'] is Map ? o['profiles'] : null;
     final status = o['order_status'] ?? 'Placed';
-    final items = o['items'] as List;
+    final items = (o['items'] as List?) ?? [];
     final isUPI = o['payment_method'] == 'UPI';
+
+    // Intelligent customer name resolution
+    String customerName = 'CUSTOMER';
+    if (profile != null && profile['full_name'] != null && profile['full_name'].toString().trim().isNotEmpty) {
+      customerName = profile['full_name'].toString().trim();
+    } else if (o['customer_name'] != null && o['customer_name'].toString().trim().isNotEmpty) {
+      customerName = o['customer_name'].toString().trim();
+    } else if (o['phone_no'] != null && o['phone_no'].toString().trim().isNotEmpty) {
+      customerName = 'PH: ${o['phone_no']}';
+    } else if (o['user_type'] != null && o['user_type'].toString().trim().isNotEmpty) {
+      customerName = '${o['user_type'].toString().toUpperCase()} CLIENT';
+    } else if (o['user_id'] != null) {
+      final uid = o['user_id'].toString();
+      customerName = 'UID: ${uid.length > 8 ? uid.substring(0, 8) : uid}';
+    }
+
+    final initial = customerName.isNotEmpty ? customerName[0].toUpperCase() : 'C';
     
     return FadeInUp(
       child: Container(
@@ -392,17 +409,27 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
             iconColor: Colors.pinkAccent,
             title: Row(
               children: [
-                CircleAvatar(radius: 20, backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), child: Text(profile?['full_name']?[0] ?? 'C', style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold))),
+                CircleAvatar(radius: 20, backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), child: Text(initial, style: const TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold))),
                 const SizedBox(width: 16),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                    Row(children: [
-                     Text(profile?['full_name'] ?? 'USER', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 15)),
+                     Flexible(
+                       child: Text(customerName, overflow: TextOverflow.ellipsis, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 15)),
+                     ),
                      if (o['order_instructions'] != null && o['order_instructions'].toString().isNotEmpty) ...[
                        const SizedBox(width: 8),
                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.orangeAccent.withOpacity(0.12), borderRadius: BorderRadius.circular(8)), child: const Text('ALERT', style: TextStyle(color: Colors.orangeAccent, fontSize: 8, fontWeight: FontWeight.bold))),
                      ],
                    ]),
-                   Text('Order Total: ₹${o['total_price']}', style: GoogleFonts.outfit(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54)),
+                   Row(
+                     children: [
+                       Text('Order Total: ₹${o['total_price']}', style: GoogleFonts.outfit(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54)),
+                       if (o['phone_no'] != null && o['phone_no'].toString().isNotEmpty) ...[
+                         const SizedBox(width: 8),
+                         Text('•  ${o['phone_no']}', style: GoogleFonts.outfit(fontSize: 11, color: Colors.indigoAccent)),
+                       ],
+                     ],
+                   ),
                 ])),
               ],
             ),
@@ -606,53 +633,275 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
 
   void _showSettingsDialog(bool isDark) async {
     final chargeCtrl = TextEditingController();
+    List<Map<String, dynamic>> rules = [];
     try {
       final res = await _client.from('app_settings').select('value').eq('key', 'delivery_charge').maybeSingle();
       if (res != null) chargeCtrl.text = res['value'].toString();
+
+      final rulesRes = await _client.from('app_settings').select('value').eq('key', 'logistics_rules').maybeSingle();
+      if (rulesRes != null && rulesRes['value'] is List) {
+        rules = List<Map<String, dynamic>>.from(rulesRes['value']);
+      }
     } catch (_) {}
 
     if (!mounted) return;
 
+    final textColor = isDark ? Colors.white : Colors.black;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setSheetState) {
+          return Container(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, MediaQuery.of(context).viewInsets.bottom + 24),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('LOGISTICS & SURCHARGES', style: GoogleFonts.outfit(color: Colors.pinkAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+                        const SizedBox(height: 4),
+                        Text('FEE & FESTIVAL OFFERS', style: GoogleFonts.outfit(color: textColor, fontWeight: FontWeight.bold, fontSize: 18)),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      color: textColor.withOpacity(0.6),
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Standard Delivery Fee Row
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 3,
+                      child: Text('BASE DELIVERY FEE (₹)', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.bold, color: textColor)),
+                    ),
+                    Expanded(
+                      flex: 2,
+                      child: TextField(
+                        controller: chargeCtrl,
+                        keyboardType: TextInputType.number,
+                        style: TextStyle(fontWeight: FontWeight.bold, color: textColor),
+                        decoration: InputDecoration(
+                          hintText: '20',
+                          isDense: true,
+                          filled: true,
+                          fillColor: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 28),
+                // Custom Logistics Rules & Festival Offers Header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('OCCASIONAL OFFERS / CHARGES', style: GoogleFonts.outfit(color: textColor.withOpacity(0.7), fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1)),
+                    TextButton.icon(
+                      onPressed: () {
+                        _showAddRuleDialog(isDark, (newRule) {
+                          setSheetState(() {
+                            rules.add(newRule);
+                          });
+                        });
+                      },
+                      icon: const Icon(Icons.add, size: 16, color: Colors.pinkAccent),
+                      label: const Text('ADD RULE', style: TextStyle(color: Colors.pinkAccent, fontWeight: FontWeight.bold, fontSize: 11)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: rules.isEmpty
+                      ? Center(child: Text('No active festival/occasional rules set.', style: TextStyle(color: textColor.withOpacity(0.3), fontSize: 12)))
+                      : ListView.builder(
+                          shrinkWrap: true,
+                          itemCount: rules.length,
+                          itemBuilder: (c, idx) {
+                            final r = rules[idx];
+                            final isDiscount = r['type'] == 'discount';
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 10),
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(color: isDiscount ? Colors.greenAccent.withOpacity(0.3) : Colors.orangeAccent.withOpacity(0.3)),
+                              ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.all(8),
+                                    decoration: BoxDecoration(
+                                      color: isDiscount ? Colors.greenAccent.withOpacity(0.1) : Colors.orangeAccent.withOpacity(0.1),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Icon(
+                                      isDiscount ? Icons.local_offer_rounded : Icons.flash_on_rounded,
+                                      size: 16,
+                                      color: isDiscount ? Colors.greenAccent : Colors.orangeAccent,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(r['name'] ?? 'Custom Rule', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: textColor)),
+                                        Text('${isDiscount ? "Discount" : "Charge"}: ₹${r['amount']} • Applies: ${(r['applies_to'] ?? 'all').toString().toUpperCase()}',
+                                            style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 10)),
+                                      ],
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: r['enabled'] == true,
+                                    activeColor: Colors.pinkAccent,
+                                    onChanged: (val) {
+                                      setSheetState(() {
+                                        rules[idx]['enabled'] = val;
+                                      });
+                                    },
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline, size: 18, color: Colors.redAccent),
+                                    onPressed: () {
+                                      setSheetState(() {
+                                        rules.removeAt(idx);
+                                      });
+                                    },
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        final val = double.tryParse(chargeCtrl.text) ?? 20.0;
+                        await _client.from('app_settings').upsert({'key': 'delivery_charge', 'value': val});
+                        await _client.from('app_settings').upsert({'key': 'logistics_rules', 'value': rules});
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('LOGISTICS & FESTIVAL RULES UPDATED'), backgroundColor: Colors.greenAccent));
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Update failed: $e'), backgroundColor: Colors.redAccent));
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                    child: const Text('SAVE PARAMETERS & OFFERS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12, letterSpacing: 1)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAddRuleDialog(bool isDark, Function(Map<String, dynamic>) onAdd) {
+    final nameCtrl = TextEditingController();
+    final amtCtrl = TextEditingController();
+    String ruleType = 'discount'; // or 'charge'
+    String appliesTo = 'all'; // 'all', 'delivery_only', 'takeaway_only', 'domestic', 'commercial'
+    final textColor = isDark ? Colors.white : Colors.black;
+
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF16181A) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-        title: Text('LOGISTICS PARAMETERS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14, color: isDark ? Colors.white : Colors.black)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('STANDARD DELIVERY FEE (₹)', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: chargeCtrl,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
-              ),
+      builder: (dCtx) => StatefulBuilder(
+        builder: (context, setDState) => AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF1E2024) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text('ADD SPECIAL OFFER / SURCHARGE', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 14, color: textColor)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl,
+                  style: TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Offer / Surcharge Title (e.g. Diwali Discount, Monsoon Fee)',
+                    labelStyle: TextStyle(color: textColor.withOpacity(0.5), fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: amtCtrl,
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: textColor),
+                  decoration: InputDecoration(
+                    labelText: 'Adjustment Amount (₹)',
+                    labelStyle: TextStyle(color: textColor.withOpacity(0.5), fontSize: 11),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: ruleType,
+                  dropdownColor: isDark ? const Color(0xFF26282E) : Colors.white,
+                  decoration: const InputDecoration(labelText: 'Adjustment Type'),
+                  items: const [
+                    DropdownMenuItem(value: 'discount', child: Text('Discount (-₹ Off Total)')),
+                    DropdownMenuItem(value: 'charge', child: Text('Added Surcharge (+₹ To Total)')),
+                  ],
+                  onChanged: (v) => setDState(() => ruleType = v ?? 'discount'),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: appliesTo,
+                  dropdownColor: isDark ? const Color(0xFF26282E) : Colors.white,
+                  decoration: const InputDecoration(labelText: 'Where To Apply'),
+                  items: const [
+                    DropdownMenuItem(value: 'all', child: Text('All Orders & Customers')),
+                    DropdownMenuItem(value: 'delivery_only', child: Text('Home Delivery Only')),
+                    DropdownMenuItem(value: 'takeaway_only', child: Text('Takeaway Orders Only')),
+                    DropdownMenuItem(value: 'domestic', child: Text('Domestic / Student Only')),
+                    DropdownMenuItem(value: 'commercial', child: Text('Commercial Clients Only')),
+                  ],
+                  onChanged: (v) => setDState(() => appliesTo = v ?? 'all'),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('CANCEL')),
+            ElevatedButton(
+              onPressed: () {
+                final amt = double.tryParse(amtCtrl.text);
+                if (nameCtrl.text.trim().isEmpty || amt == null) return;
+                onAdd({
+                  'name': nameCtrl.text.trim(),
+                  'amount': amt,
+                  'type': ruleType,
+                  'applies_to': appliesTo,
+                  'enabled': true,
+                });
+                Navigator.pop(dCtx);
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent),
+              child: const Text('ADD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('CANCEL', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontWeight: FontWeight.bold))),
-          ElevatedButton(
-            onPressed: () async {
-              try {
-                final val = double.tryParse(chargeCtrl.text);
-                if (val == null) return;
-                await _client.from('app_settings').upsert({'key': 'delivery_charge', 'value': val});
-                Navigator.pop(ctx);
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('LOGISTICS UPDATED'), backgroundColor: Colors.greenAccent));
-              } catch (_) {}
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.pinkAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15))),
-            child: const Text('SAVE SETTINGS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
-          ),
-        ],
       ),
     );
   }

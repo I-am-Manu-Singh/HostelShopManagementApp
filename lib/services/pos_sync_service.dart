@@ -49,33 +49,70 @@ class PosSyncService {
       final timestamp = DateTime.now();
       final invoiceNumber = "INV-${timestamp.year}${timestamp.month.toString().padLeft(2, '0')}${timestamp.day.toString().padLeft(2, '0')}-${timestamp.millisecondsSinceEpoch.toString().substring(7)}";
 
-      // 1. If payment mode is student khata, verify balance / credit limit
-      if (paymentMode == 'khata' && customerId != null) {
+      // 1. If payment mode is student khata or student wallet, verify balance and deduct
+      if ((paymentMode == 'khata' || paymentMode == 'wallet') && customerId != null) {
         final profileRes = await _client.from('profiles').select('balance, full_name').eq('id', customerId).maybeSingle();
         if (profileRes != null) {
           final double currentBal = (profileRes['balance'] as num?)?.toDouble() ?? 0.0;
-          // Deduct from student balance (can go negative up to hostel credit limit or deduct wallet)
+          if (paymentMode == 'wallet' && currentBal < total) {
+            return PosCheckoutResult(
+              success: false,
+              errorMessage: 'Insufficient student wallet balance (Current: ₹${currentBal.toStringAsFixed(2)}, Due: ₹${total.toStringAsFixed(2)})',
+            );
+          }
+          // Deduct from student balance (can go negative up to hostel credit limit for khata, or direct wallet deduction)
           await _client.from('profiles').update({
             'balance': currentBal - total,
           }).eq('id', customerId);
         }
       }
 
-      // 2. Insert into shop_orders with POS tags
+      // 2. Insert into shop_orders with full POS metadata
       final orderData = {
-        'user_id': customerId ?? cashierId ?? 'walk-in-customer',
+        'user_id': (customerId != null && customerId.isNotEmpty) ? customerId : user?.id,
         'items': items.map((e) => e.toJson()).toList(),
         'total_price': total,
         'payment_status': 'Paid',
         'order_status': 'Delivered', // Immediate delivery on POS
         'created_at': timestamp.toIso8601String(),
         'delivery_location': 'POS Store Counter',
+        'invoice_number': invoiceNumber,
+        'payment_mode': paymentMode,
+        'subtotal': subtotal,
+        'discount': discount,
+        'cgst': cgst,
+        'sgst': sgst,
+        'tendered_amount': tenderedAmount,
+        'change_amount': changeAmount,
+        'cashier_id': cashierId ?? user?.id,
+        'is_pos_order': true,
       };
 
       try {
         await _client.from('shop_orders').insert(orderData);
-      } catch (e) {
-        debugPrint('Insert shop_orders error: $e');
+      } catch (insertErr) {
+        debugPrint('Insert shop_orders full schema failed: $insertErr, retrying with core columns...');
+        try {
+          // Fallback if some pos columns (e.g. is_pos_order or change_amount) are missing in older migrations
+          final coreOrderData = {
+            'user_id': (customerId != null && customerId.isNotEmpty) ? customerId : user?.id,
+            'items': items.map((e) => e.toJson()).toList(),
+            'total_price': total,
+            'payment_status': 'Paid',
+            'order_status': 'Delivered',
+            'created_at': timestamp.toIso8601String(),
+            'delivery_location': 'POS Store Counter',
+            'payment_mode': paymentMode,
+          };
+          if (invoiceNumber.isNotEmpty) coreOrderData['invoice_number'] = invoiceNumber;
+          await _client.from('shop_orders').insert(coreOrderData);
+        } catch (coreErr) {
+          debugPrint('Core shop_orders insert failed: $coreErr');
+          return PosCheckoutResult(
+            success: false,
+            errorMessage: 'Database order save failed: $coreErr. Please run the SQL migration in testsqls/pos_module_schema_fix.sql',
+          );
+        }
       }
 
       // 3. Decrement Inventory stock
@@ -99,6 +136,8 @@ class PosSyncService {
         quantity: i.qty,
         unitPrice: i.price,
         totalPrice: i.price * i.qty,
+        hsn: i.hsnCode,
+        taxPercent: i.taxRate,
       )).toList();
 
       final receiptData = PosReceiptData(

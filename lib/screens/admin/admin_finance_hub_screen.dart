@@ -8,8 +8,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../widgets/user_avatar.dart';
 import 'admin_audit_nexus_screen.dart';
-import '../universal_campus_ledger.dart';
-import '../fiscal_calendar_screen.dart';
+import '../finance/universal_campus_ledger.dart';
+import '../finance/fiscal_calendar_screen.dart';
+import '../finance/student_rent_mess_history_screen.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -793,28 +794,110 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
   }
 
   Widget _buildApprovalTile(dynamic a, bool isDark) {
-    bool isRent = a['payment_type'] == 'Rent';
+    final pType = (a['payment_type'] ?? 'Rent').toString();
+    final bool isRent = pType.toLowerCase().contains('rent');
+    final bool isMess = pType.toLowerCase().contains('mess');
+    final bool isWallet = pType.toLowerCase().contains('wallet');
+    final iconData = isRent 
+        ? Icons.bed_rounded 
+        : (isMess ? Icons.restaurant_rounded : (isWallet ? Icons.account_balance_wallet_rounded : Icons.shopping_bag_rounded));
+
+    final studentName = a['profiles']?['full_name'] ?? 'STUDENT';
+    final amount = a['amount'] ?? 0;
+    final dateStr = a['created_at'] != null ? DateFormat('dd MMM, hh:mm a').format(DateTime.parse(a['created_at'].toString())) : '';
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)),
+      ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            CircleAvatar(radius: 18, backgroundColor: Colors.indigoAccent.withOpacity(0.1), child: Icon(isRent ? Icons.bed_rounded : Icons.restaurant_rounded, color: Colors.indigoAccent, size: 16)),
-            const SizedBox(width: 16),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-               Text(a['profiles']?['full_name'] ?? 'STUDENT', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14)),
-               Text('TYPE: ${a['payment_type']} • ₹${a['amount']}', style: TextStyle(color: isDark ? Colors.white24 : Colors.black38, fontSize: 10, fontWeight: FontWeight.bold)),
-            ])),
-            IconButton(icon: const Icon(Icons.image_search_rounded, color: Colors.blueAccent), onPressed: () => _showScreenshotDialog(a['screenshot_url'], isDark)),
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.indigoAccent.withOpacity(0.12),
+              child: Icon(iconData, color: Colors.indigoAccent, size: 18),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    studentName,
+                    style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
+                        child: Text(
+                          pType.toUpperCase(),
+                          style: const TextStyle(color: Colors.indigoAccent, fontSize: 8, fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '₹$amount • $dateStr',
+                        style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton.icon(
+              icon: const Icon(Icons.zoom_in_rounded, size: 14),
+              label: const Text('PROOF', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigoAccent.withOpacity(0.15),
+                foregroundColor: Colors.indigoAccent,
+                elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              onPressed: () => _showScreenshotDialog(a['screenshot_url'], isDark),
+            ),
           ]),
           const SizedBox(height: 16),
-          Row(children: [
-            Expanded(child: ElevatedButton(onPressed: () => _approvePayment(a), style: ElevatedButton.styleFrom(backgroundColor: Colors.greenAccent, foregroundColor: Colors.black, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('APPROVE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900)))),
-            const SizedBox(width: 12),
-            Expanded(child: ElevatedButton(onPressed: () => _rejectPayment(a), style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('REJECT', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900)))),
-          ]),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.check_circle_outline_rounded, size: 16),
+                  label: const Text('APPROVE & CONFIRM', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.greenAccent,
+                    foregroundColor: Colors.black,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => _approvePayment(a),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton.icon(
+                  icon: const Icon(Icons.cancel_outlined, size: 16),
+                  label: const Text('REJECT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent.withOpacity(0.15),
+                    foregroundColor: Colors.redAccent,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: const BorderSide(color: Colors.redAccent)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  onPressed: () => _rejectPayment(a),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -823,41 +906,158 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
   Future<void> _approvePayment(dynamic a) async {
     try {
       final pType = (a['payment_type'] ?? 'Rent').toString();
-      if (pType == 'Rent') {
-        await _client.from('fiscal_collections').insert({
-          'student_id': a['user_id'],
-          'total_amount': a['amount'],
-          'room_rent': a['amount'],
-          'collection_cycle': DateFormat('MMMM yyyy').format(DateTime.now()),
-          'status': 'Approved',
-        });
-      } else if (pType == 'Mess' || pType == 'MessCard') {
+      final double amt = double.tryParse(a['amount']?.toString() ?? '0') ?? 0.0;
+      final userId = a['user_id']?.toString() ?? '';
+
+      if (pType == 'Rent' || pType.toLowerCase().contains('rent')) {
+        // Record in fiscal_collections with schema safe fallback
+        try {
+          await _client.from('fiscal_collections').insert({
+            'user_id': userId,
+            'student_id': userId,
+            'amount': amt,
+            'total_amount': amt,
+            'room_rent': amt,
+            'collection_type': 'Rent',
+            'payment_method': 'UPI',
+            'collection_cycle': DateFormat('MMMM yyyy').format(DateTime.now()),
+            'status': 'Approved',
+          });
+        } catch (_) {
+          // Fallback if student_id or room_rent is missing in legacy schema cache
+          await _client.from('fiscal_collections').insert({
+            'user_id': userId,
+            'amount': amt,
+            'collection_type': 'Rent',
+            'payment_method': 'UPI',
+          });
+        }
+      } else if (pType == 'Mess' || pType == 'MessCard' || pType.toLowerCase().contains('mess')) {
+        // Activate mess card for 30 days with schema fallback
         final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String();
-        await _client.from('mess_cards').upsert({
-          'user_id': a['user_id'], 
-          'expiry_date': expiry, 
-          'card_type': 'Standard', 
-          'status': 'Active'
-        }, onConflict: 'user_id');
+        try {
+          await _client.from('mess_cards').upsert({
+            'user_id': userId, 
+            'expiry_date': expiry, 
+            'card_type': 'Standard', 
+            'status': 'Active',
+            'card_number': 'MC-${userId.substring(0, 8).toUpperCase()}',
+          }, onConflict: 'user_id');
+        } catch (_) {
+          // Fallback if card_number is not in schema cache
+          await _client.from('mess_cards').upsert({
+            'user_id': userId, 
+            'expiry_date': expiry, 
+            'card_type': 'Standard', 
+            'status': 'Active',
+          }, onConflict: 'user_id');
+        }
       } else if (pType.toLowerCase().contains('shop') || pType.toLowerCase().contains('mandi') || pType.toLowerCase().contains('fastfood')) {
-        // Mark related shop order paid if order_id is present
+        // Mark related shop order paid
         if (a['order_id'] != null) {
           try {
             await _client.from('shop_orders').update({
               'payment_status': 'Paid',
-              'order_status': 'Completed'
+              'order_status': 'Confirmed'
             }).eq('id', a['order_id']);
           } catch (_) {}
         }
+      } else if (pType.toLowerCase().contains('wallet')) {
+        // Credit student wallet
+        try {
+          final profileRes = await _client.from('profiles').select('balance').eq('id', userId).maybeSingle();
+          final curBal = double.tryParse(profileRes?['balance']?.toString() ?? '0') ?? 0.0;
+          await _client.from('profiles').update({'balance': curBal + amt}).eq('id', userId);
+          await _client.from('wallet_transactions').insert({
+            'user_id': userId,
+            'amount': amt,
+            'transaction_type': 'UPI_APPROVAL',
+            'status': 'completed',
+          });
+        } catch (_) {}
       }
-      await _client.from('payment_approvals').update({'status': 'Approved'}).eq('id', a['id']);
+
+      try {
+        await _client.from('payment_approvals').update({
+          'status': 'Approved',
+          'admin_notes': 'Verified and approved by admin',
+        }).eq('id', a['id']);
+      } catch (colErr) {
+        debugPrint('payment_approvals update with admin_notes failed, updating without: $colErr');
+        await _client.from('payment_approvals').update({
+          'status': 'Approved',
+        }).eq('id', a['id']);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Approved ${a['payment_type']} of ₹${a['amount']} successfully!'), backgroundColor: Colors.greenAccent),
+        );
+      }
       _loadFinanceData();
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to approve: $e'), backgroundColor: Colors.redAccent),
+        );
+      }
+    }
   }
 
   Future<void> _rejectPayment(dynamic a) async {
-    await _client.from('payment_approvals').update({'status': 'Rejected'}).eq('id', a['id']);
-    _loadFinanceData();
+    final noteCtrl = TextEditingController();
+    final shouldReject = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('REJECT PAYMENT PROOF', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: Colors.redAccent)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('State reason for rejection so the student can rectify and resubmit:', style: GoogleFonts.outfit(fontSize: 12)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteCtrl,
+              decoration: const InputDecoration(
+                hintText: 'e.g. UTR mismatch, blurry screenshot, invalid amount',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 2,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('CANCEL')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            child: const Text('REJECT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldReject == true) {
+      final reason = noteCtrl.text.trim().isEmpty ? 'Payment proof unverified' : noteCtrl.text.trim();
+      try {
+        await _client.from('payment_approvals').update({
+          'status': 'Rejected',
+          'admin_notes': reason,
+        }).eq('id', a['id']);
+      } catch (colErr) {
+        debugPrint('payment_approvals reject with admin_notes failed, retrying without: $colErr');
+        await _client.from('payment_approvals').update({
+          'status': 'Rejected',
+        }).eq('id', a['id']);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Payment proof marked as Rejected ($reason)'), backgroundColor: Colors.redAccent),
+        );
+      }
+      _loadFinanceData();
+    }
   }
 
   void _showCashEntryDialog(String type, bool isDark) async {
@@ -1147,6 +1347,38 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
             _miniDetail('POWER', '₹${(r['electricity_charges'] ?? 0).toInt()}', Colors.amberAccent, isDark),
             _miniDetail('MISC', '₹${(r['misc_charges'] ?? 0).toInt()}', Colors.pinkAccent, isDark),
           ]),
+          const SizedBox(height: 10),
+          GestureDetector(
+            onTap: () {
+              final studentId = r['student_id'] ?? profile?['id'];
+              if (studentId != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => StudentRentMessHistoryScreen(
+                      studentId: studentId.toString(),
+                      studentName: profile?['full_name'] ?? 'STUDENT',
+                    ),
+                  ),
+                );
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.indigoAccent.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.receipt_long_rounded, color: Colors.indigoAccent, size: 13),
+                  const SizedBox(width: 6),
+                  Text('VIEW COMPLETE BREAKDOWN & INVOICE', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                ],
+              ),
+            ),
+          ),
       ]),
     );
   }
@@ -1247,8 +1479,116 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
     );
   }
 
-  void _showScreenshotDialog(String url, bool isDark) {
-    showDialog(context: context, builder: (ctx) => BackdropFilter(filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10), child: Dialog(backgroundColor: Colors.transparent, child: Column(mainAxisSize: MainAxisSize.min, children: [ClipRRect(borderRadius: BorderRadius.circular(24), child: Image.network(url, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Center(child: Text('LOAD ERROR', style: TextStyle(color: Colors.white))))), const SizedBox(height: 16), ElevatedButton(onPressed: () => Navigator.pop(ctx), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent), child: const Text('DISMISS', style: TextStyle(color: Colors.white)))]))));
+  void _showScreenshotDialog(String? url, bool isDark) {
+    if (url == null || url.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No screenshot attached.'), backgroundColor: Colors.orangeAccent),
+      );
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (ctx) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * 0.75,
+                  maxWidth: 600,
+                ),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF16181A) : Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 30, offset: const Offset(0, 10)),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        color: isDark ? Colors.black26 : Colors.grey.shade100,
+                        child: Row(
+                          children: [
+                            const Icon(Icons.receipt_long_rounded, color: Colors.indigoAccent, size: 18),
+                            const SizedBox(width: 8),
+                            Text('PAYMENT PROOF VERIFICATION', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1)),
+                            const Spacer(),
+                            Text('Pinch to zoom', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 10)),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 20),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: () => Navigator.pop(ctx),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Flexible(
+                        child: InteractiveViewer(
+                          panEnabled: true,
+                          minScale: 0.8,
+                          maxScale: 4.0,
+                          child: Image.network(
+                            url,
+                            fit: BoxFit.contain,
+                            loadingBuilder: (c, child, progress) {
+                              if (progress == null) return child;
+                              return Container(
+                                height: 260,
+                                alignment: Alignment.center,
+                                child: CircularProgressIndicator(
+                                  value: progress.expectedTotalBytes != null ? progress.cumulativeBytesLoaded / progress.expectedTotalBytes! : null,
+                                  color: Colors.indigoAccent,
+                                ),
+                              );
+                            },
+                            errorBuilder: (c, e, s) => Container(
+                              height: 200,
+                              alignment: Alignment.center,
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.broken_image_rounded, color: Colors.redAccent, size: 36),
+                                  const SizedBox(height: 8),
+                                  Text('Unable to load receipt preview\n$url', textAlign: TextAlign.center, style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.check_rounded, size: 16),
+                label: const Text('DISMISS PREVIEW', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+                onPressed: () => Navigator.pop(ctx),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigoAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _buildLiquidityCard(bool isDark) {

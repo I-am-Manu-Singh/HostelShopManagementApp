@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class FocusModeScreen extends StatefulWidget {
   const FocusModeScreen({super.key});
@@ -22,8 +23,32 @@ class _FocusModeScreenState extends State<FocusModeScreen> {
   ];
 
   bool _isStrictMode = false;
-  String _exitPin = "1111"; // Real-world: Should fetch from profile metadata
+  String _exitPin = '1111'; // Loaded from Supabase profile metadata
   List<String> _selectedAppNames = ['Notes', 'Calculator', 'Clock'];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPin();
+  }
+
+  Future<void> _loadPin() async {
+    try {
+      final user = Supabase.instance.client.auth.currentUser;
+      if (user == null) return;
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('metadata')
+          .eq('id', user.id)
+          .maybeSingle();
+      if (profile != null) {
+        final meta = profile['metadata'];
+        if (meta is Map && meta['focus_pin'] != null) {
+          setState(() => _exitPin = meta['focus_pin'].toString());
+        }
+      }
+    } catch (_) {} // silently keep default
+  }
 
   @override
   Widget build(BuildContext context) {

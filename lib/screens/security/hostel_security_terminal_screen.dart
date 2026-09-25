@@ -251,7 +251,7 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
                     return DropdownMenuItem(
                       value: p,
                       child: Text(
-                        '${p['full_name']?.toString().toUpperCase() ?? 'USER'} ${hasBio ? "🔑" : "⚠️ NO BIO"}',
+                        '${p['full_name']?.toString().toUpperCase() ?? 'USER'} ${hasBio ? "🔑 ✅" : "🔑 ❌"}',
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                       ),
                     );

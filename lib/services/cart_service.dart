@@ -109,11 +109,44 @@ class CartProvider with ChangeNotifier {
       if (user == null) return 'USER SESSION EXPIRED';
 
       final subTotal = totalAmount;
-      // Fetch delivery charge from app_settings or default to 20
-      final settings = await _supabase.from('app_settings').select('value').eq('key', 'delivery_charge').maybeSingle();
-      final deliveryFeeBase = (settings?['value'] as num? ?? 20.0).toDouble();
+      // Fetch delivery charge and special logistics rules / festival offers
+      double deliveryFeeBase = 20.0;
+      double specialAdjustment = 0.0; // Positive for surcharges, negative for discounts
+      try {
+        final settings = await _supabase.from('app_settings').select('key, value').inFilter('key', ['delivery_charge', 'logistics_rules']);
+        for (var s in settings) {
+          if (s['key'] == 'delivery_charge') {
+            deliveryFeeBase = (s['value'] as num? ?? 20.0).toDouble();
+          } else if (s['key'] == 'logistics_rules' && s['value'] != null) {
+            final rules = s['value'] is List ? s['value'] as List : [];
+            for (var r in rules) {
+              if (r['enabled'] == true) {
+                final appliesTo = r['applies_to']?.toString() ?? 'all';
+                final matchesDelivery = appliesTo == 'all' || 
+                    (appliesTo == 'delivery_only' && deliveryType == 'Home Delivery') ||
+                    (appliesTo == 'takeaway_only' && deliveryType != 'Home Delivery') ||
+                    (appliesTo == userType);
+
+                if (matchesDelivery) {
+                  final type = r['type']?.toString(); // 'discount' or 'charge'
+                  final amount = (r['amount'] as num? ?? 0.0).toDouble();
+                  if (type == 'discount') {
+                    specialAdjustment -= amount;
+                  } else {
+                    specialAdjustment += amount;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch (err) {
+        debugPrint('Logistics calculation notice: $err');
+      }
+
       final deliveryFee = deliveryType == 'Home Delivery' ? deliveryFeeBase : 0.0;
-      final total = subTotal + deliveryFee;
+      final calculatedTotal = subTotal + deliveryFee + specialAdjustment;
+      final total = calculatedTotal > 0 ? calculatedTotal : 0.0;
 
       // 1. Prepare items for PG insertion
       final itemsJson = _items.entries.map((e) => {
@@ -163,19 +196,36 @@ class CartProvider with ChangeNotifier {
       } catch (rpcErr) {
         // Fallback: If RPC place_shop_order is not defined, execute direct database transaction insert
         debugPrint('RPC place_shop_order not found. Executing client-side fallback insert. Error: $rpcErr');
-        await _supabase.from('shop_orders').insert({
-          'user_id': user.id,
-          'items': itemsJson,
-          'total_price': total,
-          'payment_method': paymentMethod,
-          'payment_status': paymentMethod == 'Wallet' ? 'Paid' : 'Pending',
-          'order_status': 'Placed',
-          'is_booking': false,
-          'delivery_address': deliveryAddress,
-          'phone_no': phoneNo,
-          'upi_screenshot_url': upiScreenshotUrl,
-          'instructions': instructions,
-        });
+        try {
+          await _supabase.from('shop_orders').insert({
+            'user_id': user.id,
+            'items': itemsJson,
+            'total_price': total,
+            'payment_method': paymentMethod,
+            'payment_status': paymentMethod == 'Wallet' ? 'Paid' : 'Pending',
+            'order_status': 'Placed',
+            'is_booking': false,
+            'delivery_address': deliveryAddress,
+            'phone_no': phoneNo,
+            'upi_screenshot_url': upiScreenshotUrl,
+            'instructions': instructions,
+          });
+        } catch (colErr) {
+          // If 'instructions' column is missing from schema cache, retry without it
+          debugPrint('Insert with instructions failed, retrying without: $colErr');
+          await _supabase.from('shop_orders').insert({
+            'user_id': user.id,
+            'items': itemsJson,
+            'total_price': total,
+            'payment_method': paymentMethod,
+            'payment_status': paymentMethod == 'Wallet' ? 'Paid' : 'Pending',
+            'order_status': 'Placed',
+            'is_booking': false,
+            'delivery_address': deliveryAddress,
+            'phone_no': phoneNo,
+            'upi_screenshot_url': upiScreenshotUrl,
+          });
+        }
 
         // Deduct wallet balance client-side if payment method is Wallet
         if (paymentMethod == 'Wallet') {

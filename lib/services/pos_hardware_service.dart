@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 enum ReceiptTemplateStyle {
   retailStandard,   // Standard detailed itemized tax invoice
@@ -102,19 +103,30 @@ class PosHardwareService {
   static const String _prefStoreGstinKey = 'pos_store_gstin';
   static const String _prefStorePhoneKey = 'pos_store_phone';
   static const String _prefFooterNoteKey = 'pos_receipt_footer_note';
+  static const String _prefStoreFooterKey = 'pos_store_footer_note'; // Fixed missing constant key
   static const String _prefPrintBarcodeKey = 'pos_print_barcode_enabled';
   static const String _prefCashDrawerPulseKey = 'pos_cash_drawer_pulse_enabled';
+  static const String _prefConnectedMacKey = 'pos_connected_printer_mac';
+  static const String _prefConnectedNameKey = 'pos_connected_printer_name';
+  static const String _prefMerchantUpiVpaKey = 'pos_merchant_upi_vpa';
+  static const String _prefMerchantNameKey = 'pos_merchant_name';
 
-  int paperWidthMm = 58; // 58mm or 80mm
+  int paperWidthMm = 58; 
   bool autoPrint = true;
   ReceiptTemplateStyle templateStyle = ReceiptTemplateStyle.retailStandard;
   String storeName = "Hostel SuperMart & POS";
   String storeAddress = "Campus Block B, Ground Floor";
   String storeGstin = "07AAAAA0000A1Z5";
-  String storePhone = "+91 9876543210";
+  String storePhone = "+91 7976287989";
   String footerNote = "Thank you for shopping with us!\nVisit again.";
   bool printBarcode = true;
   bool cashDrawerPulse = true;
+  String merchantUpiVpa = "campusshop@upi";
+  String merchantName = "Hostel SuperMart";
+
+  String? connectedMacAddress;
+  String? connectedDeviceName;
+  bool _isConnectingOrReconnecting = false;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -125,10 +137,47 @@ class PosHardwareService {
     storeName = prefs.getString(_prefStoreNameKey) ?? "Hostel SuperMart & POS";
     storeAddress = prefs.getString(_prefStoreAddressKey) ?? "Campus Block B, Ground Floor";
     storeGstin = prefs.getString(_prefStoreGstinKey) ?? "07AAAAA0000A1Z5";
-    storePhone = prefs.getString(_prefStorePhoneKey) ?? "+91 9876543210";
-    footerNote = prefs.getString(_prefFooterNoteKey) ?? "Thank you for shopping with us!\nVisit again.";
+    storePhone = prefs.getString(_prefStorePhoneKey) ?? "+91 7976287989";
+    footerNote = prefs.getString(_prefFooterNoteKey) ?? prefs.getString(_prefStoreFooterKey) ?? "Thank you for shopping with us!\nVisit again.";
     printBarcode = prefs.getBool(_prefPrintBarcodeKey) ?? true;
     cashDrawerPulse = prefs.getBool(_prefCashDrawerPulseKey) ?? true;
+    merchantUpiVpa = prefs.getString(_prefMerchantUpiVpaKey) ?? "campusshop@upi";
+    merchantName = prefs.getString(_prefMerchantNameKey) ?? storeName;
+
+    connectedMacAddress = prefs.getString(_prefConnectedMacKey);
+    connectedDeviceName = prefs.getString(_prefConnectedNameKey);
+
+    if (connectedMacAddress != null && connectedMacAddress!.isNotEmpty) {
+      _verifyAndAutoReconnect();
+    }
+  }
+
+  Future<void> _verifyAndAutoReconnect() async {
+    if (_isConnectingOrReconnecting || connectedMacAddress == null) return;
+    _isConnectingOrReconnecting = true;
+
+    try {
+      final bool isBtEnabled = await PrintBluetoothThermal.bluetoothEnabled;
+      if (!isBtEnabled) {
+        _isConnectingOrReconnecting = false;
+        return;
+      }
+
+      final bool isConnected = await PrintBluetoothThermal.connectionStatus;
+      if (!isConnected) {
+        final bool reconnected = await PrintBluetoothThermal.connect(macPrinterAddress: connectedMacAddress!);
+        if (!reconnected) {
+          connectedMacAddress = null;
+          connectedDeviceName = null;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.remove(_prefConnectedMacKey);
+          await prefs.remove(_prefConnectedNameKey);
+        }
+      }
+    } catch (_) {
+    } finally {
+      _isConnectingOrReconnecting = false;
+    }
   }
 
   Future<void> saveSettings({
@@ -142,6 +191,8 @@ class PosHardwareService {
     required String footer,
     required bool printBarcodeOnBill,
     required bool kickDrawer,
+    String? merchantVpa,
+    String? merchName,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     paperWidthMm = paperWidth;
@@ -154,6 +205,14 @@ class PosHardwareService {
     footerNote = footer;
     printBarcode = printBarcodeOnBill;
     cashDrawerPulse = kickDrawer;
+    if (merchantVpa != null && merchantVpa.isNotEmpty) {
+      merchantUpiVpa = merchantVpa;
+      await prefs.setString(_prefMerchantUpiVpaKey, merchantUpiVpa);
+    }
+    if (merchName != null && merchName.isNotEmpty) {
+      merchantName = merchName;
+      await prefs.setString(_prefMerchantNameKey, merchantName);
+    }
 
     await prefs.setInt(_prefPaperWidthKey, paperWidthMm);
     await prefs.setBool(_prefAutoPrintKey, autoPrint);
@@ -163,18 +222,17 @@ class PosHardwareService {
     await prefs.setString(_prefStoreGstinKey, storeGstin);
     await prefs.setString(_prefStorePhoneKey, storePhone);
     await prefs.setString(_prefFooterNoteKey, footerNote);
+    await prefs.setString(_prefStoreFooterKey, footerNote);
     await prefs.setBool(_prefPrintBarcodeKey, printBarcode);
     await prefs.setBool(_prefCashDrawerPulseKey, cashDrawerPulse);
   }
 
-  /// Generate raw ESC/POS bytes for 58mm or 80mm thermal printers
   Future<List<int>> generateEscPosBytes(PosReceiptData receipt) async {
     final profile = await CapabilityProfile.load();
     final paper = paperWidthMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
     final generator = Generator(paper, profile);
     List<int> bytes = [];
 
-    // Header
     bytes += generator.reset();
     bytes += generator.text(
       receipt.storeName,
@@ -222,7 +280,6 @@ class PosHardwareService {
     }
     bytes += generator.hr();
 
-    // Items
     if (receipt.templateStyle == ReceiptTemplateStyle.kitchenKot) {
       for (var item in receipt.items) {
         bytes += generator.text("${item.quantity}x ${item.name}", styles: const PosStyles(bold: true, height: PosTextSize.size2));
@@ -262,7 +319,6 @@ class PosHardwareService {
       }
       bytes += generator.hr();
 
-      // Summary
       bytes += generator.row([
         PosColumn(text: 'Subtotal:', width: 6),
         PosColumn(text: "Rs ${receipt.subtotal.toStringAsFixed(2)}", width: 6, styles: const PosStyles(align: PosAlign.right)),
@@ -329,30 +385,28 @@ class PosHardwareService {
     return bytes;
   }
 
-  /// High-reliability Printing supporting Direct Bluetooth ESC/POS hardware or OS Print Spooler / PDF roll layout (58mm / 80mm)
   Future<bool> printThermalReceipt(PosReceiptData data) async {
     try {
-      // 1. If direct Bluetooth printer is connected, send ESC/POS raw bytes directly
-      final bool btConnected = await isBluetoothConnected();
-      if (btConnected) {
-        final bytes = await generateEscPosBytes(data);
-        final bool sent = await printBytesDirectBluetooth(bytes);
-        if (sent) return true;
+      if (connectedMacAddress != null) {
+        await _verifyAndAutoReconnect();
+        final bool btConnected = await isBluetoothConnected();
+        if (btConnected) {
+          final bytes = await generateEscPosBytes(data);
+          final bool sent = await printBytesDirectBluetooth(bytes);
+          if (sent) return true;
+        }
       }
 
-      // 2. Fallback / default OS print spooler via PDF roll layout
       final doc = await buildReceiptPdfDocument(data);
-
       return await Printing.layoutPdf(
         onLayout: (format) async => doc.save(),
         name: 'POS_${data.invoiceNumber}',
       );
-    } catch (e) {
+    } catch (_) {
       return false;
     }
   }
 
-  /// Build standard printable PDF document for receipt
   Future<pw.Document> buildReceiptPdfDocument(PosReceiptData data) async {
     final doc = pw.Document();
     final pageFormat = paperWidthMm == 80 ? PdfPageFormat.roll80 : PdfPageFormat.roll57;
@@ -394,7 +448,6 @@ class PosHardwareService {
                 ),
               pw.Divider(thickness: 0.5),
 
-              // Table Header
               pw.Row(
                 children: [
                   pw.Expanded(flex: isGst ? 4 : 5, child: pw.Text("Item", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold))),
@@ -405,7 +458,6 @@ class PosHardwareService {
               ),
               pw.Divider(thickness: 0.5),
 
-              // Items
               ...data.items.map((item) => pw.Padding(
                 padding: const pw.EdgeInsets.symmetric(vertical: 1.5),
                 child: pw.Row(
@@ -503,7 +555,6 @@ class PosHardwareService {
     return doc;
   }
 
-  /// Share thermal receipt as PDF file via WhatsApp, Gmail or any app
   Future<void> shareReceiptPdf(PosReceiptData data) async {
     final doc = await buildReceiptPdfDocument(data);
     final bytes = await doc.save();
@@ -513,7 +564,6 @@ class PosHardwareService {
     );
   }
 
-  /// Share thermal receipt as PNG rasterized image (ideal for WhatsApp direct messaging)
   Future<void> shareReceiptImage(PosReceiptData data) async {
     final doc = await buildReceiptPdfDocument(data);
     final bytes = await doc.save();
@@ -528,66 +578,508 @@ class PosHardwareService {
         [xFile],
         text: 'Thermal Receipt #${data.invoiceNumber} - Total Rs ${data.total.toStringAsFixed(2)}',
       );
-      break; // share first receipt page
+      break;
     }
   }
 
-  // ── Bluetooth Thermal Direct ESC/POS Wireless Hardware Layer ───────────────
-  String? connectedMacAddress;
-  String? connectedDeviceName;
+  Future<bool> requestBluetoothPermissions() async {
+    try {
+      final Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetooth,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.location,
+      ].request();
 
-  /// Get list of paired Bluetooth devices
+      // Return true if connect & scan or bluetooth is granted
+      final bool connectOk = statuses[Permission.bluetoothConnect]?.isGranted ?? true;
+      final bool scanOk = statuses[Permission.bluetoothScan]?.isGranted ?? true;
+      return connectOk && scanOk;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Requests runtime Android/iOS Bluetooth & Location permissions and checks if Bluetooth adapter is powered on
+  Future<Map<String, dynamic>> checkAndRequestBluetoothState() async {
+    try {
+      final statuses = await [
+        Permission.bluetooth,
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.location,
+      ].request();
+
+      final bool connectOk = statuses[Permission.bluetoothConnect]?.isGranted ?? true;
+      final bool scanOk = statuses[Permission.bluetoothScan]?.isGranted ?? true;
+
+      if (!connectOk || !scanOk) {
+        return {
+          'granted': false,
+          'bluetoothOn': false,
+          'message': 'Bluetooth Scan/Connect permissions were not granted. Please enable them in App Settings.',
+        };
+      }
+
+      final bool isBtOn = await PrintBluetoothThermal.bluetoothEnabled;
+      return {
+        'granted': true,
+        'bluetoothOn': isBtOn,
+        'message': isBtOn ? 'Bluetooth is active' : 'Bluetooth adapter is turned OFF on this device.',
+      };
+    } catch (e) {
+      return {
+        'granted': false,
+        'bluetoothOn': false,
+        'message': 'Permission check error: $e',
+      };
+    }
+  }
+
   Future<List<BluetoothInfo>> getPairedBluetoothPrinters() async {
     try {
-      final List<BluetoothInfo> listResult = await PrintBluetoothThermal.pairedBluetooths;
-      return listResult;
-    } catch (e) {
+      final check = await checkAndRequestBluetoothState();
+      if (!check['granted'] || !check['bluetoothOn']) return [];
+      return await PrintBluetoothThermal.pairedBluetooths;
+    } catch (_) {
       return [];
     }
   }
 
-  /// Connect to Bluetooth Thermal Printer using MAC address
   Future<bool> connectBluetoothPrinter(String macAddress, String name) async {
     try {
+      await PrintBluetoothThermal.disconnect;
       final bool result = await PrintBluetoothThermal.connect(macPrinterAddress: macAddress);
       if (result) {
         connectedMacAddress = macAddress;
         connectedDeviceName = name;
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(_prefConnectedMacKey, macAddress);
+        await prefs.setString(_prefConnectedNameKey, name);
       }
       return result;
-    } catch (e) {
+    } catch (_) {
       return false;
     }
   }
 
-  /// Disconnect current Bluetooth printer
   Future<bool> disconnectBluetoothPrinter() async {
     try {
-      final bool result = await PrintBluetoothThermal.disconnect;
+      await PrintBluetoothThermal.disconnect;
       connectedMacAddress = null;
       connectedDeviceName = null;
-      return result;
-    } catch (e) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_prefConnectedMacKey);
+      await prefs.remove(_prefConnectedNameKey);
+      return true;
+    } catch (_) {
       return false;
     }
   }
 
-  /// Check connection status
   Future<bool> isBluetoothConnected() async {
     try {
       return await PrintBluetoothThermal.connectionStatus;
-    } catch (e) {
+    } catch (_) {
       return false;
     }
   }
 
-  /// Send raw ESC/POS bytes directly over Bluetooth socket
   Future<bool> printBytesDirectBluetooth(List<int> bytes) async {
     try {
       final bool connected = await PrintBluetoothThermal.connectionStatus;
       if (!connected) return false;
       return await PrintBluetoothThermal.writeBytes(bytes);
-    } catch (e) {
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Print Day-End Financial Z-Report / Shift Closeout to thermal printer or system spooler
+  Future<bool> printZReport({
+    required String timeframe,
+    required double totalSales,
+    required int orderCount,
+    required double avgOrderValue,
+    required double taxCollected,
+    required double totalPurchases,
+    required double grossProfit,
+    required List<Map<String, dynamic>> topProducts,
+  }) async {
+    try {
+      final profile = await CapabilityProfile.load();
+      final paper = paperWidthMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
+      final generator = Generator(paper, profile);
+      List<int> bytes = [];
+
+      bytes += generator.reset();
+      bytes += generator.text(
+        storeName,
+        styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
+      );
+      if (storeAddress.isNotEmpty) {
+        bytes += generator.text(storeAddress, styles: const PosStyles(align: PosAlign.center));
+      }
+      bytes += generator.hr(ch: '=');
+      bytes += generator.text(
+        "DAY-END Z-REPORT (FINANCIAL)",
+        styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1),
+      );
+      bytes += generator.text("Timeframe: ${timeframe.toUpperCase()}");
+      bytes += generator.text("Generated: ${DateFormat('dd-MMM-yyyy hh:mm a').format(DateTime.now())}");
+      bytes += generator.hr();
+
+      bytes += generator.row([
+        PosColumn(text: "Total Revenue:", width: 7, styles: const PosStyles(bold: true)),
+        PosColumn(text: "Rs ${totalSales.toStringAsFixed(2)}", width: 5, styles: const PosStyles(align: PosAlign.right, bold: true)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: "Order Count:", width: 7),
+        PosColumn(text: "$orderCount", width: 5, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: "Avg Order Value:", width: 7),
+        PosColumn(text: "Rs ${avgOrderValue.toStringAsFixed(2)}", width: 5, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: "GST Collected:", width: 7),
+        PosColumn(text: "Rs ${taxCollected.toStringAsFixed(2)}", width: 5, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: "Stock Procured:", width: 7),
+        PosColumn(text: "Rs ${totalPurchases.toStringAsFixed(2)}", width: 5, styles: const PosStyles(align: PosAlign.right)),
+      ]);
+      bytes += generator.row([
+        PosColumn(text: "Gross Profit:", width: 7, styles: const PosStyles(bold: true)),
+        PosColumn(text: "Rs ${grossProfit.toStringAsFixed(2)}", width: 5, styles: const PosStyles(align: PosAlign.right, bold: true)),
+      ]);
+      bytes += generator.hr();
+
+      if (topProducts.isNotEmpty) {
+        bytes += generator.text("TOP FAST-MOVING ITEMS", styles: const PosStyles(bold: true));
+        for (var p in topProducts.take(5)) {
+          bytes += generator.text("${p['name']} (Qty: ${p['quantity']}) - Rs ${(p['revenue'] as num).toStringAsFixed(1)}");
+        }
+        bytes += generator.hr();
+      }
+
+      bytes += generator.text("Shift Cashier Sign: ____________", styles: const PosStyles(align: PosAlign.center));
+      bytes += generator.feed(2);
+      bytes += generator.cut();
+
+      if (connectedMacAddress != null) {
+        await _verifyAndAutoReconnect();
+        if (await isBluetoothConnected()) {
+          final sent = await printBytesDirectBluetooth(bytes);
+          if (sent) return true;
+        }
+      }
+
+      // Fallback to PDF spooler
+      final doc = pw.Document();
+      final pageFormat = paperWidthMm == 80 ? PdfPageFormat.roll80 : PdfPageFormat.roll57;
+      doc.addPage(
+        pw.Page(
+          pageFormat: pageFormat,
+          margin: const pw.EdgeInsets.all(6),
+          build: (ctx) => pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Text(storeName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+              pw.Divider(thickness: 1),
+              pw.Text("DAY-END FINANCIAL Z-REPORT", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9)),
+              pw.Text("Generated: ${DateFormat('dd-MMM-yyyy HH:mm').format(DateTime.now())}", style: const pw.TextStyle(fontSize: 8)),
+              pw.Divider(thickness: 0.5),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Text("Total Sales:", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("Rs ${totalSales.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+              ]),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Text("Total Orders:", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("$orderCount", style: const pw.TextStyle(fontSize: 8)),
+              ]),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Text("Tax Collected:", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("Rs ${taxCollected.toStringAsFixed(2)}", style: const pw.TextStyle(fontSize: 8)),
+              ]),
+              pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                pw.Text("Gross Profit:", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("Rs ${grossProfit.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
+              ]),
+              pw.Divider(thickness: 0.5),
+              pw.Text("Cashier Sign: ____________", style: const pw.TextStyle(fontSize: 8)),
+            ],
+          ),
+        ),
+      );
+
+      return await Printing.layoutPdf(
+        onLayout: (fmt) async => doc.save(),
+        name: 'Z_REPORT_${DateFormat('yyyyMMdd').format(DateTime.now())}',
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Print standard 50x30mm or 58mm roll Product Barcode & Price Tag Sticker
+  /// Sends direct ESC/POS command to connected Bluetooth/USB thermal printer or falls back to PDF printing spooler.
+  Future<bool> printProductBarcodeLabel({
+    required String name,
+    required String barcode,
+    required double price,
+    String? brand,
+    String? hsn,
+    int copies = 1,
+  }) async {
+    try {
+      final cleanBarcode = barcode.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').trim();
+      final displayName = name.length > 28 ? '${name.substring(0, 25)}...' : name;
+
+      // 1. Direct ESC/POS printing if Bluetooth thermal printer is paired & connected
+      if (connectedMacAddress != null) {
+        await _verifyAndAutoReconnect();
+        if (await isBluetoothConnected()) {
+          final profile = await CapabilityProfile.load();
+          final paper = paperWidthMm == 80 ? PaperSize.mm80 : PaperSize.mm58;
+          final generator = Generator(paper, profile);
+          List<int> bytes = [];
+
+          for (int c = 0; c < copies; c++) {
+            bytes += generator.reset();
+            // Store / Brand Header
+            bytes += generator.text(
+              brand != null && brand.isNotEmpty ? brand.toUpperCase() : storeName,
+              styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1, width: PosTextSize.size1),
+            );
+            // Product Title
+            bytes += generator.text(
+              displayName,
+              styles: const PosStyles(align: PosAlign.center, bold: true),
+            );
+            // Price Tag
+            bytes += generator.text(
+              "MRP: Rs ${price.toStringAsFixed(2)}",
+              styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
+            );
+            if (hsn != null && hsn.isNotEmpty) {
+              bytes += generator.text("HSN: $hsn  (Incl. of all taxes)", styles: const PosStyles(align: PosAlign.center));
+            } else {
+              bytes += generator.text("(Inclusive of all taxes)", styles: const PosStyles(align: PosAlign.center));
+            }
+            bytes += generator.feed(1);
+
+            // Barcode printing: QR code fallback or 1D barcode
+            if (cleanBarcode.length == 13 && RegExp(r'^[0-9]{13}$').hasMatch(cleanBarcode)) {
+              // Standard EAN-13
+              final List<int> eanBytes = cleanBarcode.split('').map((e) => int.parse(e)).toList();
+              bytes += generator.barcode(Barcode.ean13(eanBytes));
+            } else {
+              // Code128 or QR
+              bytes += generator.qrcode(cleanBarcode, size: QRSize.size4);
+            }
+
+            bytes += generator.text(cleanBarcode, styles: const PosStyles(align: PosAlign.center, bold: true));
+            bytes += generator.feed(2);
+            bytes += generator.cut();
+          }
+
+          final sent = await printBytesDirectBluetooth(bytes);
+          if (sent) return true;
+        }
+      }
+
+      // 2. Fallback to System PDF Spooler (Roll/Sticker 50x30mm or 58mm format)
+      final doc = pw.Document();
+      // Standard retail sticker format: 50mm width x 35mm height
+      const labelFormat = PdfPageFormat(
+        50 * PdfPageFormat.mm,
+        35 * PdfPageFormat.mm,
+        marginAll: 2 * PdfPageFormat.mm,
+      );
+
+      for (int c = 0; c < copies; c++) {
+        doc.addPage(
+          pw.Page(
+            pageFormat: labelFormat,
+            build: (pw.Context ctx) {
+              return pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  pw.Text(
+                    brand != null && brand.isNotEmpty ? brand.toUpperCase() : storeName,
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
+                    maxLines: 1,
+                  ),
+                  pw.Text(
+                    displayName,
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
+                    textAlign: pw.TextAlign.center,
+                    maxLines: 2,
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.BarcodeWidget(
+                    data: cleanBarcode,
+                    barcode: cleanBarcode.length == 13 && RegExp(r'^[0-9]{13}$').hasMatch(cleanBarcode)
+                        ? pw.Barcode.ean13()
+                        : pw.Barcode.code128(),
+                    width: 100,
+                    height: 24,
+                    drawText: false,
+                  ),
+                  pw.Text(cleanBarcode, style: const pw.TextStyle(fontSize: 6.5)),
+                  pw.SizedBox(height: 2),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.center,
+                    children: [
+                      pw.Text(
+                        "MRP: Rs ${price.toStringAsFixed(2)}",
+                        style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                      ),
+                      if (hsn != null && hsn.isNotEmpty)
+                        pw.Text("  HSN: $hsn", style: const pw.TextStyle(fontSize: 6)),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      }
+
+      return await Printing.layoutPdf(
+        onLayout: (fmt) async => doc.save(),
+        name: 'LABEL_${cleanBarcode}_x$copies',
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Batch Barcode Label Printing on Sheet (e.g. A4 3x8 = 24 labels/sheet, or 4x10) or Thermal Roll
+  /// Packs multiple items in tight sequence to eliminate paper wastage and maximize page utilization
+  Future<bool> printBatchBarcodeSheet({
+    required List<Map<String, dynamic>> itemsWithCounts, // [{'name': ..., 'barcode': ..., 'price': ..., 'brand': ..., 'hsn': ..., 'count': ...}]
+    bool isA4Sheet = true,
+  }) async {
+    try {
+      final doc = pw.Document();
+
+      // Expand items into flat sequence of individual labels
+      final List<Map<String, dynamic>> flatLabels = [];
+      for (final item in itemsWithCounts) {
+        final int count = (item['count'] as num?)?.toInt() ?? 1;
+        for (int c = 0; c < count; c++) {
+          flatLabels.add(item);
+        }
+      }
+
+      if (flatLabels.isEmpty) return false;
+
+      if (!isA4Sheet && connectedMacAddress != null) {
+        // If Bluetooth thermal printer connected, print in roll sequence
+        await _verifyAndAutoReconnect();
+        if (await isBluetoothConnected()) {
+          for (final item in flatLabels) {
+            await printProductBarcodeLabel(
+              name: item['name'] ?? '',
+              barcode: item['barcode'] ?? '',
+              price: (item['price'] as num?)?.toDouble() ?? 0.0,
+              brand: item['brand'],
+              hsn: item['hsn'],
+              copies: 1,
+            );
+          }
+          return true;
+        }
+      }
+
+      // Multi-column Sheet Spooler (Default: A4 sheet with 3 columns x 8 rows = 24 labels per sheet)
+      const int colsPerPage = 3;
+      const int rowsPerPage = 8;
+      const int labelsPerPage = colsPerPage * rowsPerPage;
+
+      final int totalPages = (flatLabels.length / labelsPerPage).ceil();
+
+      for (int pageIdx = 0; pageIdx < totalPages; pageIdx++) {
+        final startIdx = pageIdx * labelsPerPage;
+        final endIdx = (startIdx + labelsPerPage > flatLabels.length) ? flatLabels.length : startIdx + labelsPerPage;
+        final pageLabels = flatLabels.sublist(startIdx, endIdx);
+
+        doc.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            margin: const pw.EdgeInsets.symmetric(horizontal: 10 * PdfPageFormat.mm, vertical: 12 * PdfPageFormat.mm),
+            build: (pw.Context ctx) {
+              return pw.GridView(
+                crossAxisCount: colsPerPage,
+                crossAxisSpacing: 6 * PdfPageFormat.mm,
+                mainAxisSpacing: 5 * PdfPageFormat.mm,
+                childAspectRatio: 1.8,
+                children: pageLabels.map((lbl) {
+                  final String name = lbl['name']?.toString() ?? 'Product';
+                  final String barcode = (lbl['barcode']?.toString() ?? '').replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').trim();
+                  final double price = (lbl['price'] as num?)?.toDouble() ?? 0.0;
+                  final String? hsn = lbl['hsn']?.toString();
+                  final String? brand = lbl['brand']?.toString();
+                  final String displayName = name.length > 24 ? '${name.substring(0, 22)}...' : name;
+
+                  return pw.Container(
+                    padding: const pw.EdgeInsets.all(3 * PdfPageFormat.mm),
+                    decoration: pw.BoxDecoration(
+                      border: pw.Border.all(color: PdfColors.grey400, width: 0.5),
+                      borderRadius: pw.BorderRadius.circular(4),
+                    ),
+                    child: pw.Column(
+                      mainAxisAlignment: pw.MainAxisAlignment.center,
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          brand != null && brand.isNotEmpty ? brand.toUpperCase() : storeName,
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 6.5),
+                          maxLines: 1,
+                        ),
+                        pw.Text(
+                          displayName,
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7.5),
+                          maxLines: 1,
+                          textAlign: pw.TextAlign.center,
+                        ),
+                        pw.SizedBox(height: 2),
+                        pw.BarcodeWidget(
+                          data: barcode.isNotEmpty ? barcode : '1000000000000',
+                          barcode: barcode.length == 13 && RegExp(r'^[0-9]{13}$').hasMatch(barcode)
+                              ? pw.Barcode.ean13()
+                              : pw.Barcode.code128(),
+                          width: 130,
+                          height: 22,
+                          drawText: false,
+                        ),
+                        pw.Text(barcode, style: const pw.TextStyle(fontSize: 6.5)),
+                        pw.SizedBox(height: 1),
+                        pw.Row(
+                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                          children: [
+                            pw.Text('MRP: Rs ${price.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                            if (hsn != null && hsn.isNotEmpty) pw.Text('HSN: $hsn', style: const pw.TextStyle(fontSize: 6)),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        );
+      }
+
+      return await Printing.layoutPdf(
+        onLayout: (fmt) async => doc.save(),
+        name: 'BATCH_BARCODES_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}',
+      );
+    } catch (_) {
       return false;
     }
   }

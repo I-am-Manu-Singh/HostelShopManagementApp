@@ -40,21 +40,23 @@ class _PayrollTerminalScreenState extends State<PayrollTerminalScreen> {
       
       final firstDay = DateTime(_currentMonth.year, _currentMonth.month, 1);
       final lastDay = DateTime(_currentMonth.year, _currentMonth.month + 1, 0);
+      final firstDayStr = DateFormat('yyyy-MM-dd').format(firstDay);
+      final lastDayStr = DateFormat('yyyy-MM-dd').format(lastDay);
       
       final attRes = await _client.from('attendance')
           .select()
           .eq('user_id', profileId)
-          .gte('date', firstDay.toIso8601String())
-          .lte('date', lastDay.toIso8601String());
+          .gte('date', firstDayStr)
+          .lte('date', lastDayStr);
 
       Map<String, int> stats = {'present': 0, 'half': 0, 'unpaid': 0, 'paid_leave': 0, 'off_duty': 0};
       for (var a in attRes) {
-        final s = a['status']?.toString().toLowerCase() ?? '';
+        final s = a['status']?.toString().toLowerCase().trim() ?? '';
         if (s == 'present') stats['present'] = (stats['present'] ?? 0) + 1;
-        else if (s == 'half_day') stats['half'] = (stats['half'] ?? 0) + 1;
-        else if (s == 'leave' || s == 'unpaid_leave') stats['unpaid'] = (stats['unpaid'] ?? 0) + 1;
+        else if (s == 'half' || s == 'half_day') stats['half'] = (stats['half'] ?? 0) + 1;
+        else if (s == 'leave' || s == 'unpaid' || s == 'unpaid_leave') stats['unpaid'] = (stats['unpaid'] ?? 0) + 1;
         else if (s == 'paid_leave') stats['paid_leave'] = (stats['paid_leave'] ?? 0) + 1;
-        else if (s == 'off_duty') stats['off_duty'] = (stats['off_duty'] ?? 0) + 1;
+        else if (s == 'off_duty' || s == 'off duty') stats['off_duty'] = (stats['off_duty'] ?? 0) + 1;
       }
 
       final hRes = await _client.from('payment_logs')

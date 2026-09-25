@@ -11,28 +11,29 @@ import 'attendance_screen.dart';
 import '../user/complaint_screen.dart';
 import '../student/room_detail_screen.dart';
 import '../../models/hostel.dart';
-import '../profile_screen.dart';
-import '../shop_browse_screen.dart';
-import '../campus_stories_screen.dart';
-import '../campus_asset_rental_screen.dart';
-import '../campus_leaderboard_screen.dart';
+import '../profile/profile_screen.dart';
+import '../shop/shop_browse_screen.dart';
+import '../campus/campus_stories_screen.dart';
+import '../campus/campus_asset_rental_screen.dart';
+import '../campus/campus_leaderboard_screen.dart';
 import 'mess_menu_screen.dart';
 import 'outpass_screen.dart';
-import '../fiscal_reloading_screen.dart';
+import '../finance/fiscal_reloading_screen.dart';
 import 'guest_invitation_screen.dart';
-import 'student_store_request_screen.dart';
 import 'mess_student_card_screen.dart';
-import '../notifications_screen.dart';
-import '../add_procurement_screen.dart';
-import '../shop_order_status_screen.dart';
+import '../social/notifications_screen.dart';
+import '../common/add_procurement_screen.dart';
+import '../shop/shop_order_status_screen.dart';
 import 'student_payment_screen.dart';
-import '../fiscal_calendar_screen.dart';
+import '../finance/fiscal_calendar_screen.dart';
 import 'student_task_hub_screen.dart';
-import '../productivity_suite_hub.dart';
-import '../unified_attendance_screen.dart';
-import '../payment_ledger_screen.dart';
-import '../profile_qr_screen.dart';
-import '../hostel_browse_screen.dart'; // 🧬 Structural Browse Import
+import '../productivity/productivity_suite_hub.dart';
+import '../security/unified_attendance_screen.dart';
+import '../finance/payment_ledger_screen.dart';
+import '../profile/profile_qr_screen.dart';
+import '../campus/hostel_browse_screen.dart'; // 🧬 Structural Browse Import
+import '../finance/student_rent_mess_history_screen.dart';
+
 
 class StudentTerminalScreen extends StatefulWidget {
   const StudentTerminalScreen({super.key});
@@ -82,11 +83,43 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
       
       final currentMonthStart = DateTime(now.year, now.month, 1).toIso8601String();
       final rentPaid = await _client.from('fiscal_collections').select().eq('user_id', user.id).eq('collection_type', 'Rent').gte('created_at', currentMonthStart).maybeSingle();
-      final pendingApprovals = await _client.from('payment_approvals').select().eq('user_id', user.id).eq('status', 'Pending');
+      final recentApprovals = await _client.from('payment_approvals').select().eq('user_id', user.id).order('created_at', ascending: false).limit(5);
+
+      // Compute dynamic XP & focus time if profile has 0 or null
+      int xp = int.tryParse(profile?['xp']?.toString() ?? '0') ?? 0;
+      int focusSeconds = int.tryParse(profile?['total_focus_time']?.toString() ?? '0') ?? 0;
+      
+      try {
+        final focusLogs = await _client.from('student_focus_logs').select('duration_minutes, xp_earned').eq('user_id', user.id);
+        int logMinutes = 0;
+        int logXp = 0;
+        for (var fl in (focusLogs as List)) {
+          logMinutes += (fl['duration_minutes'] as num? ?? 0).toInt();
+          logXp += (fl['xp_earned'] as num? ?? 0).toInt();
+        }
+        if (focusSeconds == 0 && logMinutes > 0) {
+          focusSeconds = logMinutes * 60;
+        }
+        if (xp == 0 && logXp > 0) {
+          xp = logXp;
+        }
+      } catch (_) {}
+
+      // Fallback check on student_tasks completed
+      if (xp == 0) {
+        try {
+          final compTasks = await _client.from('student_tasks').select('id').eq('user_id', user.id).eq('is_completed', true);
+          xp = (compTasks as List).length * 50;
+        } catch (_) {}
+      }
+
+      final updatedProfile = profile != null ? Map<String, dynamic>.from(profile) : <String, dynamic>{};
+      updatedProfile['xp'] = xp;
+      updatedProfile['total_focus_time'] = focusSeconds;
 
       if (mounted) {
         setState(() {
-          _profile = profile;
+          _profile = updatedProfile;
           _activeComplaints = (complaints as List).length;
           _activeRoom = enrollment?['hostel_rooms'];
           _walletBalance = (double.tryParse(profile?['balance']?.toString() ?? '0') ?? 0.0);
@@ -94,7 +127,7 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
           _attendedDays = attended;
           _skippedDays = skipped;
           _isRentPending = rentPaid == null && (_profile?['role'] == 'hostel_student' || _profile?['role'] == 'owner');
-          _pendingApprovals = pendingApprovals as List;
+          _pendingApprovals = recentApprovals as List;
           _isLoading = false;
         });
       }
@@ -117,8 +150,8 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          IconButton(icon: const Icon(Icons.notifications_none_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
-          IconButton(icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileQrScreen()))),
+          IconButton(icon: const Icon(Icons.notifications_none_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => NotificationsScreen()))),
+          IconButton(icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProfileQrScreen()))),
         ],
       ),
       body: _isLoading 
@@ -151,9 +184,9 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
                                      const SizedBox(height: 16),
                                      if (_pendingApprovals.isNotEmpty) _buildVerificationStatus(isDark),
                                      const SizedBox(height: 32),
-                                     _buildMissionPerformanceCard(isDark),
-                                     const SizedBox(height: 32),
                                   ],
+                                  _buildMissionPerformanceCard(isDark),
+                                  const SizedBox(height: 32),
                                   _buildCommandLiquidity(cardColor, borderColor, isDark),
                                 ],
                               ),
@@ -215,9 +248,9 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
                            const SizedBox(height: 16),
                            if (_pendingApprovals.isNotEmpty) _buildVerificationStatus(isDark),
                            const SizedBox(height: 32),
-                           _buildMissionPerformanceCard(isDark),
-                           const SizedBox(height: 32),
                         ],
+                        _buildMissionPerformanceCard(isDark),
+                        const SizedBox(height: 32),
                         _buildCommandLiquidity(cardColor, borderColor, isDark),
                         const SizedBox(height: 32),
                         _buildAnnouncementsSection(isDark),
@@ -252,7 +285,7 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
   Widget _buildMissionPerformanceCard(bool isDark) {
     return FadeInRight(
       child: GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProductivitySuiteHub())),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProductivitySuiteHub())),
         child: Container(
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
@@ -286,7 +319,24 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
   }
 
   Widget _statBox(String label, String val, Color c, bool isDark) {
-    return Expanded(child: Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03), borderRadius: BorderRadius.circular(15))));
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(color: c.withOpacity(0.15)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(val, style: GoogleFonts.outfit(color: c, fontWeight: FontWeight.w900, fontSize: 22)),
+            const SizedBox(height: 4),
+            Text(label, style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _header(String l) => Text(l, style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2));
@@ -331,17 +381,89 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
   }
 
   Widget _buildVerificationStatus(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.amberAccent.withOpacity(0.05), borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.amberAccent.withOpacity(0.1))),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [const Icon(Icons.hourglass_empty_rounded, color: Colors.amberAccent, size: 16), const SizedBox(width: 12), Text('PAYMENT VERIFICATION PENDING', style: TextStyle(color: Colors.amberAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1))]),
-          const SizedBox(height: 12),
-          Text('HQ is auditing your recent UPI proof. Service protocols will update upon authorization.', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 9, fontWeight: FontWeight.bold, height: 1.4)),
-        ],
-      ),
+    if (_pendingApprovals.isEmpty) return const SizedBox();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('PAYMENT AUDIT STATUS', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 2)),
+            Text('${_pendingApprovals.length} RECENT', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 9, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        ..._pendingApprovals.map((appr) {
+          final status = (appr['status'] ?? 'Pending').toString();
+          final bool isApproved = status.toLowerCase() == 'approved';
+          final bool isRejected = status.toLowerCase() == 'rejected';
+          final bool isPending = status.toLowerCase() == 'pending';
+
+          final color = isApproved ? Colors.greenAccent : (isRejected ? Colors.redAccent : Colors.amberAccent);
+          final iconData = isApproved ? Icons.check_circle_rounded : (isRejected ? Icons.error_outline_rounded : Icons.hourglass_top_rounded);
+          final pType = appr['payment_type'] ?? 'Payment';
+          final amount = appr['amount'] ?? 0;
+          final notes = appr['admin_notes']?.toString();
+
+          return Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: color.withOpacity(0.18)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(iconData, color: color, size: 16),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$pType: ₹$amount'.toUpperCase(),
+                        style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 12, fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: color.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        status.toUpperCase(),
+                        style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1),
+                      ),
+                    ),
+                  ],
+                ),
+                if (notes != null && notes.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.black26 : Colors.black.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'Admin note: $notes',
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 10, fontStyle: FontStyle.italic),
+                    ),
+                  ),
+                ] else if (isPending) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'HQ is auditing your proof. Service protocols will update upon confirmation.',
+                    style: TextStyle(color: isDark ? Colors.white38 : Colors.black45, fontSize: 10),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+      ],
     );
   }
 
@@ -454,21 +576,48 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
   }
 
   Widget _buildIdentityHeader(bool isDark) {
+    String studentName = 'Student';
+    if (_profile?['full_name'] != null && _profile!['full_name'].toString().trim().isNotEmpty) {
+      studentName = _profile!['full_name'].toString().trim();
+    } else if (_profile?['email'] != null && _profile!['email'].toString().trim().isNotEmpty) {
+      studentName = _profile!['email'].toString().split('@').first;
+    } else if (_client.auth.currentUser?.email != null) {
+      studentName = _client.auth.currentUser!.email!.split('@').first;
+    } else if (_profile?['phone_no'] != null && _profile!['phone_no'].toString().trim().isNotEmpty) {
+      studentName = _profile!['phone_no'].toString().trim();
+    }
+
+    final initial = studentName.isNotEmpty ? studentName[0].toUpperCase() : 'S';
+
     return Row(
       children: [
         Container(
           decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.indigoAccent.withOpacity(0.2))),
-          child: CircleAvatar(radius: 28, backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), child: Text(_profile?['full_name']?[0] ?? 'S', style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold))),
+          child: CircleAvatar(radius: 28, backgroundColor: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), child: Text(initial, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold))),
         ),
         const SizedBox(width: 16),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_profile?['full_name'] ?? 'Student User', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(studentName, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 20, fontWeight: FontWeight.bold)),
           Row(
             children: [
-              Text('ROLE: ${_profile?['role'] == 'hostel_student' ? 'HOSTEL' : (_profile?['role'] == 'mess_student' ? 'MESS' : 'ACTIVE')}', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
+              Text('ROLE: ${_profile?['role'] == 'hostel_student' ? 'HOSTEL RESIDENT' : (_profile?['role'] == 'mess_student' ? 'MESS SCHOLAR' : (_profile?['role']?.toString().toUpperCase() ?? 'ACTIVE RESIDENT'))}', style: GoogleFonts.outfit(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
               if (_isRentPending) ...[
                 const SizedBox(width: 8),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(4)), child: const Text('RENT PENDING', style: TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900))),
+                GestureDetector(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentRentMessHistoryScreen())),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(4)),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('RENT PENDING', style: TextStyle(color: Colors.white, fontSize: 7, fontWeight: FontWeight.w900)),
+                        SizedBox(width: 3),
+                        Icon(Icons.arrow_forward_ios_rounded, color: Colors.white, size: 7),
+                      ],
+                    ),
+                  ),
+                ),
               ]
             ],
           ),
@@ -562,14 +711,13 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
     final isOwnerOrAdmin = role == 'admin' || role == 'owner' || role == 'hostel_manager';
     List<Map<String, dynamic>> ops = [
       {'icon': Icons.report_gmailerrorred_rounded, 'label': 'Complaints', 'color': Colors.redAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ComplaintScreen()))},
-      {'icon': Icons.business_rounded, 'label': 'Hostel Units', 'color': Colors.blueAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HostelBrowseScreen()))},
+      {'icon': Icons.business_rounded, 'label': 'Hostel Units', 'color': Colors.blueAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => HostelBrowseScreen()))},
       {'icon': Icons.auto_awesome_mosaic_rounded, 'label': 'Stories', 'color': Colors.amberAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CampusStoriesScreen()))},
-      {'icon': Icons.shopping_bag_rounded, 'label': 'Spec Procure', 'color': Colors.indigoAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentStoreRequestScreen()))},
-      {'icon': Icons.receipt_long_rounded, 'label': 'New Procure', 'color': Colors.tealAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AddProcurementScreen()))},
+      {'icon': Icons.add_shopping_cart_rounded, 'label': 'New Procure', 'color': Colors.tealAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddProcurementScreen()))},
     ];
 
     if (role == 'hostel_student' || isOwnerOrAdmin) {
-      ops.insert(0, {'icon': Icons.bed_outlined, 'label': 'Pay Rent', 'color': Colors.greenAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentPaymentScreen(initialType: 'Rent')))});
+      ops.insert(0, {'icon': Icons.bed_outlined, 'label': 'Pay Rent', 'color': Colors.greenAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentRentMessHistoryScreen(initialType: 'Rent')))});
       ops.addAll([
         {'icon': Icons.shield_outlined, 'label': 'Gate Attend', 'color': Colors.deepOrangeAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceScreen(type: 'gate')))},
         {'icon': Icons.nightlight_round_outlined, 'label': 'Night Attend', 'color': Colors.indigoAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceScreen(type: 'night')))},
@@ -579,7 +727,7 @@ class _StudentTerminalScreenState extends State<StudentTerminalScreen> {
     }
 
     if (role == 'mess_student' || isOwnerOrAdmin) {
-      ops.insert(0, {'icon': Icons.credit_score_outlined, 'label': 'Renew Mess', 'color': Colors.orangeAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentPaymentScreen(initialType: 'MessCard')))});
+      ops.insert(0, {'icon': Icons.credit_score_outlined, 'label': 'Renew Mess', 'color': Colors.orangeAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StudentRentMessHistoryScreen(initialType: 'MessCard')))});
       ops.addAll([
         {'icon': Icons.calendar_today_rounded, 'label': 'Mess Attend', 'color': Colors.greenAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AttendanceScreen(type: 'mess')))},
         {'icon': Icons.credit_card_rounded, 'label': 'Mess Card', 'color': Colors.orangeAccent, 'onTap': () => Navigator.push(context, MaterialPageRoute(builder: (_) => MessStudentCardScreen()))},

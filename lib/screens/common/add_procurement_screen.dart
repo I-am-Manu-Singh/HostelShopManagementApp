@@ -1,7 +1,8 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class AddProcurementScreen extends StatefulWidget {
   const AddProcurementScreen({super.key});
@@ -12,83 +13,263 @@ class AddProcurementScreen extends StatefulWidget {
 
 class _AddProcurementScreenState extends State<AddProcurementScreen> {
   final _client = Supabase.instance.client;
-  final _nameCtrl = TextEditingController();
-  final _descCtrl = TextEditingController();
+  final _itemController = TextEditingController();
+  final _descController = TextEditingController();
   String _priority = 'Medium';
   bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _itemController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
   Future<void> _submitRequest() async {
-    if (_nameCtrl.text.isEmpty) return;
+    final item = _itemController.text.trim();
+    final desc = _descController.text.trim();
+    if (item.isEmpty) return;
+
     setState(() => _isLoading = true);
     try {
       final user = _client.auth.currentUser;
       if (user == null) return;
 
       await _client.from('procurements').insert({
-        'item_name': _nameCtrl.text,
-        'description': _descCtrl.text,
-        'priority': _priority, // 'Low', 'Medium', 'High', 'Urgent'
         'requester_id': user.id,
-        'status': 'Requested'
+        'item_name': item,
+        'description': desc,
+        'priority': _priority,
+        'status': 'Requested',
       });
-      if (mounted) Navigator.pop(context, true);
-    } catch (_) {
-      if (mounted) setState(() => _isLoading = false);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PROCUREMENT TICKET GENERATED. STAFF NOTIFIED.'),
+            backgroundColor: Colors.indigoAccent,
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('TRANSMISSION ERROR: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = Theme.of(context).scaffoldBackgroundColor;
-    final textColor = isDark ? Colors.white : Colors.black;
-
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: const Color(0xFF08090A),
       appBar: AppBar(
-        title: Text('NEW PURCHASE REQUEST', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
-        backgroundColor: Colors.transparent, elevation: 0,
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
+        title: Text(
+          'NEW PURCHASE REQUEST',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.w900,
+            fontSize: 13,
+            color: Colors.white,
+            letterSpacing: 2,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-             _modalField(_nameCtrl, 'ITEM_NAME', isDark),
-             const SizedBox(height: 16),
-             _modalField(_descCtrl, 'DESCRIPTION_DETAILS', isDark, lines: 4),
-             const SizedBox(height: 32),
-             Text('PRIORITY_LEVEL', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 1)),
-             const SizedBox(height: 12),
-             _priorityPicker(_priority, (v) => setState(() => _priority = v), isDark),
-             const SizedBox(height: 60),
-             SizedBox(width: double.infinity, height: 65, child: ElevatedButton(onPressed: _isLoading ? null : _submitRequest, style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24))), child: _isLoading ? const CircularProgressIndicator(color: Colors.white) : Text('INITIALIZE_REQUEST', style: GoogleFonts.outfit(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2)))),
-          ],
+      body: Stack(
+        children: [
+          _buildRefractionOrbs(),
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader('REQUEST EXTERNAL ITEM'),
+                const SizedBox(height: 12),
+                const Text(
+                  'Items not available in the campus shop can be requested for external procurement.',
+                  style: TextStyle(color: Colors.white24, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 32),
+                _buildInput('ITEM IDENTIFIER', 'What do you need?', _itemController, Icons.shopping_bag_rounded),
+                const SizedBox(height: 20),
+                const Text(
+                  'PRIORITY LEVEL',
+                  style: TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+                ),
+                const SizedBox(height: 12),
+                _buildPrioritySelector(),
+                const SizedBox(height: 20),
+                _buildLargeInput('SPECIFICATIONS / QUANTITY', 'Details...', _descController),
+                const SizedBox(height: 48),
+                _buildSubmitButton(),
+                const SizedBox(height: 100),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRefractionOrbs() {
+    return Positioned(
+      bottom: -50,
+      right: -50,
+      child: ImageFiltered(
+        imageFilter: ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+        child: Container(
+          width: 250,
+          height: 250,
+          decoration: BoxDecoration(
+            color: Colors.indigoAccent.withOpacity(0.05),
+            shape: BoxShape.circle,
+          ),
         ),
       ),
     );
   }
 
-  Widget _modalField(TextEditingController ctrl, String hint, bool isDark, {int lines = 1}) {
-    return TextField(
-      controller: ctrl,
-      maxLines: lines,
-      style: const TextStyle(fontSize: 14),
-      decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: TextStyle(color: isDark ? Colors.white10 : Colors.black12, fontSize: 14, fontWeight: FontWeight.bold),
-        filled: true,
-        fillColor: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02),
-        contentPadding: const EdgeInsets.all(20),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05))),
+  Widget _buildHeader(String title) {
+    return Text(
+      title,
+      style: GoogleFonts.outfit(
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+        color: Colors.indigoAccent,
+        letterSpacing: 2,
       ),
     );
   }
 
-  Widget _priorityPicker(String selected, Function(String) onSelect, bool isDark) {
-    final ps = ['Low', 'Medium', 'High', 'Urgent'];
-    return Row(children: ps.map((p) => Expanded(child: GestureDetector(onTap: () => onSelect(p), child: Container(margin: const EdgeInsets.symmetric(horizontal: 4), padding: const EdgeInsets.symmetric(vertical: 12), decoration: BoxDecoration(color: selected == p ? Colors.indigoAccent : (isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04)), borderRadius: BorderRadius.circular(12)), child: Center(child: Text(p.toUpperCase(), style: TextStyle(color: selected == p ? Colors.white : (isDark ? Colors.white24 : Colors.black26), fontSize: 8, fontWeight: FontWeight.w900))))))).toList());
+  Widget _buildInput(String label, String hint, TextEditingController c, IconData icon) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
+          child: TextField(
+            controller: c,
+            style: const TextStyle(color: Colors.white, fontSize: 13),
+            decoration: InputDecoration(
+              icon: Icon(icon, color: Colors.indigoAccent, size: 18),
+              hintText: hint,
+              hintStyle: const TextStyle(color: Colors.white12),
+              border: InputBorder.none,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPrioritySelector() {
+    final priorities = ['Low', 'Medium', 'High', 'Urgent'];
+    return Row(
+      children: priorities.map((p) {
+        bool isSel = _priority == p;
+        return Expanded(
+          child: GestureDetector(
+            onTap: () => setState(() => _priority = p),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: isSel ? Colors.indigoAccent : Colors.white.withOpacity(0.03),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                p.toUpperCase(),
+                style: TextStyle(
+                  color: isSel ? Colors.black : Colors.white24,
+                  fontSize: 8,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildLargeInput(String label, String hint, TextEditingController c) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white38, fontSize: 8, fontWeight: FontWeight.bold, letterSpacing: 1.5),
+        ),
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.03),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
+          child: TextField(
+            controller: c,
+            maxLines: 6,
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              hintText: hint,
+              hintStyle: const TextStyle(color: Colors.white10),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSubmitButton() {
+    return FadeInUp(
+      child: SizedBox(
+        width: double.infinity,
+        height: 60,
+        child: ElevatedButton(
+          onPressed: _isLoading ? null : _submitRequest,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.indigoAccent,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          ),
+          child: _isLoading
+              ? const CircularProgressIndicator(color: Colors.black)
+              : Text(
+                  'INITIALIZE REQUEST',
+                  style: GoogleFonts.outfit(
+                    color: Colors.black,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+        ),
+      ),
+    );
   }
 }

@@ -1,10 +1,10 @@
 {
     "logs": [
         {
-            "outputFile": "com.hostel.placeholder.on_audio_query_android-release-25:/values-mk/values-mk.xml",
+            "outputFile": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/values-mk/values-mk.xml",
             "map": [
                 {
-                    "source": "/Users/manpreet/.gradle/caches/8.13/transforms/195c04f318ec05ab37b22685c56d4eb1/transformed/core-1.13.1/res/values-mk/values-mk.xml",
+                    "source": "/Users/manpreet/.gradle/caches/8.11.1/transforms/54deaae231638f433c92183ba491c96c/transformed/core-1.13.1/res/values-mk/values-mk.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
                         "startColumns": "4,4,4,4,4,4,4,4",
@@ -16,10 +16,10 @@
             ]
         },
         {
-            "outputFile": "com.hostel.placeholder.on_audio_query_android-mergeReleaseResources-23:/values-mk/values-mk.xml",
+            "outputFile": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-mergeReleaseResources-23:/values-mk/values-mk.xml",
             "map": [
                 {
-                    "source": "/Users/manpreet/.gradle/caches/8.13/transforms/195c04f318ec05ab37b22685c56d4eb1/transformed/core-1.13.1/res/values-mk/values-mk.xml",
+                    "source": "/Users/manpreet/.gradle/caches/8.11.1/transforms/54deaae231638f433c92183ba491c96c/transformed/core-1.13.1/res/values-mk/values-mk.xml",
                     "from": {
                         "startLines": "2,3,4,5,6,7,8,9",
                         "startColumns": "4,4,4,4,4,4,4,4",

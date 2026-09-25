@@ -1,6 +1,6 @@
 [
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-v21/notification_action_background.xml",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-v21/notification_action_background.xml"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-v21/notification_action_background.xml",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-v21/notification_action_background.xml"
     }
 ]

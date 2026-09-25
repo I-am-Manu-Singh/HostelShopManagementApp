@@ -10,6 +10,8 @@ import '../live_security_dashboard.dart';
 import 'admin_finance_hub_screen.dart';
 import 'admin_outpass_screen.dart';
 import 'admin_complaints_screen.dart';
+import 'admin_mess_menu_screen.dart';
+import 'admin_procurement_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -30,6 +32,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     'personnel': 0,
     'reports': 0,
     'complaints': 0,
+    'procurement': 0,
   };
   List<FlSpot> _revenueSpots = [];
 
@@ -48,6 +51,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       final outRes = await _client.from('hostel_outpasses').select('id').eq('status', 'Pending');
       final complaintRes = await _client.from('complaints').select('id').neq('status', 'Resolved');
       final profileRes = await _client.from('profiles').select('id, role').inFilter('role', ['hostel_student', 'mess_student', 'staff']);
+      List procureRes = [];
+      try {
+        procureRes = await _client.from('procurements').select('id').eq('status', 'Requested');
+      } catch (_) {}
 
       double revenue = 0;
       Map<int, double> monthlyRev = {};
@@ -78,6 +85,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             'personnel': (profileRes as List).length,
             'reports': (complaintRes as List).length, 
             'complaints': (complaintRes as List).length,
+            'procurement': procureRes.length,
           };
           _isLoading = false;
         });
@@ -121,15 +129,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     crossAxisSpacing: 12,
                     childAspectRatio: 1.6,
                   ),
-                  itemCount: 6,
+                  itemCount: 8,
                   itemBuilder: (context, index) {
                     final cardList = [
                       _statCard('OPS COMMAND', 'LIVE', Icons.security_rounded, Colors.indigoAccent, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LiveSecurityDashboard()))),
+                      _statCard('MESS MENU', 'SCHEDULE', Icons.restaurant_menu_rounded, Colors.orangeAccent, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminMessMenuScreen()))),
                       _statCard('TOTAL REVENUE', '₹${(_stats['revenue'] / 1000).toStringAsFixed(1)}K', Icons.payments, Colors.green, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen()))),
                       _statCard('ENROLLMENTS', '${_stats['bookings']}', Icons.assignment, Colors.blue, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminFinanceHubScreen()))),
                       _statCard('FIELD PERSONNEL', '${_stats['personnel']}', Icons.people, Colors.orange, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPersonnelHubScreen()))),
                       _statCard('EXIT CLEARANCE', '${_stats['logistics']}', Icons.sensor_door_outlined, Colors.purple, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminOutpassScreen()))),
                       _statCard('COMPLAINTS', '${_stats['complaints']}', Icons.report_problem, Colors.red, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminComplaintsScreen()))),
+                      _statCard('PROCUREMENT', '${_stats['procurement']} REQ', Icons.shopping_cart_outlined, Colors.teal, onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminProcurementScreen()))),
                     ];
                     return cardList[index];
                   },

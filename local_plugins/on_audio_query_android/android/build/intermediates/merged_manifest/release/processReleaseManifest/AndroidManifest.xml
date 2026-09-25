@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    package="com.hostel.placeholder.on_audio_query_android" >
+    package="com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android" >
 
     <uses-sdk android:minSdkVersion="16" />
 

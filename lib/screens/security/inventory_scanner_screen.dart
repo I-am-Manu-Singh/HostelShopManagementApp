@@ -3,6 +3,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/product_lookup_service.dart';
 import '../../models/shop.dart';
+import '../admin/admin_edit_product_screen.dart';
 
 enum ScannerWorkflowMode { single, batch }
 
@@ -335,21 +336,54 @@ class _InventoryScannerScreenState extends State<InventoryScannerScreen> {
                               ),
                               const SizedBox(width: 10),
                               Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      l?.name ?? 'Resolving Product...',
-                                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    Text(
-                                      'Code: ${item.barcode} • Brand: ${l?.brand ?? "Local"} • ${l?.quantity ?? "1 Unit"}',
-                                      style: const TextStyle(color: Colors.white54, fontSize: 10),
-                                    ),
-                                  ],
+                                child: InkWell(
+                                  onTap: () async {
+                                    // Open AdminEditProductScreen to refine item details
+                                    await Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => AdminEditProductScreen(scannedSku: item.barcode),
+                                      ),
+                                    );
+                                  },
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        l?.name ?? 'Resolving Product...',
+                                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Code: ${item.barcode} • ${l?.brand ?? "Local"} • Tap to Edit',
+                                        style: const TextStyle(color: Colors.amberAccent, fontSize: 10),
+                                      ),
+                                    ],
+                                  ),
                                 ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.edit_note_rounded, color: Colors.amberAccent, size: 20),
+                                tooltip: 'Edit Full Details',
+                                onPressed: () async {
+                                  await Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => AdminEditProductScreen(scannedSku: item.barcode),
+                                    ),
+                                  );
+                                },
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close_rounded, color: Colors.redAccent, size: 16),
+                                tooltip: 'Remove from batch',
+                                onPressed: () {
+                                  setState(() {
+                                    _batchItems.removeAt(i);
+                                    _scannedBarcodesSet.remove(item.barcode);
+                                  });
+                                },
                               ),
                               if (item.isSaving)
                                 const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.amberAccent))

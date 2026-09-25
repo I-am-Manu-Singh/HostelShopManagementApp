@@ -4,131 +4,333 @@ import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Shared constants
+// ─────────────────────────────────────────────────────────────────────────────
+const _kOrgName = 'HOSTEL CONNECT & MANDI';
+const _kTagline = 'Smart Campus ERP & Commercial Ecosystem';
+const _kAddress = 'Campus Central Avenue, Tech Zone Block 4, Mohali – 160071';
+const _kPhone = '+91 79762 87989';
+const _kGst = 'GSTIN: 03ABCDE1234F1Z8';
+const _kEmail = 'support@hostelconnect.edu';
+const _kWebsite = 'www.hostelconnect.edu.in';
+
+/// Builds the shared header that appears at the top of every PDF receipt.
+pw.Widget _buildHeader({
+  required String documentTitle,
+  required String refId,
+  String? subtitle,
+}) {
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      // ── Brand bar ──────────────────────────────────────────────────────────
+      pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        decoration: const pw.BoxDecoration(
+          gradient: pw.LinearGradient(
+            colors: [PdfColor.fromInt(0xFF1E1B4B), PdfColor.fromInt(0xFF4338CA)],
+            begin: pw.Alignment.centerLeft,
+            end: pw.Alignment.centerRight,
+          ),
+          borderRadius: pw.BorderRadius.all(pw.Radius.circular(12)),
+        ),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            // Logo emblem + block
+            pw.Row(
+              children: [
+                pw.Container(
+                  width: 38,
+                  height: 38,
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.white,
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                  ),
+                  child: pw.Center(
+                    child: pw.Text(
+                      'HC',
+                      style: pw.TextStyle(
+                        color: const PdfColor.fromInt(0xFF4338CA),
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ),
+                pw.SizedBox(width: 12),
+                pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      _kOrgName,
+                      style: pw.TextStyle(
+                        color: PdfColors.white,
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 18,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                    pw.SizedBox(height: 2),
+                    pw.Text(
+                      _kTagline,
+                      style: const pw.TextStyle(color: PdfColor.fromInt(0xFFE0E7FF), fontSize: 8),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            // Document type badge
+            pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.end,
+              children: [
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.white,
+                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(6)),
+                  ),
+                  child: pw.Text(
+                    documentTitle,
+                    style: pw.TextStyle(
+                      color: PdfColor.fromInt(0xFF3730A3),
+                      fontWeight: pw.FontWeight.bold,
+                      fontSize: 10,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 6),
+                pw.Text(
+                  'REF: #$refId',
+                  style: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontWeight: pw.FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+      pw.SizedBox(height: 6),
+      // ── Contact ribbon ────────────────────────────────────────────────────
+      pw.Container(
+        padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: const pw.BoxDecoration(
+          color: PdfColor.fromInt(0xFFF5F3FF),
+          borderRadius: pw.BorderRadius.all(pw.Radius.circular(6)),
+        ),
+        child: pw.Row(
+          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+          children: [
+            pw.Text(_kAddress, style: const pw.TextStyle(fontSize: 7.5, color: PdfColor.fromInt(0xFF6B7280))),
+            pw.Row(
+              children: [
+                pw.Text('$_kPhone  |  $_kEmail  |  $_kGst',
+                    style: const pw.TextStyle(fontSize: 7.5, color: PdfColor.fromInt(0xFF6B7280))),
+              ],
+            ),
+          ],
+        ),
+      ),
+      pw.SizedBox(height: 16),
+    ],
+  );
+}
+
+/// Builds the shared footer line.
+pw.Widget _buildFooter(String note) {
+  return pw.Column(
+    children: [
+      pw.Divider(color: PdfColor.fromInt(0xFFE5E7EB), thickness: 0.5),
+      pw.SizedBox(height: 6),
+      pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(note, style: const pw.TextStyle(fontSize: 7, color: PdfColor.fromInt(0xFF9CA3AF))),
+          pw.Text(_kWebsite, style: const pw.TextStyle(fontSize: 7, color: PdfColor.fromInt(0xFF9CA3AF))),
+        ],
+      ),
+    ],
+  );
+}
+
+/// Builds a labelled info cell for the details grid.
+pw.Widget _infoCell(String label, String value) {
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.start,
+    children: [
+      pw.Text(label, style: const pw.TextStyle(fontSize: 7.5, color: PdfColor.fromInt(0xFF9CA3AF))),
+      pw.SizedBox(height: 2),
+      pw.Text(value, style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF1F2937))),
+    ],
+  );
+}
+
 class ReceiptService {
-  
+
   // ── Shop / Mandi Order Receipt ─────────────────────────────────────────────
   static Future<void> generateAndShareReceipt(dynamic order) async {
     final pdf = pw.Document();
     final items = order['items'] as List;
-    final date = DateFormat('MMM dd, yyyy - hh:mm a').format(DateTime.parse(order['created_at']));
+    final date = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(order['created_at']));
     final orderId = order['id'].toString().substring(0, 8).toUpperCase();
     final profile = order['profiles'] ?? {};
     final bool isMandi = order['is_booking'] == true;
 
+    // Compute breakdown
+    double subTotal = 0;
+    final itemRows = items.map((it) {
+      final price = (it['price'] as num? ?? 0.0).toDouble();
+      final qty = (it['qty'] as num? ?? 1).toInt();
+      final wQty = it['weight_qty'] != null ? (it['weight_qty'] as num).toDouble() : null;
+      final wUnit = it['weight_unit']?.toString() ?? 'kg';
+      String qtyStr = '$qty';
+      double multiplier = qty.toDouble();
+      if (wQty != null && wQty != 1.0) {
+        qtyStr = '$qty × $wQty $wUnit';
+        multiplier = qty * wQty;
+      }
+      final lineTotal = price * multiplier;
+      subTotal += lineTotal;
+      return [
+        it['name']?.toString().toUpperCase() ?? 'ITEM',
+        qtyStr,
+        '₹ ${price.toStringAsFixed(2)}',
+        '₹ ${lineTotal.toStringAsFixed(2)}',
+      ];
+    }).toList();
+
+    final discount = (order['discount'] as num? ?? 0.0).toDouble();
+    final deliveryFee = (order['delivery_fee'] as num? ?? 0.0).toDouble();
+    final tax = (order['tax'] as num? ?? 0.0).toDouble();
+    final grandTotal = (order['total_price'] as num? ?? (subTotal - discount + deliveryFee + tax)).toDouble();
+
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
+        margin: const pw.EdgeInsets.all(28),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Professional Header
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text(isMandi ? 'MANDI MARKETPLACE DIRECT' : 'CAMPUS DAILY NEEDS STORE', 
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 20, color: PdfColors.indigo900)),
-                      pw.Text('Official Transaction Invoice', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-                    ],
-                  ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text('ORDER RECEIPT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, color: PdfColors.indigo900)),
-                      pw.Text('#$orderId', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                    ],
-                  ),
-                ],
+
+              _buildHeader(
+                documentTitle: isMandi ? 'MANDI INVOICE' : 'SHOP RECEIPT',
+                refId: orderId,
+              ),
+
+              // ── Bill To / Order Info grid ─────────────────────────────────
+              pw.Container(
+                padding: const pw.EdgeInsets.all(14),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColor.fromInt(0xFFE5E7EB), width: 0.8),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                ),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('BILL TO',
+                            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+                          pw.SizedBox(height: 6),
+                          _infoCell('Customer Name', profile['full_name']?.toString().toUpperCase() ?? 'CAMPUS MEMBER'),
+                          pw.SizedBox(height: 6),
+                          _infoCell('Email', profile['email']?.toString() ?? 'N/A'),
+                          pw.SizedBox(height: 6),
+                          _infoCell('Phone', profile['phone_no']?.toString() ?? 'N/A'),
+                          if (order['delivery_address'] != null) ...[
+                            pw.SizedBox(height: 6),
+                            _infoCell('Delivery Address', order['delivery_address'].toString()),
+                          ],
+                        ],
+                      ),
+                    ),
+                    pw.Container(width: 0.5, height: 80, color: PdfColor.fromInt(0xFFE5E7EB)),
+                    pw.Expanded(
+                      child: pw.Padding(
+                        padding: const pw.EdgeInsets.only(left: 14),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('ORDER INFO',
+                              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Date & Time', date),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Payment Method', order['payment_method']?.toString() ?? 'UPI / Wallet'),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Delivery Type', order['delivery_type']?.toString() ?? 'Pickup'),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Order Status', (order['status']?.toString() ?? 'Completed').toUpperCase()),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               pw.SizedBox(height: 16),
-              pw.Divider(thickness: 1.5, color: PdfColors.indigo900),
-              pw.SizedBox(height: 16),
 
-              // Customer / Logistics Details Group
-              pw.Row(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.Expanded(
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text('BILL TO:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.grey700)),
-                        pw.SizedBox(height: 4),
-                        pw.Text(profile['full_name']?.toString().toUpperCase() ?? 'CAMPUS MEMBER', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                        pw.Text(profile['email']?.toString() ?? 'N/A', style: const pw.TextStyle(fontSize: 10)),
-                        pw.Text('Phone: ${profile['phone_no'] ?? 'N/A'}', style: const pw.TextStyle(fontSize: 10)),
-                      ],
-                    ),
-                  ),
-                  pw.Expanded(
-                    child: pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
-                      children: [
-                        pw.Text('LOGISTICS DETAILS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.grey700)),
-                        pw.SizedBox(height: 4),
-                        pw.Text('Date: $date', style: const pw.TextStyle(fontSize: 10)),
-                        pw.Text('Method: ${order['payment_method'] ?? 'UPI'}', style: const pw.TextStyle(fontSize: 10)),
-                        pw.Text('Delivery: ${order['delivery_type'] ?? 'Pickup'}', style: const pw.TextStyle(fontSize: 10)),
-                        if (order['delivery_address'] != null)
-                          pw.Text('Address: ${order['delivery_address']}', style: const pw.TextStyle(fontSize: 9), textAlign: pw.TextAlign.right),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 24),
-
-              // Items Breakdown Table
-              pw.Text('BREAKDOWN OF CHARGES:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.indigo900)),
-              pw.SizedBox(height: 8),
+              // ── Items table ────────────────────────────────────────────────
+              pw.Text('ITEMS BREAKDOWN',
+                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+              pw.SizedBox(height: 6),
               pw.TableHelper.fromTextArray(
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
-                rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(color: PdfColors.grey300, width: 0.5))),
-                headers: ['ITEM DESCRIPTION', 'QUANTITY / WEIGHT', 'UNIT RATE', 'TOTAL PRICE'],
-                data: items.map((it) {
-                  final price = (it['price'] as num? ?? 0.0).toDouble();
-                  final qty = (it['qty'] as num? ?? 1).toInt();
-                  final wQty = it['weight_qty'] != null ? (it['weight_qty'] as num).toDouble() : null;
-                  final wUnit = it['weight_unit']?.toString();
-                  
-                  String qtyWeightStr = '$qty';
-                  double totalMultiplier = qty.toDouble();
-                  if (wQty != null && wQty != 1.0) {
-                    qtyWeightStr = '$qty x $wQty ${wUnit ?? 'kg'}';
-                    totalMultiplier = qty * wQty;
-                  }
-                  return [
-                    it['name']?.toString().toUpperCase() ?? 'ITEM',
-                    qtyWeightStr,
-                    'Rs. ${price.toStringAsFixed(2)}',
-                    'Rs. ${(price * totalMultiplier).toStringAsFixed(2)}',
-                  ];
-                }).toList(),
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
+                headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF3730A3)),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                rowDecoration: const pw.BoxDecoration(
+                  border: pw.Border(bottom: pw.BorderSide(color: PdfColor.fromInt(0xFFF3F4F6), width: 0.6)),
+                ),
+                oddRowDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF9FAFB)),
+                cellAlignments: {0: pw.Alignment.centerLeft, 1: pw.Alignment.center, 2: pw.Alignment.centerRight, 3: pw.Alignment.centerRight},
+                headers: ['ITEM DESCRIPTION', 'QTY / WEIGHT', 'UNIT RATE', 'LINE TOTAL'],
+                data: itemRows,
               ),
-              pw.SizedBox(height: 16),
+              pw.SizedBox(height: 12),
 
-              // Totals block
+              // ── Totals block ──────────────────────────────────────────────
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.end,
                 children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text('GRAND TOTAL: Rs. ${(order['total_price'] as num? ?? 0.0).toStringAsFixed(2)}', 
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, color: PdfColors.indigo900)),
-                      pw.Text('Tax inclusive. Powered by Campus Connect.', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
-                    ],
+                  pw.Container(
+                    width: 220,
+                    padding: const pw.EdgeInsets.all(12),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColor.fromInt(0xFFF5F3FF),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                      border: pw.Border.all(color: PdfColor.fromInt(0xFFDDD6FE), width: 0.8),
+                    ),
+                    child: pw.Column(
+                      children: [
+                        _totalRow('Sub-Total', '₹ ${subTotal.toStringAsFixed(2)}'),
+                        if (discount > 0) _totalRow('Discount', '- ₹ ${discount.toStringAsFixed(2)}', isGreen: true),
+                        if (deliveryFee > 0) _totalRow('Delivery Fee', '₹ ${deliveryFee.toStringAsFixed(2)}'),
+                        if (tax > 0) _totalRow('Tax / GST', '₹ ${tax.toStringAsFixed(2)}'),
+                        pw.Divider(color: PdfColor.fromInt(0xFFDDD6FE), thickness: 0.5),
+                        _totalRow('GRAND TOTAL', '₹ ${grandTotal.toStringAsFixed(2)}', isTotal: true),
+                      ],
+                    ),
                   ),
                 ],
               ),
+
               pw.Spacer(),
-              pw.Divider(thickness: 1, color: PdfColors.grey300),
-              pw.Center(child: pw.Text('THANK YOU FOR SUPPORTING SUSTAINABLE CAMPUS ECONOMIES.', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600))),
+              pw.SizedBox(height: 8),
+              pw.Center(
+                child: pw.Text(
+                  'THANK YOU FOR YOUR PURCHASE! KEEP THIS RECEIPT FOR YOUR RECORDS.',
+                  style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1),
+                ),
+              ),
+              pw.SizedBox(height: 6),
+              _buildFooter('Tax inclusive where applicable. This is a computer-generated invoice.'),
             ],
           );
         },
@@ -136,15 +338,15 @@ class ReceiptService {
     );
 
     if (kIsWeb) {
-      await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+      await Printing.layoutPdf(onLayout: (_) async => pdf.save());
     } else {
       await Printing.sharePdf(bytes: await pdf.save(), filename: 'RECEIPT_$orderId.pdf');
     }
   }
 
-  // ── Hostel / Mess Rent & Electricity Receipt ────────────────────────────────
+  // ── Hostel / Mess Rent & Electricity Receipt ─────────────────────────────
   static Future<void> generateFiscalReceipt(
-    dynamic col, 
+    dynamic col,
     String? studentName, {
     String? roomNumber,
     String? buildingName,
@@ -156,153 +358,178 @@ class ReceiptService {
     int? daysBilled,
   }) async {
     final pdf = pw.Document();
-    final date = DateFormat('MMM dd, yyyy').format(DateTime.parse(col['created_at']));
+    final date = DateFormat('dd MMM yyyy').format(DateTime.parse(col['created_at']));
     final receiptId = col['id'].toString().substring(0, 8).toUpperCase();
     final type = col['collection_type'] ?? 'PAYMENT';
 
-    // Advanced detailed attributes
     final baseRent = (col['base_rent'] as num? ?? (col['room_rent'] as num?) ?? 6500.0).toDouble();
     final electricityCharges = (col['electricity_charges'] as num? ?? 0.0).toDouble();
     final serviceFees = (col['service_fees'] as num? ?? 0.0).toDouble();
     final totalAmount = (col['amount'] as num? ?? (baseRent + electricityCharges + serviceFees)).toDouble();
 
-    // Cycle date calculations
     String cycleStr = DateFormat('MMMM yyyy').format(DateTime.parse(col['created_at']));
     if (cycleStart != null && cycleEnd != null) {
-      cycleStr = '${DateFormat('dd MMM yyyy').format(cycleStart)} to ${DateFormat('dd MMM yyyy').format(cycleEnd)} (${daysBilled ?? cycleEnd.difference(cycleStart).inDays} Days)';
+      cycleStr = '${DateFormat('dd MMM yyyy').format(cycleStart)} – ${DateFormat('dd MMM yyyy').format(cycleEnd)} (${daysBilled ?? cycleEnd.difference(cycleStart).inDays} days)';
     } else if (col['billing_start_date'] != null && col['billing_end_date'] != null) {
       final s = DateTime.tryParse(col['billing_start_date'].toString());
       final e = DateTime.tryParse(col['billing_end_date'].toString());
       if (s != null && e != null) {
-        cycleStr = '${DateFormat('dd MMM yyyy').format(s)} to ${DateFormat('dd MMM yyyy').format(e)} (${col['days_billed'] ?? e.difference(s).inDays} Days)';
+        cycleStr = '${DateFormat('dd MMM yyyy').format(s)} – ${DateFormat('dd MMM yyyy').format(e)} (${col['days_billed'] ?? e.difference(s).inDays} days)';
       }
     }
 
     final List<List<String>> tableData = [
-      [
-        'Base Accommodation (${roomPlan ?? "Standard Plan"})',
-        'Rs. ${baseRent.toStringAsFixed(2)}',
-        'Rs. 0.00',
-        'Rs. ${baseRent.toStringAsFixed(2)}'
-      ],
+      ['Base Accommodation', roomPlan ?? 'Standard Plan', '₹ ${baseRent.toStringAsFixed(2)}', '₹ 0.00', '₹ ${baseRent.toStringAsFixed(2)}'],
     ];
 
     if (addOns != null && addOns.isNotEmpty) {
       for (var add in addOns) {
-        tableData.add([
-          'Add-on Service: ${add.toString().toUpperCase()}',
-          'Included / Subscribed',
-          '-',
-          '-'
-        ]);
+        tableData.add(['Add-on Service', add.toString().toUpperCase(), 'Included', '—', '—']);
       }
     }
 
     if (electricityCharges > 0) {
-      tableData.add([
-        'Electricity Surcharge (Delta Consumption Units)',
-        'Rs. 0.00',
-        'Rs. ${electricityCharges.toStringAsFixed(2)}',
-        'Rs. ${electricityCharges.toStringAsFixed(2)}'
-      ]);
+      tableData.add(['Electricity Surcharge', 'Delta Consumption', '₹ 0.00', '₹ ${electricityCharges.toStringAsFixed(2)}', '₹ ${electricityCharges.toStringAsFixed(2)}']);
     }
 
     if (serviceFees > 0) {
-      tableData.add([
-        'Service & Facility Maintenance Dues',
-        'Rs. 0.00',
-        'Rs. ${serviceFees.toStringAsFixed(2)}',
-        'Rs. ${serviceFees.toStringAsFixed(2)}'
-      ]);
+      tableData.add(['Service & Facility Dues', 'Maintenance', '₹ 0.00', '₹ ${serviceFees.toStringAsFixed(2)}', '₹ ${serviceFees.toStringAsFixed(2)}']);
     }
 
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
+        margin: const pw.EdgeInsets.all(28),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Header
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text('CAMPUS ACCOMMODATION SERVICES', 
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18, color: PdfColors.indigo900)),
-                      pw.Text('Monthly Room Rent & Utilities Statement', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-                    ],
-                  ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text('FISCAL INVOICE', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, color: PdfColors.indigo900)),
-                      pw.Text('REF: #$receiptId', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                    ],
-                  ),
-                ],
+
+              _buildHeader(
+                documentTitle: 'ACCOMMODATION RECEIPT',
+                refId: receiptId,
+                subtitle: 'Monthly Room Rent & Utilities Statement',
+              ),
+
+              // ── Resident / Billing info grid ───────────────────────────────
+              pw.Container(
+                padding: const pw.EdgeInsets.all(14),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColor.fromInt(0xFFE5E7EB), width: 0.8),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                ),
+                child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('RESIDENT DETAILS',
+                            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+                          pw.SizedBox(height: 6),
+                          _infoCell('Name', studentName?.toUpperCase() ?? 'CAMPUS RESIDENT'),
+                          if (phone != null && phone.isNotEmpty) ...[
+                            pw.SizedBox(height: 6),
+                            _infoCell('Contact', phone),
+                          ],
+                          if (roomNumber != null && roomNumber.isNotEmpty) ...[
+                            pw.SizedBox(height: 6),
+                            _infoCell('Allocated Room', 'Room $roomNumber${buildingName != null ? " ($buildingName)" : ""}'),
+                          ],
+                          pw.SizedBox(height: 6),
+                          _infoCell('Tenant Status', 'Verified Resident'),
+                        ],
+                      ),
+                    ),
+                    pw.Container(width: 0.5, height: 80, color: PdfColor.fromInt(0xFFE5E7EB)),
+                    pw.Expanded(
+                      child: pw.Padding(
+                        padding: const pw.EdgeInsets.only(left: 14),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('BILLING CYCLE',
+                              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Period', cycleStr),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Date Issued', date),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Payment Mode', col['payment_method']?.toString() ?? 'Digital Wallet / UPI'),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Collection Type', type.toUpperCase()),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               pw.SizedBox(height: 16),
-              pw.Divider(thickness: 1.5, color: PdfColors.indigo900),
-              pw.SizedBox(height: 16),
 
-              // Details
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text('RESIDENT MEMBER:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
-                      pw.Text(studentName?.toUpperCase() ?? 'CAMPUS RESIDENT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                      if (phone != null && phone.isNotEmpty)
-                        pw.Text('Contact: $phone', style: const pw.TextStyle(fontSize: 10)),
-                      if (roomNumber != null && roomNumber.isNotEmpty)
-                        pw.Text('Allocated: Room $roomNumber ${buildingName != null ? "($buildingName)" : ""}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.indigo800)),
-                      pw.Text('Status: Verified Resident Tenant', style: const pw.TextStyle(fontSize: 10)),
-                    ],
-                  ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text('BILLING METRICS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
-                      pw.Text('Billing Cycle: $cycleStr', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                      pw.Text('Date Issued: $date', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('Mode: ${col['payment_method'] ?? 'Digital Wallet / UPI'}', style: const pw.TextStyle(fontSize: 10)),
-                    ],
-                  ),
-                ],
-              ),
-              pw.SizedBox(height: 24),
-
-              // Breakdown Table
-              pw.Text('ITEMIZED BILLING & SUBSCRIPTION BREAKDOWN:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.indigo900)),
-              pw.SizedBox(height: 8),
+              // ── Itemized breakdown ─────────────────────────────────────────
+              pw.Text('ITEMIZED BILLING BREAKDOWN',
+                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+              pw.SizedBox(height: 6),
               pw.TableHelper.fromTextArray(
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
-                headers: ['BILLING COMPONENT', 'BASE PRICE', 'CHARGES / EXTRA', 'NET PAYABLE'],
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 8),
+                headerDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF3730A3)),
+                cellStyle: const pw.TextStyle(fontSize: 8.5),
+                rowDecoration: const pw.BoxDecoration(
+                  border: pw.Border(bottom: pw.BorderSide(color: PdfColor.fromInt(0xFFF3F4F6), width: 0.6)),
+                ),
+                oddRowDecoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFF9FAFB)),
+                headers: ['BILLING COMPONENT', 'PLAN / NOTE', 'BASE PRICE', 'EXTRA CHARGES', 'NET PAYABLE'],
                 data: tableData,
               ),
-              pw.SizedBox(height: 20),
-              pw.Divider(thickness: 1, color: PdfColors.grey300),
+              pw.SizedBox(height: 12),
+
+              // ── Totals ─────────────────────────────────────────────────────
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.end,
                 children: [
-                  pw.Text('TOTAL AMOUNT: Rs. ${totalAmount.toStringAsFixed(2)}', 
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, color: PdfColors.indigo900)),
+                  pw.Container(
+                    width: 220,
+                    padding: const pw.EdgeInsets.all(12),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColor.fromInt(0xFFF5F3FF),
+                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                      border: pw.Border.all(color: PdfColor.fromInt(0xFFDDD6FE), width: 0.8),
+                    ),
+                    child: pw.Column(
+                      children: [
+                        _totalRow('Base Rent', '₹ ${baseRent.toStringAsFixed(2)}'),
+                        if (electricityCharges > 0) _totalRow('Electricity', '₹ ${electricityCharges.toStringAsFixed(2)}'),
+                        if (serviceFees > 0) _totalRow('Service Fees', '₹ ${serviceFees.toStringAsFixed(2)}'),
+                        pw.Divider(color: PdfColor.fromInt(0xFFDDD6FE), thickness: 0.5),
+                        _totalRow('TOTAL PAYABLE', '₹ ${totalAmount.toStringAsFixed(2)}', isTotal: true),
+                      ],
+                    ),
+                  ),
                 ],
               ),
+
               if (col['remark'] != null) ...[
-                pw.SizedBox(height: 16),
-                pw.Text('OFFICIAL AUDIT NOTES:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
-                pw.Text(col['remark'].toString(), style: pw.TextStyle(fontSize: 9, color: PdfColors.grey800, fontStyle: pw.FontStyle.italic)),
+                pw.SizedBox(height: 12),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(10),
+                  decoration: const pw.BoxDecoration(
+                    color: PdfColor.fromInt(0xFFFFFBEB),
+                    border: pw.Border(left: pw.BorderSide(color: PdfColor.fromInt(0xFFF59E0B), width: 3)),
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Text('OFFICIAL REMARKS', style: pw.TextStyle(fontSize: 7.5, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFFF59E0B))),
+                      pw.SizedBox(height: 3),
+                      pw.Text(col['remark'].toString(), style: const pw.TextStyle(fontSize: 8.5, color: PdfColor.fromInt(0xFF374151))),
+                    ],
+                  ),
+                ),
               ],
               pw.Spacer(),
-              pw.Center(child: pw.Text('ELECTRONICALLY CERTIFIED STATEMENT OF ACCOMMODATION ACCOUNTS.', style: pw.TextStyle(fontSize: 8, color: PdfColors.grey600))),
+              _buildFooter('Electronically certified accommodation statement. GST: $_kGst'),
             ],
           );
         },
@@ -310,126 +537,170 @@ class ReceiptService {
     );
 
     if (kIsWeb) {
-      await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+      await Printing.layoutPdf(onLayout: (_) async => pdf.save());
     } else {
       await Printing.sharePdf(bytes: await pdf.save(), filename: 'RECEIPT_${type.toUpperCase()}_$receiptId.pdf');
     }
   }
 
-  // ── Employee Salary Slip Receipt ───────────────────────────────────────────
+  // ── Employee Payslip ───────────────────────────────────────────────────────
   static Future<void> generateSalaryReceipt(dynamic record, String? employeeName) async {
     final pdf = pw.Document();
-    final date = DateFormat('MMM dd, yyyy').format(DateTime.now());
+    final date = DateFormat('dd MMM yyyy').format(DateTime.now());
     final slipId = record['id'].toString().substring(0, 8).toUpperCase();
-    final month = record['month'] ?? 'Current Month';
+    final month = record['month'] ?? DateFormat('MMMM yyyy').format(DateTime.now());
 
-    // Detailed metrics
     final baseSalary = (record['salary_amount'] as num? ?? 0.0).toDouble();
     final allowance = (record['allowances'] as num? ?? 0.0).toDouble();
     final advances = (record['advances_taken'] as num? ?? 0.0).toDouble();
-    final deductions = (record['deductions'] as num? ?? 0.0).toDouble() + advances;
+    final unpaidLeaveDeduction = (record['deductions'] as num? ?? 0.0).toDouble();
+    final totalDeductions = advances + unpaidLeaveDeduction;
     final leavesTaken = (record['leaves_taken'] as num? ?? 0).toInt();
-    final netPaid = baseSalary + allowance - deductions;
+    final daysPresent = (record['days_present'] as num? ?? 0).toInt();
+    final netPaid = baseSalary + allowance - totalDeductions;
 
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(32),
+        margin: const pw.EdgeInsets.all(28),
         build: (pw.Context context) {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              // Header
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text('CAMPUS PERSONNEL HUB', 
-                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 18, color: PdfColors.indigo900)),
-                      pw.Text('Official Monthly Payslip & Remuneration', style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
-                    ],
-                  ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text('PAYSLIP STATEMENT', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 14, color: PdfColors.indigo900)),
-                      pw.Text('PAYSLIP #$slipId', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                    ],
-                  ),
-                ],
+
+              _buildHeader(
+                documentTitle: 'PAYSLIP STATEMENT',
+                refId: slipId,
+                subtitle: 'Official Monthly Salary & Remuneration',
+              ),
+
+              // ── Employee & pay period info ──────────────────────────────────
+              pw.Container(
+                padding: const pw.EdgeInsets.all(14),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColor.fromInt(0xFFE5E7EB), width: 0.8),
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                ),
+                child: pw.Row(
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('EMPLOYEE',
+                            style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+                          pw.SizedBox(height: 6),
+                          _infoCell('Name', employeeName?.toUpperCase() ?? 'STAFF MEMBER'),
+                          pw.SizedBox(height: 6),
+                          _infoCell('Department', record['department']?.toString().toUpperCase() ?? 'CAMPUS OPERATIONS'),
+                          pw.SizedBox(height: 6),
+                          _infoCell('Designation', record['designation']?.toString() ?? 'Staff'),
+                        ],
+                      ),
+                    ),
+                    pw.Container(width: 0.5, height: 80, color: PdfColor.fromInt(0xFFE5E7EB)),
+                    pw.Expanded(
+                      child: pw.Padding(
+                        padding: const pw.EdgeInsets.only(left: 14),
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text('PAY PERIOD',
+                              style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Month', month.toString()),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Date Issued', date),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Days Present', daysPresent > 0 ? '$daysPresent days' : '—'),
+                            pw.SizedBox(height: 6),
+                            _infoCell('Leaves Logged', '$leavesTaken days'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               pw.SizedBox(height: 16),
-              pw.Divider(thickness: 1.5, color: PdfColors.indigo900),
-              pw.SizedBox(height: 16),
 
-              // Staff details
+              // ── Pay breakdown table ─────────────────────────────────────────
+              pw.Text('COMPENSATION STRUCTURE',
+                style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.5)),
+              pw.SizedBox(height: 6),
               pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text('EMPLOYEE NAME:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
-                      pw.Text(employeeName?.toUpperCase() ?? 'STAFF MEMBER', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                      pw.Text('Pay Period: $month', style: const pw.TextStyle(fontSize: 10)),
-                    ],
+                  // Earnings side
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF3730A3)),
+                          child: pw.Text('EARNINGS', style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                        ),
+                        _payRow('Base Salary', '₹ ${baseSalary.toStringAsFixed(2)}'),
+                        _payRow('Allowances', '₹ ${allowance.toStringAsFixed(2)}'),
+                        pw.Divider(color: PdfColor.fromInt(0xFFE5E7EB), thickness: 0.5),
+                        _payRow('Gross Earnings', '₹ ${(baseSalary + allowance).toStringAsFixed(2)}', bold: true),
+                      ],
+                    ),
                   ),
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.end,
-                    children: [
-                      pw.Text('DISPATCH METRICS:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9, color: PdfColors.grey700)),
-                      pw.Text('Leaves Logged: $leavesTaken', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('Date Disbursed: $date', style: const pw.TextStyle(fontSize: 10)),
-                    ],
+                  pw.SizedBox(width: 12),
+                  // Deductions side
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Container(
+                          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFDC2626)),
+                          child: pw.Text('DEDUCTIONS', style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 8)),
+                        ),
+                        _payRow('Advance Recovery', '₹ ${advances.toStringAsFixed(2)}'),
+                        _payRow('Unpaid Leave Penalty', '₹ ${unpaidLeaveDeduction.toStringAsFixed(2)}'),
+                        pw.Divider(color: PdfColor.fromInt(0xFFE5E7EB), thickness: 0.5),
+                        _payRow('Total Deductions', '₹ ${totalDeductions.toStringAsFixed(2)}', bold: true),
+                      ],
+                    ),
                   ),
                 ],
               ),
-              pw.SizedBox(height: 32),
+              pw.SizedBox(height: 14),
 
-              // Itemized Table
-              pw.Text('PAY COMPONENT STRUCTURE:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10, color: PdfColors.indigo900)),
-              pw.SizedBox(height: 8),
-              pw.TableHelper.fromTextArray(
-                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
-                headers: ['COMPENSATION EARNINGS', 'AMOUNT', 'DEDUCTIONS & ADVANCES', 'AMOUNT'],
-                data: [
-                  [
-                    'Base Employee Salary',
-                    'Rs. ${baseSalary.toStringAsFixed(2)}',
-                    'Advances Deductions',
-                    'Rs. ${advances.toStringAsFixed(2)}'
-                  ],
-                  [
-                    'Professional Allowances',
-                    'Rs. ${allowance.toStringAsFixed(2)}',
-                    'Unpaid Leaves Penalty',
-                    'Rs. ${(deductions - advances).toStringAsFixed(2)}'
-                  ],
-                ],
-              ),
-              pw.SizedBox(height: 20),
-              pw.Divider(thickness: 1, color: PdfColors.grey300),
-              
-              // Totals
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text('Total Earnings: Rs. ${(baseSalary + allowance).toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text('Total Deductions: Rs. ${deductions.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10)),
-                    ],
+              // ── Net pay banner ──────────────────────────────────────────────
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(14),
+                decoration: pw.BoxDecoration(
+                  gradient: const pw.LinearGradient(
+                    colors: [PdfColor.fromInt(0xFF3730A3), PdfColor.fromInt(0xFF6D28D9)],
                   ),
-                  pw.Text('NET DISBURSED: Rs. ${netPaid.toStringAsFixed(2)}', 
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16, color: PdfColors.indigo900)),
-                ],
+                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                ),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text('NET AMOUNT DISBURSED',
+                      style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 11, letterSpacing: 1)),
+                    pw.Text('₹ ${netPaid.toStringAsFixed(2)}',
+                      style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 20)),
+                  ],
+                ),
               ),
+
               pw.Spacer(),
-              pw.Center(child: pw.Text('CONFIDENTIAL PAYSLIP. GENERATED ELECTRONICALLY FOR STAFF DISPATCH RECORDS.', style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600))),
+              pw.SizedBox(height: 8),
+              pw.Center(
+                child: pw.Text(
+                  'AUTHORIZED DIGITAL PAYSLIP — CAMPUS CONNECT PERSONNEL MANAGEMENT',
+                  style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.2),
+                ),
+              ),
+              pw.SizedBox(height: 6),
+              _buildFooter('Confidential payslip. Generated electronically. $_kGst'),
             ],
           );
         },
@@ -437,9 +708,56 @@ class ReceiptService {
     );
 
     if (kIsWeb) {
-      await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
+      await Printing.layoutPdf(onLayout: (_) async => pdf.save());
     } else {
       await Printing.sharePdf(bytes: await pdf.save(), filename: 'PAYSLIP_$slipId.pdf');
     }
+  }
+
+  // ─────── Shared row builders ─────────────────────────────────────────────
+
+  static pw.Widget _totalRow(String label, String value, {bool isTotal = false, bool isGreen = false}) {
+    return pw.Padding(
+      padding: const pw.EdgeInsets.symmetric(vertical: 3),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: pw.TextStyle(
+            fontSize: isTotal ? 10 : 8.5,
+            fontWeight: isTotal ? pw.FontWeight.bold : pw.FontWeight.normal,
+            color: isTotal ? PdfColor.fromInt(0xFF3730A3) : PdfColor.fromInt(0xFF374151),
+          )),
+          pw.Text(value, style: pw.TextStyle(
+            fontSize: isTotal ? 12 : 9,
+            fontWeight: isTotal ? pw.FontWeight.bold : pw.FontWeight.normal,
+            color: isGreen ? PdfColor.fromInt(0xFF059669) : (isTotal ? PdfColor.fromInt(0xFF3730A3) : PdfColor.fromInt(0xFF111827)),
+          )),
+        ],
+      ),
+    );
+  }
+
+  static pw.Widget _payRow(String label, String value, {bool bold = false}) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: const pw.BoxDecoration(
+        border: pw.Border(bottom: pw.BorderSide(color: PdfColor.fromInt(0xFFF3F4F6), width: 0.5)),
+      ),
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Text(label, style: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+            color: PdfColor.fromInt(0xFF374151),
+          )),
+          pw.Text(value, style: pw.TextStyle(
+            fontSize: 9,
+            fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
+            color: PdfColor.fromInt(0xFF111827),
+          )),
+        ],
+      ),
+    );
   }
 }

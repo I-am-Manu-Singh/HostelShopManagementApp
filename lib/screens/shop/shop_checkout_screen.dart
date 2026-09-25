@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:intl/intl.dart';
 import '../../services/cart_service.dart';
 import '../../models/shop.dart';
+import '../../services/storage_upload_service.dart';
 import 'shop_order_status_screen.dart';
 
 class ShopCheckoutScreen extends StatefulWidget {
@@ -339,7 +340,37 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
 
   Widget _buildTextField(String label, TextEditingController ctrl, bool isDark) => Container(padding: const EdgeInsets.symmetric(horizontal: 20), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03), border: Border.all(color: isDark ? Colors.white10 : Colors.black12), borderRadius: BorderRadius.circular(20)), child: TextField(controller: ctrl, style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 14), decoration: InputDecoration(border: InputBorder.none, hintText: label, hintStyle: TextStyle(color: isDark ? Colors.white12 : Colors.black26, fontSize: 10, fontWeight: FontWeight.bold))));
 
-  Widget _buildUPIUpload(bool isDark) => Container(padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)), child: Column(children: [Row(children: [const Icon(Icons.qr_code_scanner_rounded, color: Colors.indigoAccent), const SizedBox(width: 16), Expanded(child: Text('Scan and upload receipt.', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold)))]), const SizedBox(height: 20), GestureDetector(onTap: () async { final img = await ImagePicker().pickImage(source: ImageSource.gallery); if (img != null) setState(() => _upiScreenshot = img); }, child: Container(height: 140, width: double.infinity, decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)), borderRadius: BorderRadius.circular(20)), child: _upiScreenshot == null ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.upload_file_rounded, color: isDark ? Colors.white24 : Colors.black26), const SizedBox(height: 4), Text('UPLOAD SCREENSHOT', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 8, fontWeight: FontWeight.w900))]) : ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.file(File(_upiScreenshot!.path), fit: BoxFit.cover))))]));
+  Widget _buildUPIUpload(bool isDark) => Container(
+    padding: const EdgeInsets.all(20),
+    decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)),
+    child: Column(children: [
+      Row(children: [
+        const Icon(Icons.qr_code_scanner_rounded, color: Colors.indigoAccent),
+        const SizedBox(width: 16),
+        Expanded(child: Text('Scan and upload receipt.', style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 11, fontWeight: FontWeight.bold))),
+      ]),
+      const SizedBox(height: 20),
+      GestureDetector(
+        onTap: () async {
+          final img = await ImagePicker().pickImage(
+            source: ImageSource.gallery,
+            imageQuality: 75,
+            maxWidth: 1920,
+            maxHeight: 1920,
+          );
+          if (img != null) setState(() => _upiScreenshot = img);
+        },
+        child: Container(
+          height: 140,
+          width: double.infinity,
+          decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05)), borderRadius: BorderRadius.circular(20)),
+          child: _upiScreenshot == null
+              ? Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.upload_file_rounded, color: isDark ? Colors.white24 : Colors.black26), const SizedBox(height: 4), Text('UPLOAD SCREENSHOT', style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 8, fontWeight: FontWeight.w900))])
+              : ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.file(File(_upiScreenshot!.path), fit: BoxFit.cover)),
+        ),
+      ),
+    ]),
+  );
 
   Widget _buildTotalSummary(CartProvider cart, bool isDark) {
     final subTotal = cart.totalAmount;
@@ -424,10 +455,23 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
       
       setState(() => _isProcessing = true);
       try {
+        String? uploadedScreenshotUrl;
+        if (_upiScreenshot != null) {
+          try {
+            uploadedScreenshotUrl = await StorageUploadService().uploadFile(
+              file: File(_upiScreenshot!.path),
+              preferredBucket: 'receipts',
+              pathPrefix: 'upi_orders',
+            );
+          } catch (uploadErr) {
+            debugPrint('Error uploading UPI screenshot to Supabase: $uploadErr');
+          }
+        }
+
         final error = await cart.checkout(
           deliveryType: _deliveryType, 
           paymentMethod: _paymentMethod, 
-          upiScreenshotUrl: _upiScreenshot != null ? 'https://hostel-mgmt.up.railway.app/mock-upi-receipt.png' : null, 
+          upiScreenshotUrl: uploadedScreenshotUrl, 
           deliveryAddress: _addressController.text, 
           phoneNo: _phoneController.text, 
           altPhoneNo: _altPhoneController.text,

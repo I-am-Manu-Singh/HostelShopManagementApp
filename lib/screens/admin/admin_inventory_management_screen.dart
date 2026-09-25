@@ -6,8 +6,9 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 
 import 'admin_edit_product_screen.dart';
-import '../inventory_scanner_screen.dart';
+import '../security/inventory_scanner_screen.dart';
 import '../../models/shop.dart';
+import '../../services/barcode_wedge_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:share_plus/share_plus.dart';
 import 'package:file_picker/file_picker.dart';
@@ -16,6 +17,7 @@ import 'dart:convert';
 import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../utils/csv_web_helper.dart';
 import '../../utils/csv_range_dialog.dart';
+import '../../services/pos_hardware_service.dart';
 
 class AdminInventoryManagementScreen extends StatefulWidget {
   const AdminInventoryManagementScreen({super.key});
@@ -31,11 +33,55 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
   List<ShopItem> _allItems = [];
   String _searchQuery = '';
 
+  // Batch Barcode Print Mode
+  bool _isBatchPrintMode = false;
+  final Map<String, int> _selectedItemsForPrint = {}; // itemId -> label copies count
+
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _fetchInventory();
+    BarcodeWedgeService().addListener(_onHardwareBarcodeScanned);
+  }
+
+  @override
+  void dispose() {
+    BarcodeWedgeService().removeListener(_onHardwareBarcodeScanned);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _onHardwareBarcodeScanned(String barcode) {
+    if (!mounted) return;
+    final clean = barcode.trim();
+    if (clean.isEmpty) return;
+
+    final item = _allItems.cast<ShopItem?>().firstWhere(
+      (i) => (i?.barcode?.trim().toLowerCase() == clean.toLowerCase()) ||
+             (i?.skuQr?.trim().toLowerCase() == clean.toLowerCase()) ||
+             (i?.id.trim().toLowerCase() == clean.toLowerCase()),
+      orElse: () => null,
+    );
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Hardware Scanned: $clean ${item != null ? "(${item.name})" : "(New Product)"}'),
+        backgroundColor: Colors.indigoAccent,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+
+    if (item != null) {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item))).then((_) {
+        if (mounted) _fetchInventory();
+      });
+    } else {
+      Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(scannedSku: clean))).then((_) {
+        if (mounted) _fetchInventory();
+      });
+    }
   }
 
   Future<void> _exportInventoryToCSV() async {
@@ -337,6 +383,22 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: isDark ? Colors.white : Colors.black, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
           IconButton(
+            icon: Icon(_isBatchPrintMode ? Icons.close_rounded : Icons.print_rounded, color: _isBatchPrintMode ? Colors.redAccent : Colors.indigoAccent),
+            tooltip: _isBatchPrintMode ? 'Cancel Batch Printing' : 'Batch Print Barcodes',
+            onPressed: () {
+              setState(() {
+                _isBatchPrintMode = !_isBatchPrintMode;
+                if (!_isBatchPrintMode) _selectedItemsForPrint.clear();
+              });
+            },
+          ),
+          if (_isBatchPrintMode && _selectedItemsForPrint.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.print_outlined, color: Colors.greenAccent),
+              tooltip: 'Print Selected (${_selectedItemsForPrint.length})',
+              onPressed: _openBatchPrintDialog,
+            ),
+          IconButton(
             icon: const Icon(Icons.file_upload_rounded, color: Colors.indigoAccent),
             tooltip: 'Import CSV',
             onPressed: _importInventoryFromCSV,
@@ -371,11 +433,16 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
                            (i?.id.trim().toLowerCase() == cleanResult),
                     orElse: () => null,
                   );
+                  if (!context.mounted) return;
                   if (item != null) {
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item))).then((_) => _fetchInventory());
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item))).then((_) {
+                      if (mounted) _fetchInventory();
+                    });
                   } else {
                     // Not found, open Add screen with SKU pre-filled (auto-resolves from online registries, allows manual edits & saving)
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(scannedSku: result.trim()))).then((_) => _fetchInventory());
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(scannedSku: result.trim()))).then((_) {
+                      if (mounted) _fetchInventory();
+                    });
                   }
                 }
               }
@@ -465,13 +532,59 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
               ),
             ],
           ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminEditProductScreen()));
-          if (res == true) _fetchInventory();
-        },
-        backgroundColor: Colors.indigoAccent,
-        child: const Icon(Icons.add_rounded, color: Colors.white),
+      floatingActionButton: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'fab_scan_barcode',
+            onPressed: () async {
+              final dynamic result = await Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => InventoryScannerScreen(existingCatalog: _allItems)),
+              );
+              if (result != null) {
+                if (!mounted) return;
+                if (result is int && result > 0) {
+                  _fetchInventory();
+                  return;
+                }
+                if (result is String && result.trim().isNotEmpty) {
+                  final cleanResult = result.trim().toLowerCase();
+                  final item = _allItems.cast<ShopItem?>().firstWhere(
+                    (i) => (i?.barcode?.trim().toLowerCase() == cleanResult) ||
+                           (i?.skuQr?.trim().toLowerCase() == cleanResult) ||
+                           (i?.id.trim().toLowerCase() == cleanResult),
+                    orElse: () => null,
+                  );
+                  if (!context.mounted) return;
+                  if (item != null) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item))).then((_) {
+                      if (mounted) _fetchInventory();
+                    });
+                  } else {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(scannedSku: result.trim()))).then((_) {
+                      if (mounted) _fetchInventory();
+                    });
+                  }
+                }
+              }
+            },
+            backgroundColor: Colors.amber,
+            foregroundColor: Colors.black,
+            icon: const Icon(Icons.qr_code_scanner_rounded),
+            label: const Text('Add by Barcode', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+          ),
+          const SizedBox(width: 12),
+          FloatingActionButton(
+            heroTag: 'fab_add_manual',
+            onPressed: () async {
+              final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminEditProductScreen()));
+              if (res == true) _fetchInventory();
+            },
+            backgroundColor: Colors.indigoAccent,
+            child: const Icon(Icons.add_rounded, color: Colors.white),
+          ),
+        ],
       ),
     );
   }
@@ -610,20 +723,39 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
   Widget _buildItemCard(ShopItem item, Color cardColor, Color borderColor, bool isDark) {
     final int stock = item.stockQuantity;
     final bool lowStock = stock < 10;
+    final bool isSelected = _selectedItemsForPrint.containsKey(item.id);
     
     return FadeInUp(
       child: Container(
         margin: const EdgeInsets.only(bottom: 16),
-        decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(24), border: Border.all(color: lowStock ? Colors.redAccent.withOpacity(0.3) : borderColor)),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.indigoAccent.withOpacity(0.12) : cardColor,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: isSelected ? Colors.indigoAccent : (lowStock ? Colors.redAccent.withOpacity(0.3) : borderColor)),
+        ),
         child: ListTile(
           contentPadding: const EdgeInsets.all(16),
-          leading: Container(
-            width: 50, height: 50,
-            decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
-            child: item.imageUrl != null 
-              ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(item.imageUrl!, fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.inventory_2_rounded, color: Colors.indigoAccent)))
-              : const Icon(Icons.inventory_2_rounded, color: Colors.indigoAccent),
-          ),
+          leading: _isBatchPrintMode
+              ? Checkbox(
+                  value: isSelected,
+                  activeColor: Colors.indigoAccent,
+                  onChanged: (val) {
+                    setState(() {
+                      if (val == true) {
+                        _selectedItemsForPrint[item.id] = 1;
+                      } else {
+                        _selectedItemsForPrint.remove(item.id);
+                      }
+                    });
+                  },
+                )
+              : Container(
+                  width: 50, height: 50,
+                  decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(12)),
+                  child: item.imageUrl != null 
+                    ? ClipRRect(borderRadius: BorderRadius.circular(12), child: Image.network(item.imageUrl!, fit: BoxFit.cover, errorBuilder: (c,e,s) => const Icon(Icons.inventory_2_rounded, color: Colors.indigoAccent)))
+                    : const Icon(Icons.inventory_2_rounded, color: Colors.indigoAccent),
+                ),
           title: Text(item.name, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 15)),
           subtitle: Padding(
             padding: const EdgeInsets.only(top: 8.0),
@@ -631,16 +763,139 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
               _statusTag('QTY: $stock', lowStock ? Colors.redAccent : Colors.greenAccent),
               const SizedBox(width: 8),
               _statusTag('₹${item.discountPrice ?? item.price}', Colors.indigoAccent),
+              if (_isBatchPrintMode && isSelected) ...[
+                const SizedBox(width: 8),
+                _statusTag('${_selectedItemsForPrint[item.id]} STICKERS', Colors.amberAccent),
+              ],
             ]),
           ),
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-             _actionIcon(Icons.history_rounded, isDark ? Colors.white24 : Colors.black26, () {}),
-             _actionIcon(Icons.edit_rounded, Colors.blueAccent, () async {
-               final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item)));
-               if (res == true) _fetchInventory();
-             }),
-          ]),
+          trailing: _isBatchPrintMode
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline, size: 18),
+                      onPressed: isSelected && (_selectedItemsForPrint[item.id] ?? 1) > 1
+                          ? () => setState(() => _selectedItemsForPrint[item.id] = (_selectedItemsForPrint[item.id]! - 1))
+                          : null,
+                    ),
+                    Text('${_selectedItemsForPrint[item.id] ?? 0}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 18),
+                      onPressed: () => setState(() => _selectedItemsForPrint[item.id] = ((_selectedItemsForPrint[item.id] ?? 0) + 1)),
+                    ),
+                  ],
+                )
+              : Row(mainAxisSize: MainAxisSize.min, children: [
+                  _actionIcon(Icons.print_rounded, Colors.amber, () async {
+                    final barcode = item.barcode?.trim() ?? item.skuQr?.trim() ?? item.id;
+                    await PosHardwareService().printProductBarcodeLabel(
+                      name: item.name,
+                      barcode: barcode,
+                      price: item.price,
+                      brand: item.brand,
+                      copies: 1,
+                    );
+                  }),
+                  _actionIcon(Icons.edit_rounded, Colors.blueAccent, () async {
+                    final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item)));
+                    if (res == true) _fetchInventory();
+                  }),
+                ]),
         ),
+      ),
+    );
+  }
+
+  void _openBatchPrintDialog() {
+    if (_selectedItemsForPrint.isEmpty) return;
+
+    final selectedItems = _allItems.where((i) => _selectedItemsForPrint.containsKey(i.id)).toList();
+    final int totalLabels = _selectedItemsForPrint.values.fold(0, (a, b) => a + b);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.print_rounded, color: Colors.indigoAccent),
+            const SizedBox(width: 10),
+            Text('BATCH BARCODE PRINTING', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Print barcode stickers for ${selectedItems.length} unique products ($totalLabels total stickers).', style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 12),
+            Text('• Packed in 3-column A4 sticker sheets (24 stickers/sheet) to maximize page usage & prevent paper waste.', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            const SizedBox(height: 6),
+            Text('• Printable directly to ESC/POS thermal roll or system PDF spooler.', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            const SizedBox(height: 14),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 180),
+              child: ListView(
+                shrinkWrap: true,
+                children: selectedItems.map((item) {
+                  final count = _selectedItemsForPrint[item.id] ?? 1;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(child: Text(item.name, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                        Text('$count copies', style: const TextStyle(fontSize: 11, color: Colors.indigoAccent, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent),
+            icon: const Icon(Icons.print_rounded, size: 16, color: Colors.white),
+            label: const Text('PRINT LABELS', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final itemsPayload = selectedItems.map((i) {
+                final barcode = i.barcode?.trim() ?? i.skuQr?.trim() ?? i.id;
+                return {
+                  'name': i.name,
+                  'barcode': barcode,
+                  'price': i.price,
+                  'brand': i.brand,
+                  'hsn': i.hsnCode,
+                  'count': _selectedItemsForPrint[i.id] ?? 1,
+                };
+              }).toList();
+
+              final success = await PosHardwareService().printBatchBarcodeSheet(
+                itemsWithCounts: itemsPayload,
+                isA4Sheet: true,
+              );
+
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success ? 'Batch barcodes generated ($totalLabels stickers)' : 'Batch print cancelled or failed'),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+                setState(() {
+                  _isBatchPrintMode = false;
+                  _selectedItemsForPrint.clear();
+                });
+              }
+            },
+          ),
+        ],
       ),
     );
   }

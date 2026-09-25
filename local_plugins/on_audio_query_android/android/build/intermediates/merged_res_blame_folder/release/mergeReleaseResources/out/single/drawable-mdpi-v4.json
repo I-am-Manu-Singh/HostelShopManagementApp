@@ -1,46 +1,46 @@
 [
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_answer_video.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/ic_call_answer_video.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notify_panel_notification_icon_bg.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/notify_panel_notification_icon_bg.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_answer_low.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/ic_call_answer_low.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notification_bg_low_normal.9.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/notification_bg_low_normal.9.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notification_bg_normal.9.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/notification_bg_normal.9.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_decline.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/ic_call_decline.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notification_bg_low_pressed.9.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/notification_bg_low_pressed.9.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_answer.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/ic_call_answer.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_decline.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/ic_call_decline.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_decline_low.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/ic_call_decline_low.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_answer.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/ic_call_answer.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notification_bg_low_pressed.9.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/notification_bg_low_pressed.9.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_decline_low.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/ic_call_decline_low.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_answer_video_low.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/ic_call_answer_video_low.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_answer_video_low.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/ic_call_answer_video_low.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notification_bg_normal.9.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/notification_bg_normal.9.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notification_bg_normal_pressed.9.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/notification_bg_normal_pressed.9.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_answer_video.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/ic_call_answer_video.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notification_bg_low_normal.9.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/notification_bg_low_normal.9.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notification_bg_normal_pressed.9.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/notification_bg_normal_pressed.9.png"
     },
     {
-        "merged": "com.hostel.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/notify_panel_notification_icon_bg.png",
-        "source": "com.hostel.placeholder.on_audio_query_android-core-1.13.1-2:/drawable-mdpi-v4/notify_panel_notification_icon_bg.png"
+        "merged": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-release-25:/drawable-mdpi-v4/ic_call_answer_low.png",
+        "source": "com.creativeblisslabs.hostelshop.placeholder.on_audio_query_android-core-1.13.1-8:/drawable-mdpi-v4/ic_call_answer_low.png"
     }
 ]

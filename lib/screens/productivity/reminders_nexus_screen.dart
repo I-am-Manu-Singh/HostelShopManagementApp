@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:animate_do/animate_do.dart';
-import 'package:intl/intl.dart';
 import '../../services/database_service.dart';
+
+import 'alarm_ringing_screen.dart';
 
 class RemindersNexusScreen extends StatefulWidget {
   const RemindersNexusScreen({super.key});
@@ -43,6 +43,20 @@ class _RemindersNexusScreenState extends State<RemindersNexusScreen> {
     }
   }
 
+  void _triggerAlarm(String title, String time, {String? soundAsset, String category = 'Focus'}) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AlarmRingingScreen(
+          title: title,
+          time: time,
+          soundAsset: soundAsset ?? 'assets/audio/zen.mp3',
+          category: category,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -53,7 +67,7 @@ class _RemindersNexusScreenState extends State<RemindersNexusScreen> {
       backgroundColor: bgColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent, elevation: 0,
-        title: Text('HEALTH REMINDERS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
+        title: Text('HEALTH REMINDERS & ALARMS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 2)),
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
       ),
       body: _isLoading 
@@ -108,17 +122,24 @@ class _RemindersNexusScreenState extends State<RemindersNexusScreen> {
 
   Widget _alarmCard(Map<String, dynamic> al, bool isDark) {
     final textColor = isDark ? Colors.white : Colors.black;
+    final timeStr = al['scheduled_time']?.toString().substring(0, 5) ?? '00:00';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(24),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.02) : Colors.black.withOpacity(0.02), borderRadius: BorderRadius.circular(24), border: Border.all(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05))),
       child: Row(children: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-           Text(al['scheduled_time']?.substring(0, 5) ?? '00:00', style: GoogleFonts.outfit(color: textColor, fontSize: 28, fontWeight: FontWeight.w900, height: 1)),
+           Text(timeStr, style: GoogleFonts.outfit(color: textColor, fontSize: 26, fontWeight: FontWeight.w900, height: 1)),
            const SizedBox(height: 4),
            Text(al['title'].toString().toUpperCase(), style: const TextStyle(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
         ]),
         const Spacer(),
+        IconButton(
+          tooltip: 'Test Ring Alarm',
+          icon: const Icon(Icons.play_circle_fill_rounded, color: Colors.indigoAccent, size: 28),
+          onPressed: () => _triggerAlarm(al['title'] ?? 'Alarm', timeStr, category: al['category'] ?? 'Focus'),
+        ),
+        const SizedBox(width: 8),
         Switch(value: al['is_active'] == true, activeColor: Colors.indigoAccent, onChanged: (val) async {
            await _db.toggleReminder(al['id'], val);
            _loadReminders();
@@ -130,6 +151,7 @@ class _RemindersNexusScreenState extends State<RemindersNexusScreen> {
   void _showAddAlarmModal(bool isDark) {
     final titleCtrl = TextEditingController();
     TimeOfDay time = const TimeOfDay(hour: 6, minute: 0);
+    String selectedSound = 'assets/audio/zen.mp3';
     final textColor = isDark ? Colors.white : Colors.black;
 
     showModalBottomSheet(
@@ -143,21 +165,46 @@ class _RemindersNexusScreenState extends State<RemindersNexusScreen> {
               padding: EdgeInsets.fromLTRB(28, 28, 28, MediaQuery.of(context).viewInsets.bottom + 28),
               decoration: BoxDecoration(color: isDark ? const Color(0xFF16181A) : Colors.white, borderRadius: const BorderRadius.vertical(top: Radius.circular(36))),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                 Text('NEW ALARM', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 2)),
+                 Text('NEW PERSISTENT ALARM', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontWeight: FontWeight.w900, fontSize: 10, letterSpacing: 2)),
                  const SizedBox(height: 24),
-                 TextField(controller: titleCtrl, style: TextStyle(color: textColor), decoration: _inputDeco('Alarm Name (e.g. Study Session)', isDark)),
-                 const SizedBox(height: 20),
+                 TextField(controller: titleCtrl, style: TextStyle(color: textColor), decoration: _inputDeco('Alarm Label (e.g. Study Session / Wakeup)', isDark)),
+                 const SizedBox(height: 16),
                  InkWell(
                     onTap: () async {
                        final t = await showTimePicker(context: context, initialTime: time);
                        if (t != null) setModalState(() => time = t);
                     },
-                    child: Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(16)), child: Row(children: [const Icon(Icons.access_time_filled_rounded, color: Colors.indigoAccent, size: 20), const SizedBox(width: 12), Text('TIME: ${time.format(context)}', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))])),
+                    child: Container(width: double.infinity, padding: const EdgeInsets.all(18), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(16)), child: Row(children: [const Icon(Icons.access_time_filled_rounded, color: Colors.indigoAccent, size: 20), const SizedBox(width: 12), Text('TIME: ${time.format(context)}', style: TextStyle(color: textColor, fontWeight: FontWeight.bold))])),
                  ),
-                 const SizedBox(height: 32),
-                 SizedBox(width: double.infinity, height: 60, child: ElevatedButton(
+                 const SizedBox(height: 16),
+                 Container(
+                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                   decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(16)),
+                   child: DropdownButtonHideUnderline(
+                     child: DropdownButton<String>(
+                       value: selectedSound,
+                       isExpanded: true,
+                       dropdownColor: isDark ? const Color(0xFF1E2024) : Colors.white,
+                       items: const [
+                         DropdownMenuItem(value: 'assets/audio/zen.mp3', child: Text('Sound: Zen Bells')),
+                         DropdownMenuItem(value: 'assets/audio/study.mp3', child: Text('Sound: Study Bell')),
+                         DropdownMenuItem(value: 'assets/audio/forest.mp3', child: Text('Sound: Forest Calm')),
+                         DropdownMenuItem(value: 'assets/audio/waves.mp3', child: Text('Sound: Ocean Waves')),
+                         DropdownMenuItem(value: 'assets/audio/lofi.mp3', child: Text('Sound: Lofi Beats')),
+                         DropdownMenuItem(value: 'assets/audio/tick.mp3', child: Text('Sound: Clock Tick')),
+                       ],
+                       onChanged: (v) {
+                         if (v != null) setModalState(() => selectedSound = v);
+                       },
+                     ),
+                   ),
+                 ),
+                 const SizedBox(height: 28),
+                 SizedBox(width: double.infinity, height: 56, child: ElevatedButton(
                     onPressed: () async {
-                       await _db.createReminder(titleCtrl.text, 'custom_alarm', '${time.hour}:${time.minute}:00', [1,2,3,4,5]);
+                       final title = titleCtrl.text.trim().isEmpty ? 'Alarm' : titleCtrl.text.trim();
+                       final timeStr = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:00';
+                       await _db.createReminder(title, 'custom_alarm', timeStr, [1,2,3,4,5]);
                        Navigator.pop(context);
                        _loadReminders();
                     },

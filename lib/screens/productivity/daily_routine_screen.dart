@@ -46,26 +46,47 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> with SingleTick
   Future<void> _fetchProtocols() async {
     setState(() => _isLoading = true);
     try {
-      final res = await _client.from('staff_tasks').select()
-          .eq('user_id', _client.auth.currentUser!.id)
-          .eq('status', 'Routine')
-          .order('created_at', ascending: false);
-      
-      // If none found, use some dummy ones for better UI demo
-      if ((res as List).isEmpty) {
-        _protocols = [
-          {'id': 'p1', 'title': 'Early Morning Deep Work', 'category': 'Deep Focus', 'duration': '90 min', 'is_done': false},
-          {'id': 'p2', 'title': 'Post-Lunch Recharge', 'category': 'Wellness', 'duration': '20 min', 'is_done': true},
-          {'id': 'p3', 'title': 'Project Strategy Sync', 'category': 'Collaboration', 'duration': '45 min', 'is_done': false},
-        ];
-      } else {
-        _protocols = List<Map<String, dynamic>>.from(res);
+      final user = _client.auth.currentUser;
+      if (user != null) {
+        final res = await _client.from('student_daily_routines').select()
+            .or('user_id.eq.${user.id},student_id.eq.${user.id}')
+            .order('start_time', ascending: true);
+        
+        if ((res as List).isNotEmpty) {
+          _protocols = List<Map<String, dynamic>>.from(res);
+        } else {
+          // Initialize default routines for first-time student
+          final defaults = [
+            {'title': 'Morning Meditation & Planning', 'category': 'Wellness', 'start_time': '07:00', 'end_time': '07:30', 'duration': '30 min', 'icon_name': 'meditation', 'is_done': false},
+            {'title': 'Academic Deep Focus Block', 'category': 'Deep Focus', 'start_time': '09:00', 'end_time': '11:00', 'duration': '120 min', 'icon_name': 'bolt', 'is_done': false},
+            {'title': 'Campus Lectures & Lab Work', 'category': 'Academics', 'start_time': '11:30', 'end_time': '13:30', 'duration': '120 min', 'icon_name': 'lecture', 'is_done': false},
+            {'title': 'Evening Workout Protocol', 'category': 'Fitness', 'start_time': '17:30', 'end_time': '18:30', 'duration': '60 min', 'icon_name': 'workout', 'is_done': false},
+            {'title': 'Revision & Day Reflection', 'category': 'Review', 'start_time': '21:00', 'end_time': '21:45', 'duration': '45 min', 'icon_name': 'reading', 'is_done': false},
+          ];
+          for (var d in defaults) {
+            try {
+              await _client.from('student_daily_routines').insert({
+                'user_id': user.id,
+                'student_id': user.id,
+                'title': d['title'],
+                'category': d['category'],
+                'start_time': d['start_time'],
+                'end_time': d['end_time'],
+                'icon_name': d['icon_name'],
+                'is_done': false,
+              });
+            } catch (_) {}
+          }
+          final refreshed = await _client.from('student_daily_routines').select()
+              .or('user_id.eq.${user.id},student_id.eq.${user.id}')
+              .order('start_time', ascending: true);
+          _protocols = (refreshed as List).isNotEmpty ? List<Map<String, dynamic>>.from(refreshed) : defaults;
+        }
       }
     } catch (_) {
-      // Fallback
       _protocols = [
-          {'id': 'p1', 'title': 'Core Logic Refactor', 'category': 'Development', 'duration': '120 min', 'is_done': false},
-          {'id': 'p2', 'title': 'UI Polish & Micro-interactions', 'category': 'UX/UI', 'duration': '60 min', 'is_done': false},
+        {'id': 'p1', 'title': 'Core Focus Session', 'category': 'Focus', 'duration': '60 min', 'is_done': false},
+        {'id': 'p2', 'title': 'Knowledge Revision', 'category': 'Academics', 'duration': '45 min', 'is_done': false},
       ];
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -87,9 +108,9 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> with SingleTick
     });
   }
 
-  void _markComplete(String id) {
+  void _markComplete(String id) async {
     setState(() {
-      final idx = _protocols.indexWhere((p) => p['id'] == id);
+      final idx = _protocols.indexWhere((p) => p['id']?.toString() == id);
       if (idx != -1) {
         _protocols[idx]['is_done'] = true;
       }
@@ -98,6 +119,13 @@ class _DailyRoutineScreenState extends State<DailyRoutineScreen> with SingleTick
         _taskTimer?.cancel();
       }
     });
+
+    // Update remote Supabase record if valid UUID
+    try {
+      if (id.length > 20) {
+        await _client.from('student_daily_routines').update({'is_done': true}).eq('id', id);
+      }
+    } catch (_) {}
 
     // Award XP
     _db.incrementXP(50);

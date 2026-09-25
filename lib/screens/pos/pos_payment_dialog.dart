@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../services/pos_hardware_service.dart';
 import '../../services/pos_sync_service.dart';
@@ -29,7 +30,7 @@ class PosPaymentDialog extends StatefulWidget {
 }
 
 class _PosPaymentDialogState extends State<PosPaymentDialog> {
-  String _selectedMode = 'cash'; // 'cash', 'upi', 'khata', 'card'
+  String _selectedMode = 'cash';
   final _tenderedCtrl = TextEditingController();
   double _changeReturn = 0.0;
   bool _isProcessing = false;
@@ -55,6 +56,16 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
   }
 
   Future<void> _completeCheckout() async {
+    if ((_selectedMode == 'wallet' || _selectedMode == 'khata') && widget.selectedStudent == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please select a student account first for $_selectedMode payment!'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isProcessing = true);
 
     final tendered = double.tryParse(_tenderedCtrl.text.trim()) ?? widget.total;
@@ -76,15 +87,19 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
       setState(() => _isProcessing = false);
       if (result.success && result.receiptData != null) {
         final receiptData = result.receiptData!;
-        // 1. Attempt thermal print
-        bool printed = false;
-        if (PosHardwareService().autoPrint) {
-          printed = await PosHardwareService().printThermalReceipt(receiptData);
+        
+        // Attempt direct Bluetooth thermal print or fallback to OS print spooler/PDF
+        bool printedOrSaved = false;
+        try {
+          printedOrSaved = await PosHardwareService().printThermalReceipt(receiptData);
+        } catch (_) {
+          // Fallback to saving/sharing PDF if printing fails
+          await PosHardwareService().shareReceiptPdf(receiptData);
         }
 
         if (mounted) {
           Navigator.pop(context, result);
-          _showPostCheckoutSheet(context, receiptData, printed);
+          _showPostCheckoutSheet(context, receiptData, printedOrSaved);
         }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -97,10 +112,11 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
     }
   }
 
-  void _showPostCheckoutSheet(BuildContext context, PosReceiptData data, bool printed) {
+  void _showPostCheckoutSheet(BuildContext context, PosReceiptData data, bool success) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return Padding(
@@ -114,20 +130,18 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
                 children: [
                   Row(
                     children: [
-                      Icon(printed ? Icons.check_circle : Icons.receipt_long, color: printed ? Colors.greenAccent : Colors.amberAccent, size: 24),
+                      Icon(success ? Icons.check_circle : Icons.picture_as_pdf, color: Colors.greenAccent, size: 24),
                       const SizedBox(width: 8),
-                      Text("Order #${data.invoiceNumber}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text("Order #${data.invoiceNumber}", style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontWeight: FontWeight.bold, fontSize: 16)),
                     ],
                   ),
-                  Text("Rs ${data.total.toStringAsFixed(2)}", style: const TextStyle(color: Colors.amberAccent, fontWeight: FontWeight.bold, fontSize: 18)),
+                  Text("₹ ${data.total.toStringAsFixed(2)}", style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 18)),
                 ],
               ),
               const SizedBox(height: 6),
               Text(
-                printed
-                    ? "Receipt printed to hardware. You can also share digital copy with customer:"
-                    : "No hardware printer connected. Share or view thermal bill via PDF / WhatsApp image:",
-                style: const TextStyle(color: Colors.white60, fontSize: 12),
+                "Receipt processed successfully. Choose an action below:",
+                style: TextStyle(color: isDark ? Colors.white70 : Colors.black54, fontSize: 12),
               ),
               const SizedBox(height: 16),
               Row(
@@ -136,7 +150,7 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF25D366), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
                       icon: const Icon(Icons.share, size: 18),
-                      label: const Text("WhatsApp Image", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      label: const Text("WhatsApp", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       onPressed: () {
                         Navigator.pop(ctx);
                         PosHardwareService().shareReceiptImage(data);
@@ -148,7 +162,7 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)),
                       icon: const Icon(Icons.picture_as_pdf, size: 18),
-                      label: const Text("Share PDF", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      label: const Text("Save PDF", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       onPressed: () {
                         Navigator.pop(ctx);
                         PosHardwareService().shareReceiptPdf(data);
@@ -158,8 +172,8 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
                   const SizedBox(width: 10),
                   IconButton.filled(
                     style: IconButton.styleFrom(backgroundColor: const Color(0xFF334155)),
-                    icon: const Icon(Icons.print, color: Colors.amberAccent),
-                    tooltip: "Retry Thermal Print",
+                    icon: const Icon(Icons.print, color: Colors.amber),
+                    tooltip: "Retry Print",
                     onPressed: () {
                       Navigator.pop(ctx);
                       PosHardwareService().printThermalReceipt(data);
@@ -177,11 +191,17 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final dialogBg = isDark ? const Color(0xFF121418) : Colors.white;
+    final containerBg = isDark ? const Color(0xFF0A0C0E) : Colors.grey.shade100;
+    final textColor = isDark ? Colors.white : Colors.black;
+
     return Dialog(
-      backgroundColor: const Color(0xFF1E293B),
+      backgroundColor: dialogBg,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
         width: 620,
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
         padding: const EdgeInsets.all(24),
         child: SingleChildScrollView(
           child: Column(
@@ -191,17 +211,15 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text("Terminal Tender & Checkout", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                  Text("Terminal Tender & Checkout", style: GoogleFonts.outfit(color: textColor, fontSize: 16, fontWeight: FontWeight.bold)),
                   IconButton(
-                    icon: const Icon(Icons.close, color: Colors.white70),
+                    icon: Icon(Icons.close, color: textColor.withOpacity(0.7)),
                     onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
-              const Divider(color: Colors.white12),
+              Divider(color: isDark ? Colors.white12 : Colors.black12),
               const SizedBox(height: 12),
-
-              // Total Payable Box
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -219,41 +237,38 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
                         Text("Incl. All GST & Discounts", style: TextStyle(color: Colors.white60, fontSize: 10)),
                       ],
                     ),
-                    Text("Rs ${widget.total.toStringAsFixed(2)}", style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+                    Text("₹ ${widget.total.toStringAsFixed(2)}", style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
-
               const SizedBox(height: 16),
-              const Text("Select Payment Method", style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.bold)),
+              Text("Select Payment Method", style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 13, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-
-              // Mode Selectors
               Row(
                 children: [
-                  _modeCard('cash', 'Cash Tender', Icons.payments, Colors.greenAccent),
-                  const SizedBox(width: 8),
-                  _modeCard('upi', 'Dynamic UPI', Icons.qr_code_2, Colors.lightBlueAccent),
-                  const SizedBox(width: 8),
-                  _modeCard('khata', 'Student Khata', Icons.account_balance_wallet, Colors.amberAccent),
-                  const SizedBox(width: 8),
-                  _modeCard('card', 'Debit / Credit', Icons.credit_card, Colors.purpleAccent),
+                  _modeCard('cash', 'Cash', Icons.payments, Colors.greenAccent, isDark, textColor),
+                  const SizedBox(width: 6),
+                  _modeCard('upi', 'UPI', Icons.qr_code_2, Colors.lightBlueAccent, isDark, textColor),
+                  const SizedBox(width: 6),
+                  _modeCard('wallet', 'Wallet', Icons.account_balance_wallet, Colors.tealAccent, isDark, textColor),
+                  const SizedBox(width: 6),
+                  _modeCard('khata', 'Khata', Icons.menu_book, Colors.amber, isDark, textColor),
+                  const SizedBox(width: 6),
+                  _modeCard('card', 'Card', Icons.credit_card, Colors.purpleAccent, isDark, textColor),
                 ],
               ),
-
               const SizedBox(height: 16),
-              // Dynamic Content per mode
-              if (_selectedMode == 'cash') _buildCashTenderView(),
-              if (_selectedMode == 'upi') _buildUpiQrView(),
-              if (_selectedMode == 'khata') _buildStudentKhataView(),
-              if (_selectedMode == 'card') _buildCardSwipeView(),
-
+              if (_selectedMode == 'cash') _buildCashTenderView(isDark, textColor, containerBg),
+              if (_selectedMode == 'upi') _buildUpiQrView(isDark, textColor, containerBg),
+              if (_selectedMode == 'wallet') _buildStudentWalletView(isDark, textColor, containerBg),
+              if (_selectedMode == 'khata') _buildStudentKhataView(isDark, textColor, containerBg),
+              if (_selectedMode == 'card') _buildCardSwipeView(isDark, textColor, containerBg),
               const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.amberAccent,
+                    backgroundColor: Colors.amber,
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -262,8 +277,8 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
                       : const Icon(Icons.print),
                   label: Text(
-                    _isProcessing ? "Finalizing Order..." : "Confirm & Print Receipt (Rs ${widget.total.toStringAsFixed(2)})",
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    _isProcessing ? "Finalizing Order..." : "Confirm & Print / Save PDF (₹ ${widget.total.toStringAsFixed(2)})",
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   onPressed: _isProcessing ? null : _completeCheckout,
                 ),
@@ -275,24 +290,24 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
     );
   }
 
-  Widget _modeCard(String mode, String title, IconData icon, Color color) {
+  Widget _modeCard(String mode, String title, IconData icon, Color color, bool isDark, Color textColor) {
     final isSelected = _selectedMode == mode;
     return Expanded(
       child: InkWell(
         onTap: () => setState(() => _selectedMode = mode),
         borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
           decoration: BoxDecoration(
-            color: isSelected ? color.withValues(alpha: 0.15) : const Color(0xFF0F172A),
+            color: isSelected ? color.withOpacity(0.15) : (isDark ? const Color(0xFF0F172A) : Colors.grey.shade100),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: isSelected ? color : Colors.white12, width: isSelected ? 1.5 : 1),
+            border: Border.all(color: isSelected ? color : (isDark ? Colors.white12 : Colors.black12), width: isSelected ? 1.5 : 1),
           ),
           child: Column(
             children: [
-              Icon(icon, color: isSelected ? color : Colors.white60, size: 22),
+              Icon(icon, color: isSelected ? color : textColor.withOpacity(0.6), size: 20),
               const SizedBox(height: 4),
-              Text(title, style: TextStyle(color: isSelected ? Colors.white : Colors.white60, fontSize: 11, fontWeight: FontWeight.bold)),
+              Text(title, style: TextStyle(color: isSelected ? textColor : textColor.withOpacity(0.6), fontSize: 11, fontWeight: FontWeight.bold)),
             ],
           ),
         ),
@@ -300,10 +315,10 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
     );
   }
 
-  Widget _buildCashTenderView() {
+  Widget _buildCashTenderView(bool isDark, Color textColor, Color containerBg) {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(8)),
       child: Column(
         children: [
           Row(
@@ -312,28 +327,28 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
                 child: TextField(
                   controller: _tenderedCtrl,
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                  decoration: const InputDecoration(
-                    labelText: "Cash Tendered by Customer (Rs)",
-                    labelStyle: TextStyle(color: Colors.white60, fontSize: 12),
-                    border: OutlineInputBorder(),
+                  style: TextStyle(color: textColor, fontSize: 16, fontWeight: FontWeight.bold),
+                  decoration: InputDecoration(
+                    labelText: "Cash Tendered (₹)",
+                    labelStyle: TextStyle(color: textColor.withOpacity(0.6), fontSize: 12),
+                    border: const OutlineInputBorder(),
                   ),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
+                    color: isDark ? const Color(0xFF1E293B) : Colors.white,
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                    border: Border.all(color: Colors.greenAccent.withOpacity(0.4)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("Change to Return:", style: TextStyle(color: Colors.white70, fontSize: 11)),
-                      Text("Rs ${_changeReturn.toStringAsFixed(2)}", style: const TextStyle(color: Colors.greenAccent, fontSize: 18, fontWeight: FontWeight.bold)),
+                      Text("Change Return:", style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 11)),
+                      Text("₹ ${_changeReturn.toStringAsFixed(2)}", style: const TextStyle(color: Colors.greenAccent, fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -341,14 +356,13 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
             ],
           ),
           const SizedBox(height: 10),
-          // Quick denominations
           Row(
             children: [100, 200, 500, 2000].map((denom) {
               return Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: ActionChip(
-                  backgroundColor: const Color(0xFF334155),
-                  label: Text("Rs $denom", style: const TextStyle(color: Colors.white, fontSize: 11)),
+                  backgroundColor: isDark ? const Color(0xFF334155) : Colors.grey.shade300,
+                  label: Text("₹ $denom", style: TextStyle(color: textColor, fontSize: 11)),
                   onPressed: () {
                     _tenderedCtrl.text = denom.toDouble().toStringAsFixed(2);
                   },
@@ -361,30 +375,35 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
     );
   }
 
-  Widget _buildUpiQrView() {
-    final upiUri = "upi://pay?pa=campusshop@upi&pn=HostelShop&am=${widget.total.toStringAsFixed(2)}&cu=INR&tn=POSOrder";
+  Widget _buildUpiQrView(bool isDark, Color textColor, Color containerBg) {
+    final hardware = PosHardwareService();
+    final vpa = hardware.merchantUpiVpa.trim().isNotEmpty ? hardware.merchantUpiVpa.trim() : "campusshop@upi";
+    final payeeName = Uri.encodeComponent(hardware.merchantName.trim().isNotEmpty ? hardware.merchantName.trim() : hardware.storeName);
+    final upiUri = "upi://pay?pa=$vpa&pn=$payeeName&am=${widget.total.toStringAsFixed(2)}&cu=INR&tn=POSOrder";
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(8)),
       child: Row(
         children: [
           Container(
             color: Colors.white,
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             child: QrImageView(
               data: upiUri,
               version: QrVersions.auto,
-              size: 130,
+              size: 110,
             ),
           ),
           const SizedBox(width: 16),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text("Scan with any UPI App", style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                SizedBox(height: 4),
-                Text("Customer can scan GooglePay, PhonePe, Paytm or BHIM to pay instantly. Press confirm once payment notification arrives.", style: TextStyle(color: Colors.white60, fontSize: 12)),
+                Text("Scan with UPI App", style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Text("Pay to: $vpa", style: TextStyle(color: Colors.lightBlueAccent, fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text("Scan via GPay, PhonePe, Paytm, or BHIM. Press confirm once successful.", style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 11)),
               ],
             ),
           ),
@@ -393,39 +412,71 @@ class _PosPaymentDialogState extends State<PosPaymentDialog> {
     );
   }
 
-  Widget _buildStudentKhataView() {
+  Widget _buildStudentWalletView(bool isDark, Color textColor, Color containerBg) {
     final studentName = widget.selectedStudent?['full_name'] ?? 'No Student Selected';
     final balance = (widget.selectedStudent?['balance'] as num?)?.toDouble() ?? 0.0;
+    final hasSufficientBal = balance >= widget.total;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(8)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text("Account: $studentName", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
-              Text("Current Balance: Rs ${balance.toStringAsFixed(2)}", style: TextStyle(color: balance >= widget.total ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold)),
+              Text("Student Wallet: $studentName", style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13)),
+              Text("Bal: ₹ ${balance.toStringAsFixed(2)}", style: TextStyle(color: hasSufficientBal ? Colors.tealAccent : Colors.redAccent, fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 6),
-          Text("After this purchase, balance will be: Rs ${(balance - widget.total).toStringAsFixed(2)}", style: const TextStyle(color: Colors.white60, fontSize: 12)),
+          if (widget.selectedStudent == null)
+            const Text("⚠️ Please select a student account from the top bar to deduct from their wallet.", style: TextStyle(color: Colors.orangeAccent, fontSize: 12))
+          else if (!hasSufficientBal)
+            Text("⚠️ Insufficient Wallet Balance! Needs ₹ ${widget.total.toStringAsFixed(2)} (Short by ₹ ${(widget.total - balance).toStringAsFixed(2)}). Use Khata, Cash, or UPI instead.", style: const TextStyle(color: Colors.redAccent, fontSize: 12))
+          else
+            Text("Wallet after deduction: ₹ ${(balance - widget.total).toStringAsFixed(2)}", style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 12)),
         ],
       ),
     );
   }
 
-  Widget _buildCardSwipeView() {
+  Widget _buildStudentKhataView(bool isDark, Color textColor, Color containerBg) {
+    final studentName = widget.selectedStudent?['full_name'] ?? 'No Student Selected';
+    final balance = (widget.selectedStudent?['balance'] as num?)?.toDouble() ?? 0.0;
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: const Color(0xFF0F172A), borderRadius: BorderRadius.circular(8)),
-      child: const Row(
+      decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(8)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.credit_card, size: 40, color: Colors.purpleAccent),
-          SizedBox(width: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text("Khata Ledger: $studentName", style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 13)),
+              Text("Bal: ₹ ${balance.toStringAsFixed(2)}", style: TextStyle(color: balance >= widget.total ? Colors.greenAccent : Colors.amberAccent, fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          if (widget.selectedStudent == null)
+            const Text("⚠️ Please select a student account from the top bar to charge to their Khata.", style: TextStyle(color: Colors.orangeAccent, fontSize: 12))
+          else
+            Text("Balance after purchase: ₹ ${(balance - widget.total).toStringAsFixed(2)}", style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardSwipeView(bool isDark, Color textColor, Color containerBg) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(color: containerBg, borderRadius: BorderRadius.circular(8)),
+      child: Row(
+        children: [
+          const Icon(Icons.credit_card, size: 36, color: Colors.purpleAccent),
+          const SizedBox(width: 16),
           Expanded(
-            child: Text("Swipe, Tap, or Insert card on EDC Pinpad machine. Once authorized, tap Confirm & Print.", style: TextStyle(color: Colors.white70, fontSize: 13)),
+            child: Text("Swipe, Tap, or Insert card on the EDC machine. Confirm once authorized.", style: TextStyle(color: textColor.withOpacity(0.8), fontSize: 12)),
           ),
         ],
       ),

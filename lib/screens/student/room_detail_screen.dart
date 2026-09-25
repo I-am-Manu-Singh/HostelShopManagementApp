@@ -7,6 +7,9 @@ import 'package:share_plus/share_plus.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import '../../models/hostel.dart';
+import '../admin/admin_room_inspection_screen.dart';
+import '../campus/hostel_browse_screen.dart';
+import '../auth/login_screen.dart';
 
 class RoomDetailScreen extends StatefulWidget {
   final HostelRoom room;
@@ -25,6 +28,8 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   int _currentImageIndex = 0;
   String _role = 'user';
   List<String> _galleryImages = [];
+  Map<String, dynamic>? _latestInspection;
+  bool _isLoadingInspection = true;
 
   @override
   void initState() {
@@ -34,6 +39,27 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     _checkReviewEligibility();
     _fetchReviews();
     _checkUserRole();
+    _fetchLatestInspection();
+  }
+
+  Future<void> _fetchLatestInspection() async {
+    try {
+      final res = await _client
+          .from('room_maintenance_records')
+          .select('*, profiles(full_name)')
+          .eq('room_id', widget.room.id)
+          .order('inspection_date', ascending: false)
+          .limit(1)
+          .maybeSingle();
+      if (mounted) {
+        setState(() {
+          _latestInspection = res;
+          _isLoadingInspection = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoadingInspection = false);
+    }
   }
 
   Future<void> _initGalleryImages() async {
@@ -155,8 +181,6 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                         _buildInclusionsList(isDark),
                         const SizedBox(height: 32),
                         _buildInspectionStatus(isDark),
-                        const SizedBox(height: 32),
-                        _buildReviewsSection(isDark, cardColor),
                       ],
                     ),
                   ),
@@ -268,43 +292,49 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.indigoAccent.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
-              ),
-              child: Text(
-                widget.room.roomType?.toUpperCase() ?? 'STANDARD',
-                style: GoogleFonts.outfit(
-                  color: Colors.indigoAccent,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.5,
-                ),
-              ),
-            ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.star_rounded, color: Colors.amber, size: 14),
-                  const SizedBox(width: 4),
-                  Text(
-                    '4.8 (${_reviews.length})',
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.indigoAccent.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    widget.room.roomType?.toUpperCase() ?? 'STANDARD',
                     style: GoogleFonts.outfit(
-                      color: Colors.white,
-                      fontSize: 11,
+                      color: Colors.indigoAccent,
+                      fontSize: 10,
                       fontWeight: FontWeight.w900,
+                      letterSpacing: 1.5,
                     ),
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HostelBrowseScreen())),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.white12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.apartment_rounded, color: Colors.white70, size: 12),
+                        const SizedBox(width: 4),
+                        Text(
+                          'CAMPUS BLOCKS',
+                          style: GoogleFonts.outfit(color: Colors.white70, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -512,102 +542,97 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
   }
 
   Widget _buildInspectionStatus(bool isDark) {
+    final status = _latestInspection?['status']?.toString().toUpperCase() ?? 'CERTIFIED';
+    final isOk = status == 'OK' || status == 'CERTIFIED';
+    final isAttention = status == 'NEEDS_ATTENTION' || status == 'REPAIR_SCHEDULED';
+    final statusColor = isOk ? Colors.greenAccent : (isAttention ? Colors.orangeAccent : Colors.redAccent);
+    
+    final desc = _latestInspection?['issue_description']?.toString();
+    final resolution = _latestInspection?['resolution_details']?.toString();
+    final inspectDate = _latestInspection?['inspection_date'] != null 
+        ? DateFormat('dd MMM yyyy').format(DateTime.parse(_latestInspection!['inspection_date']))
+        : 'Recently verified';
+    final inspector = _latestInspection?['profiles']?['full_name']?.toString() ?? 'Campus Facilities Team';
+
+    final isAdmin = _role == 'admin' || _role == 'hostel_manager' || _role == 'owner';
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.greenAccent.withOpacity(0.03),
+        color: statusColor.withOpacity(0.03),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.greenAccent.withOpacity(0.15)),
+        border: Border.all(color: statusColor.withOpacity(0.15)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.verified_user_rounded, color: Colors.greenAccent, size: 24),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'CERTIFIED SMART ALLOTMENT UNIT',
-                  style: GoogleFonts.outfit(
-                    color: Colors.greenAccent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
+          Row(
+            children: [
+              Icon(isOk ? Icons.verified_user_rounded : Icons.report_problem_rounded, color: statusColor, size: 24),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Text(
+                          'INSPECTION STATUS: $status',
+                          style: GoogleFonts.outfit(
+                            color: statusColor,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          inspectDate,
+                          style: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 9, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      desc != null && desc.isNotEmpty
+                          ? desc
+                          : 'Passed lock grid, plumbing nodes, and electrical checkups for immediate move-in.',
+                      style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 11),
+                    ),
+                    if (resolution != null && resolution.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Text('Resolution: $resolution', style: TextStyle(color: Colors.greenAccent.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                    const SizedBox(height: 2),
+                    Text('Inspector: $inspector', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 9)),
+                  ],
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'Passed lock grid, plumbing nodes, and electrical checkups for immediate move-in.',
-                  style: TextStyle(color: Colors.white54, fontSize: 10),
+              ),
+            ],
+          ),
+          if (isAdmin) ...[
+            const SizedBox(height: 14),
+            const Divider(height: 1, color: Colors.white10),
+            const SizedBox(height: 10),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('ADMIN MAINTENANCE CONTROLS', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1)),
+                TextButton.icon(
+                  onPressed: () async {
+                    await Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminRoomInspectionScreen()));
+                    _fetchLatestInspection();
+                  },
+                  icon: const Icon(Icons.edit_note_rounded, size: 14, color: Colors.indigoAccent),
+                  label: const Text('EDIT / AUDIT ROOM', style: TextStyle(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
-          ),
+          ],
         ],
       ),
     );
   }
-
-  Widget _buildReviewsSection(bool isDark, Color bg) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'RESIDENT REVIEWS',
-          style: GoogleFonts.outfit(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1),
-        ),
-        const SizedBox(height: 16),
-        _isLoadingReviews
-            ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
-            : _reviews.isEmpty
-                ? const Text(
-                    'No reviews recorded yet.',
-                    style: TextStyle(color: Colors.white24, fontSize: 12, fontStyle: FontStyle.italic),
-                  )
-                : ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _reviews.length,
-                    itemBuilder: (context, i) {
-                      final r = _reviews[i];
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: bg,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  r['profiles'] != null ? r['profiles']['full_name'] ?? 'Resident' : 'Resident',
-                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
-                                ),
-                                Text(
-                                  DateFormat('dd MMM yy').format(DateTime.parse(r['created_at'])),
-                                  style: const TextStyle(color: Colors.white24, fontSize: 9),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              r['content'] ?? '',
-                              style: const TextStyle(color: Colors.white60, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
-      ],
-    );
-  }
-
   Widget _buildBottomBar(bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
@@ -659,8 +684,28 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
     final client = Supabase.instance.client;
     final user = client.auth.currentUser;
     if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in to register/book rooms.'), backgroundColor: Colors.orangeAccent),
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF16181A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Text('STUDENT ACCOUNT REQUIRED', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, color: Colors.white, fontSize: 14, letterSpacing: 1.5)),
+          content: Text('Please log in or create an account to proceed with room allotment and optional service add-ons.', style: GoogleFonts.outfit(color: Colors.white70, fontSize: 12)),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('CANCEL', style: TextStyle(color: Colors.white38)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              child: const Text('LOG IN NOW', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
       );
       return;
     }
@@ -704,7 +749,15 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
               );
             }
 
-            final addonsOnly = feePackages.where((p) => p['category'] != 'Rent').toList();
+            final roomTypeLower = (widget.room.roomType ?? '').toLowerCase();
+            final addonsOnly = feePackages.where((p) {
+              if (p['category'] == 'Rent') return false;
+              final targetRoomType = (p['applicable_room_type'] ?? p['room_type'] ?? 'all').toString().toLowerCase();
+              if (targetRoomType != 'all' && targetRoomType.isNotEmpty) {
+                return targetRoomType == roomTypeLower || roomTypeLower.contains(targetRoomType);
+              }
+              return true;
+            }).toList();
 
             if (currentStep == 1) {
               return Container(
@@ -841,7 +894,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                       ),
                       const SizedBox(height: 24),
                       Text(
-                        'SECURE MOCK CHECKOUT',
+                        'SECURE CHECKOUT & ALLOTMENT',
                         style: GoogleFonts.outfit(fontSize: 18, fontWeight: FontWeight.w900, color: Colors.white, letterSpacing: 1.5),
                       ),
                       const SizedBox(height: 12),
@@ -946,14 +999,14 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Center(child: Text('SCAN TO PAY MOCK UPI AMOUNT', style: TextStyle(color: Colors.white30, fontSize: 9, fontWeight: FontWeight.bold))),
+                        const Center(child: Text('SCAN TO PAY VIA ANY UPI APP', style: TextStyle(color: Colors.white30, fontSize: 9, fontWeight: FontWeight.bold))),
                         const SizedBox(height: 16),
                         ListTile(
                           tileColor: Colors.white.withOpacity(0.02),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           leading: const Icon(Icons.cloud_upload_outlined, color: Colors.indigoAccent),
-                          title: const Text('UPLOAD RECEIPT SCREENSHOT', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
-                          subtitle: Text(upiScreenshot != null ? 'Screenshot Attached' : 'Tap to pick image from gallery', style: const TextStyle(color: Colors.white30, fontSize: 9)),
+                          title: const Text('UPLOAD PAYMENT SCREENSHOT', style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.bold)),
+                          subtitle: Text(upiScreenshot != null ? 'Screenshot Attached' : 'Tap to pick proof from gallery', style: const TextStyle(color: Colors.white30, fontSize: 9)),
                           onTap: () async {
                             final picker = ImagePicker();
                             final img = await picker.pickImage(source: ImageSource.gallery);
@@ -988,22 +1041,73 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                 });
 
                                 try {
+                                  // 1. Wallet balance check & deduction if Wallet payment
+                                  if (selectedPaymentMethod == 'Wallet') {
+                                    final pRes = await client.from('profiles').select('balance').eq('id', user.id).single();
+                                    final curBal = (pRes['balance'] as num? ?? 0.0).toDouble();
+                                    if (curBal < totalMonthly) {
+                                      throw Exception('Insufficient wallet balance. Please top up your wallet or choose UPI/Cash.');
+                                    }
+                                    await client.from('profiles').update({
+                                      'balance': curBal - totalMonthly,
+                                    }).eq('id', user.id);
+                                  }
+
+                                  // 2. Upload UPI Screenshot if provided
+                                  String? screenshotUrl;
+                                  if (upiScreenshot != null) {
+                                    try {
+                                      final fileName = 'proof_${user.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+                                      await client.storage.from('payment-proofs').upload(fileName, upiScreenshot!);
+                                      screenshotUrl = client.storage.from('payment-proofs').getPublicUrl(fileName);
+                                    } catch (uploadErr) {
+                                      debugPrint('Storage upload failed: $uploadErr');
+                                    }
+                                  }
+
+                                  // 3. Upsert Hostel Enrollment
                                   final Map<String, dynamic> selectedPackages = {
                                     'room_plan': widget.room.roomType ?? 'Standard',
                                     'add_ons': selectedAddons.toList(),
                                   };
 
+                                  final isPaid = selectedPaymentMethod == 'Wallet';
                                   await client.from('hostel_enrollments').upsert({
                                     'user_id': user.id,
                                     'room_id': widget.room.id,
                                     'total_price': totalMonthly,
-                                    'paid_amount': selectedPaymentMethod == 'Wallet' ? totalMonthly : 0.0,
-                                    'status': 'Active',
-                                    'payment_status': selectedPaymentMethod == 'Wallet' ? 'Paid' : 'Pending',
+                                    'paid_amount': isPaid ? totalMonthly : 0.0,
+                                    'status': isPaid ? 'Active' : 'Pending',
+                                    'payment_status': isPaid ? 'Approved' : 'Pending',
                                     'selected_packages': selectedPackages,
                                     'created_at': DateTime.now().toIso8601String(),
                                   }, onConflict: 'user_id');
 
+                                  // 4. Record in fiscal_collections & payment_approvals
+                                  try {
+                                    await client.from('fiscal_collections').insert({
+                                      'user_id': user.id,
+                                      'amount': totalMonthly,
+                                      'collection_type': 'Rent',
+                                      'payment_method': selectedPaymentMethod,
+                                      'notes': 'Room allotment for Unit ${widget.room.roomNumber}',
+                                    });
+                                  } catch (_) {}
+
+                                  if (!isPaid) {
+                                    try {
+                                      await client.from('payment_approvals').insert({
+                                        'user_id': user.id,
+                                        'amount': totalMonthly,
+                                        'payment_type': 'Rent',
+                                        'status': 'Pending',
+                                        'screenshot_url': screenshotUrl,
+                                        'notes': 'Room Allotment Unit ${widget.room.roomNumber}',
+                                      });
+                                    } catch (_) {}
+                                  }
+
+                                  // 5. Update mess card if mess package included
                                   if (selectedAddons.any((addon) => addon.toUpperCase().contains('MESS'))) {
                                     final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String().split('T')[0];
                                     await client.from('mess_cards').upsert({
@@ -1018,6 +1122,7 @@ class _RoomDetailScreenState extends State<RoomDetailScreen> {
                                     }, onConflict: 'user_id');
                                   }
 
+                                  // 6. Mark room active
                                   await client.from('hostel_rooms').update({
                                     'is_active': true, 
                                   }).eq('id', widget.room.id);

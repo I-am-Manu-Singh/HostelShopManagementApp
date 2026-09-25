@@ -5,13 +5,13 @@ import 'package:animate_do/animate_do.dart';
 import 'package:intl/intl.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../services/database_service.dart';
-import '../zen_protocol_screen.dart';
-import '../workout_protocol_screen.dart';
-import '../academic_intelligence_hub_screen.dart';
-import '../reminders_nexus_screen.dart';
+import '../productivity/zen_protocol_screen.dart';
+import '../productivity/workout_protocol_screen.dart';
+import '../productivity/academic_intelligence_hub_screen.dart';
+import '../productivity/reminders_nexus_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../widgets/eisenhower_matrix.dart';
-import '../pomodoro_protocol_screen.dart';
+import '../productivity/pomodoro_protocol_screen.dart';
 
 class StudentTaskHubScreen extends StatefulWidget {
   const StudentTaskHubScreen({super.key});
@@ -62,10 +62,10 @@ class _StudentTaskHubScreenState extends State<StudentTaskHubScreen> {
         elevation: 0,
         leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
         actions: [
-          IconButton(icon: const Icon(Icons.notifications_active_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const RemindersNexusScreen()))),
-          IconButton(icon: const Icon(Icons.school_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AcademicIntelligenceHubScreen()))),
-          IconButton(icon: const Icon(Icons.fitness_center_rounded, color: Colors.orangeAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WorkoutProtocolScreen()))),
-          IconButton(icon: const Icon(Icons.self_improvement_rounded, color: Colors.tealAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ZenProtocolScreen()))),
+          IconButton(icon: const Icon(Icons.notifications_active_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => RemindersNexusScreen()))),
+          IconButton(icon: const Icon(Icons.school_rounded, color: Colors.indigoAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AcademicIntelligenceHubScreen()))),
+          IconButton(icon: const Icon(Icons.fitness_center_rounded, color: Colors.orangeAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => WorkoutProtocolScreen()))),
+          IconButton(icon: const Icon(Icons.self_improvement_rounded, color: Colors.tealAccent), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ZenProtocolScreen()))),
           IconButton(icon: const Icon(Icons.analytics_outlined, color: Colors.indigoAccent), onPressed: () {}),
         ],
       ),
@@ -260,7 +260,7 @@ class _StudentTaskHubScreenState extends State<StudentTaskHubScreen> {
   Widget _buildAcademicIntelSummary() {
     return FadeInUp(
       child: GestureDetector(
-        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AcademicIntelligenceHubScreen())).then((_) => _loadData()),
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AcademicIntelligenceHubScreen())).then((_) => _loadData()),
         child: Container(
           padding: const EdgeInsets.all(28),
           decoration: BoxDecoration(gradient: LinearGradient(colors: [Colors.indigoAccent.withOpacity(0.15), Colors.black.withOpacity(0.5)]), borderRadius: BorderRadius.circular(30), border: Border.all(color: Colors.indigoAccent.withOpacity(0.2))),

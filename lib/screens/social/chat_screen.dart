@@ -48,7 +48,8 @@ class _CampusChatScreenState extends State<CampusChatScreen> {
       final res = await _client
           .from('profiles')
           .select('id, full_name, avatar_url, role')
-          .limit(50);
+          .order('full_name')
+          .limit(200);
       if (mounted) {
         setState(() {
           _channelMembers = List<Map<String, dynamic>>.from(res);
@@ -72,12 +73,14 @@ class _CampusChatScreenState extends State<CampusChatScreen> {
 
     if (lastAt != -1 && (lastAt == 0 || textBeforeCursor[lastAt - 1] == ' ' || textBeforeCursor[lastAt - 1] == '\n')) {
       final query = textBeforeCursor.substring(lastAt + 1).toLowerCase();
-      // Only suggest if query doesn't contain space
+      // If query is empty, show all available channel members!
       if (!query.contains(' ')) {
-        final matches = _channelMembers.where((m) {
-          final name = (m['full_name'] ?? '').toString().toLowerCase();
-          return name.contains(query);
-        }).toList();
+        final matches = query.isEmpty 
+            ? List<Map<String, dynamic>>.from(_channelMembers)
+            : _channelMembers.where((m) {
+                final name = (m['full_name'] ?? '').toString().toLowerCase();
+                return name.contains(query);
+              }).toList();
 
         setState(() {
           _filteredMentions = matches;
@@ -116,6 +119,7 @@ class _CampusChatScreenState extends State<CampusChatScreen> {
 
   Future<void> _fetchMessages() async {
     try {
+      final user = _client.auth.currentUser;
       final res = await _client
           .from('messages')
           .select('*, profiles!messages_sender_id_fkey(full_name, avatar_url)')
@@ -127,11 +131,20 @@ class _CampusChatScreenState extends State<CampusChatScreen> {
           _isLoading = false;
         });
       }
+
+      // Mark unread messages in this room as read for current user
+      if (user != null) {
+        await _client
+            .from('messages')
+            .update({'is_read': true})
+            .eq('room_id', widget.roomId)
+            .neq('sender_id', user.id)
+            .eq('is_read', false);
+      }
     } catch (e) {
       debugPrint('Error fetching messages: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('LINK_FAILURE: $e'), backgroundColor: Colors.redAccent));
       }
     }
   }
@@ -534,70 +547,75 @@ class _CampusChatScreenState extends State<CampusChatScreen> {
   }
 
   Widget _buildInputTerminal(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
-      child: Row(
-        children: [
-          // Quick @ button
-          IconButton(
-            icon: Icon(
-              Icons.alternate_email_rounded,
-              color: isDark ? Colors.white60 : Colors.black54,
-              size: 20,
-            ),
-            tooltip: 'Mention user',
-            onPressed: () {
-              final text = _msgCtrl.text;
-              final selection = _msgCtrl.selection;
-              final cursor = selection.baseOffset >= 0 ? selection.baseOffset : text.length;
-              final prefix = (cursor > 0 && text[cursor - 1] != ' ') ? ' @' : '@';
-              final newText = text.replaceRange(cursor, cursor, prefix);
-              _msgCtrl.value = TextEditingValue(
-                text: newText,
-                selection: TextSelection.collapsed(offset: cursor + prefix.length),
-              );
-            },
+  return Container(
+    padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+    child: Row(
+      children: [
+        // Quick @ button
+        IconButton(
+          icon: Icon(
+            Icons.alternate_email_rounded,
+            color: isDark ? Colors.white60 : Colors.black54,
+            size: 20,
           ),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
-                borderRadius: BorderRadius.circular(25),
-                border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
-              ),
-              child: TextField(
-                controller: _msgCtrl,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13),
-                onSubmitted: (_) => _sendMessage(),
-                decoration: InputDecoration(
-                  border: InputBorder.none,
-                  hintText: 'Type a message or @mention someone...',
-                  hintStyle: TextStyle(
-                    color: isDark ? Colors.white24 : Colors.black26,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+          tooltip: 'Mention user',
+          onPressed: () {
+            final text = _msgCtrl.text;
+            final selection = _msgCtrl.selection;
+            final cursor = selection.baseOffset >= 0 ? selection.baseOffset : text.length;
+            final prefix = (cursor > 0 && text[cursor - 1] != ' ') ? ' @' : '@';
+            final newText = text.replaceRange(cursor, cursor, prefix);
+            _msgCtrl.value = TextEditingValue(
+              text: newText,
+              selection: TextSelection.collapsed(offset: cursor + prefix.length),
+            );
+          },
+        ),
+        Expanded(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(25),
+              border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+            ),
+            child: TextField(
+              controller: _msgCtrl,
+              style: TextStyle(color: isDark ? Colors.white : Colors.black, fontSize: 13),
+              onSubmitted: (_) => _sendMessage(),
+              decoration: InputDecoration(
+                hintText: 'Type a message or @mention someone...',
+                hintStyle: TextStyle(
+                  color: isDark ? Colors.white24 : Colors.black26,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
                 ),
+                // FIX: Strips out all possible fallback borders when field is active or focused
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          GestureDetector(
-            onTap: _sendMessage,
-            child: Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Colors.indigoAccent,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: _sendMessage,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              color: Colors.indigoAccent,
+              shape: BoxShape.circle,
             ),
+            child: const Icon(Icons.send_rounded, color: Colors.white, size: 18),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
+
 
   Future<void> _sendMessage() async {
     if (_msgCtrl.text.trim().isEmpty) return;

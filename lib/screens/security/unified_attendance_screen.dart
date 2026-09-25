@@ -36,8 +36,14 @@ class _UnifiedAttendanceScreenState extends State<UnifiedAttendanceScreen> with 
     final date = DateFormat('yyyy-MM-dd').format(DateTime.now());
     
     try {
-      final res = await _client.from('attendance').select('type').eq('user_id', user.id).eq('date', date);
-      final List types = (res as List).map((e) => e['type'].toString()).toList();
+      final res = await _client
+          .from('attendance')
+          .select('attendance_type')
+          .eq('user_id', user.id)
+          .eq('date', date);
+      final List types = (res as List)
+          .map((e) => e['attendance_type']?.toString() ?? '')
+          .toList();
       
       if (mounted) {
         setState(() {

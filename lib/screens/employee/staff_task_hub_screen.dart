@@ -210,7 +210,7 @@ class _StaffTaskHubScreenState extends State<StaffTaskHubScreen> with SingleTick
   Widget _buildAppBar(Color textColor) {
     return SliverAppBar(
       backgroundColor: Colors.transparent, elevation: 0, centerTitle: true,
-      title: Text('STAFF_TASK_CORE', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 5)),
+      title: Text('STAFF TASKS', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, color: textColor, letterSpacing: 5)),
       leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
       actions: [
         IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.indigoAccent, size: 24), onPressed: _fetchTasks),

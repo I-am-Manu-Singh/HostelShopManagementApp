@@ -704,7 +704,7 @@ class DatabaseService {
     final user = _client.auth.currentUser;
     if (user == null) return [];
     try {
-      final res = await _client.from('student_academic_targets').select().eq('user_id', user.id).order('created_at', ascending: false);
+      final res = await _client.from('student_academic_targets').select().or('user_id.eq.${user.id},student_id.eq.${user.id}').order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(res);
     } catch(e) { return []; }
   }
@@ -712,15 +712,24 @@ class DatabaseService {
   Future<bool> createAcademicTarget(String type, String content) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    await _client.from('student_academic_targets').insert({'user_id': user.id, 'target_type': type, 'content': content});
-    return true;
+    try {
+      await _client.from('student_academic_targets').insert({
+        'user_id': user.id, 
+        'student_id': user.id,
+        'target_type': type, 
+        'content': content
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchKnowledgeVault() async {
     final user = _client.auth.currentUser;
     if (user == null) return [];
     try {
-      final res = await _client.from('student_knowledge_vault').select().eq('user_id', user.id).order('created_at', ascending: false);
+      final res = await _client.from('student_knowledge_vault').select().or('user_id.eq.${user.id},student_id.eq.${user.id}').order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(res);
     } catch(e) { return []; }
   }
@@ -728,22 +737,27 @@ class DatabaseService {
   Future<bool> createVaultEntry(String cat, String title, String content, String subj, List<String> tags) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    await _client.from('student_knowledge_vault').insert({
-      'user_id': user.id, 
-      'category': cat, 
-      'title': title, 
-      'content': content, 
-      'subject': subj,
-      'tags': tags
-    });
-    return true;
+    try {
+      await _client.from('student_knowledge_vault').insert({
+        'user_id': user.id, 
+        'student_id': user.id,
+        'category': cat, 
+        'title': title, 
+        'content': content, 
+        'subject': subj,
+        'tags': tags
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchDoubts() async {
     final user = _client.auth.currentUser;
     if (user == null) return [];
     try {
-      final res = await _client.from('student_doubts').select().eq('user_id', user.id).order('created_at', ascending: false);
+      final res = await _client.from('student_doubts').select().or('user_id.eq.${user.id},student_id.eq.${user.id}').order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(res);
     } catch(e) { return []; }
   }
@@ -751,15 +765,26 @@ class DatabaseService {
   Future<bool> createDoubt(String subj, String q, List<String> tags) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    await _client.from('student_doubts').insert({'user_id': user.id, 'subject': subj, 'question': q, 'tags': tags});
-    return true;
+    try {
+      await _client.from('student_doubts').insert({
+        'user_id': user.id, 
+        'student_id': user.id,
+        'subject': subj, 
+        'question': q,
+        'doubt': q,
+        'tags': tags
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchSyllabus() async {
     final user = _client.auth.currentUser;
     if (user == null) return [];
     try {
-      final res = await _client.from('student_syllabus').select().eq('user_id', user.id).order('test_date', ascending: true);
+      final res = await _client.from('student_syllabus').select().or('user_id.eq.${user.id},student_id.eq.${user.id}').order('test_date', ascending: true);
       return List<Map<String, dynamic>>.from(res);
     } catch(e) { return []; }
   }
@@ -767,8 +792,19 @@ class DatabaseService {
   Future<bool> createSyllabus(String subj, DateTime date, List<String> topics, List<String> tags) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    await _client.from('student_syllabus').insert({'user_id': user.id, 'subject': subj, 'test_date': date.toIso8601String(), 'topics': topics, 'tags': tags});
-    return true;
+    try {
+      await _client.from('student_syllabus').insert({
+        'user_id': user.id, 
+        'student_id': user.id,
+        'subject': subj, 
+        'test_date': date.toIso8601String().split('T')[0], 
+        'topics': topics, 
+        'tags': tags
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchRevisionQueue() async {
@@ -777,7 +813,7 @@ class DatabaseService {
     try {
       final res = await _client.from('student_knowledge_vault')
           .select()
-          .eq('user_id', user.id)
+          .or('user_id.eq.${user.id},student_id.eq.${user.id}')
           .lte('next_revision_date', DateTime.now().toIso8601String())
           .order('next_revision_date', ascending: true);
       return List<Map<String, dynamic>>.from(res);
@@ -794,22 +830,27 @@ class DatabaseService {
   Future<bool> createReflection(String achievements, int rating, String feeling, int satisfaction, List<String> goals) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    await _client.from('student_reflections').insert({
-      'user_id': user.id, 
-      'achievements': achievements, 
-      'focus_rating': rating,
-      'feeling': feeling,
-      'satisfaction_rating': satisfaction,
-      'goals_met': goals
-    });
-    return true;
+    try {
+      await _client.from('student_reflections').insert({
+        'user_id': user.id, 
+        'student_id': user.id,
+        'achievements': achievements, 
+        'focus_rating': rating,
+        'feeling': feeling,
+        'satisfaction_rating': satisfaction,
+        'goals_met': goals
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchReflections() async {
     final user = _client.auth.currentUser;
     if (user == null) return [];
     try {
-      final res = await _client.from('student_reflections').select().eq('user_id', user.id).order('log_date', ascending: false);
+      final res = await _client.from('student_reflections').select().or('user_id.eq.${user.id},student_id.eq.${user.id}').order('log_date', ascending: false);
       return List<Map<String, dynamic>>.from(res);
     } catch(e) { return []; }
   }
@@ -819,7 +860,7 @@ class DatabaseService {
     final user = _client.auth.currentUser;
     if (user == null) return [];
     try {
-      final res = await _client.from('student_mock_scores').select().eq('user_id', user.id).order('mock_date', ascending: false);
+      final res = await _client.from('student_mock_scores').select().or('user_id.eq.${user.id},student_id.eq.${user.id}').order('mock_date', ascending: false);
       return List<Map<String, dynamic>>.from(res);
     } catch(e) { return []; }
   }
@@ -827,15 +868,26 @@ class DatabaseService {
   Future<bool> createMockScore(String exam, String subj, double score, double total) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    await _client.from('student_mock_scores').insert({'user_id': user.id, 'exam_name': exam, 'subject': subj, 'score_obtained': score, 'total_score': total});
-    return true;
+    try {
+      await _client.from('student_mock_scores').insert({
+        'user_id': user.id, 
+        'student_id': user.id,
+        'exam_name': exam, 
+        'subject': subj, 
+        'score_obtained': score, 
+        'total_score': total
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<List<Map<String, dynamic>>> fetchExamDeadlines() async {
     final user = _client.auth.currentUser;
     if (user == null) return [];
     try {
-      final res = await _client.from('student_exam_deadlines').select().eq('user_id', user.id).order('exam_date', ascending: true);
+      final res = await _client.from('student_exam_deadlines').select().or('user_id.eq.${user.id},student_id.eq.${user.id}').order('exam_date', ascending: true);
       return List<Map<String, dynamic>>.from(res);
     } catch(e) { return []; }
   }
@@ -843,8 +895,17 @@ class DatabaseService {
   Future<bool> createExamDeadline(String title, DateTime date) async {
     final user = _client.auth.currentUser;
     if (user == null) return false;
-    await _client.from('student_exam_deadlines').insert({'user_id': user.id, 'exam_title': title, 'exam_date': date.toIso8601String()});
-    return true;
+    try {
+      await _client.from('student_exam_deadlines').insert({
+        'user_id': user.id, 
+        'student_id': user.id,
+        'exam_title': title, 
+        'exam_date': date.toIso8601String()
+      });
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   // REMINDER METHODS

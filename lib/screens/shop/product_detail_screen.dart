@@ -1,16 +1,16 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:provider/provider.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:barcode_widget/barcode_widget.dart' as bc;
 import '../../services/cart_service.dart';
 import '../../models/shop.dart';
 import '../../services/placeholder_service.dart';
 import 'package:intl/intl.dart';
-import 'admin/admin_edit_product_screen.dart';
+import '../../services/pos_hardware_service.dart';
+import '../admin/admin_edit_product_screen.dart';
 import 'add_product_review_screen.dart';
 import 'shop_checkout_screen.dart';
 
@@ -36,6 +36,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   // Weight & Loose Items quantity selection state
   double _selectedWeightMultiplier = 1.0;
   late String _selectedWeightUnit;
+  RealtimeChannel? _productRealtimeSub;
 
   @override
   void initState() {
@@ -45,6 +46,40 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     _checkWishlist();
     _fetchReviews();
     _checkReviewEligibility();
+    _subscribeToLiveProductUpdates();
+  }
+
+  void _subscribeToLiveProductUpdates() {
+    try {
+      _productRealtimeSub = _supabase
+          .channel('public:shop_items:${_currentProduct.id}')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.update,
+            schema: 'public',
+            table: 'shop_items',
+            filter: PostgresChangeFilter(
+              type: PostgresChangeFilterType.eq,
+              column: 'id',
+              value: _currentProduct.id,
+            ),
+            callback: (payload) {
+              if (mounted && payload.newRecord.isNotEmpty) {
+                setState(() {
+                  _currentProduct = ShopItem.fromMap(payload.newRecord);
+                });
+              }
+            },
+          )
+          .subscribe();
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    if (_productRealtimeSub != null) {
+      _supabase.removeChannel(_productRealtimeSub!);
+    }
+    super.dispose();
   }
 
   List<String> get _productImages {
@@ -216,10 +251,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             _buildHeaderSection(isDark),
+                            const SizedBox(height: 8),
+                            if (_currentProduct.tags != null && _currentProduct.tags!.isNotEmpty) ...[
+                              const SizedBox(height: 16),
+                              _buildTagsArea(),
+                            ],
                             const SizedBox(height: 20),
                             _buildDescriptionSection(cardColor, borderColor, isDark),
-                            // const SizedBox(height: 20),
-                            // _buildBarCodeArea(isDark),
                           ],
                         ),
                       ),
@@ -249,8 +287,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             _buildHeaderSection(isDark),
                             const SizedBox(height: 12),
                             _buildDescriptionSection(cardColor, borderColor, isDark),
-                            //  const SizedBox(height: 12),
-                            // _buildBarCodeArea(isDark),
                             SizedBox(height: 200 + MediaQuery.of(context).padding.bottom),
                           ],
                         ),
@@ -351,18 +387,84 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+       // 1. BESTSELLER CASE: Tags/Ratings in a row, Name in a separate row below
+if (_currentProduct.isBestseller) ...[
+  Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), 
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Colors.orangeAccent, Colors.redAccent]), 
+          borderRadius: BorderRadius.circular(12)
+        ), 
+        child: const Row(
+          mainAxisSize: MainAxisSize.min, 
           children: [
-            if (_currentProduct.isBestseller)
-              Container(padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8), decoration: BoxDecoration(gradient: const LinearGradient(colors: [Colors.orangeAccent, Colors.redAccent]), borderRadius: BorderRadius.circular(12)), child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.local_fire_department, color: Colors.black, size: 15), SizedBox(width: 8), Text('BESTSELLER', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900))])),
-            if (_currentProduct.totalReviews > 0 || _currentProduct.rating > 0.0 || _reviews.isNotEmpty)
-              Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), borderRadius: BorderRadius.circular(12), border: Border.all(color: isDark ? Colors.white10 : Colors.black12)), child: Row(children: [const Icon(Icons.star_rounded, color: Colors.amber, size: 14), const SizedBox(width: 6), Text('${_currentProduct.rating > 0 ? _currentProduct.rating : "—"} (${_reviews.length > _currentProduct.totalReviews ? _reviews.length : _currentProduct.totalReviews})', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 11, fontWeight: FontWeight.w900))])),
-          ],
+            Icon(Icons.local_fire_department, color: Colors.black, size: 15), 
+            SizedBox(width: 8), 
+            Text('BESTSELLER', style: TextStyle(color: Colors.black, fontSize: 9, fontWeight: FontWeight.w900))
+          ]
+        )
+      ),
+      if (_currentProduct.totalReviews > 0 || _currentProduct.rating > 0.0 || _reviews.isNotEmpty)
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), 
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), 
+            borderRadius: BorderRadius.circular(12), 
+            border: Border.all(color: isDark ? Colors.white10 : Colors.black12)
+          ), 
+          child: Row(
+            children: [
+              const Icon(Icons.star_rounded, color: Colors.amber, size: 14), 
+              const SizedBox(width: 6), 
+              Text('${_currentProduct.rating > 0 ? _currentProduct.rating : "—"} (${_reviews.length > _currentProduct.totalReviews ? _reviews.length : _currentProduct.totalReviews})', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 11, fontWeight: FontWeight.w900))
+            ]
+          )
         ),
-        const SizedBox(height: 12),
-        Text(_currentProduct.name, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
-        const SizedBox(height: 10),
+    ],
+  ),
+  const SizedBox(height: 12),
+  Text(_currentProduct.name, style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: 0.3)),
+] 
+// 2. STANDARD CASE: Rating and Name share a single Row side-by-side
+else ...[
+  Row(
+    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    crossAxisAlignment: CrossAxisAlignment.center, // Aligns text and rating vertically
+    children: [
+      Expanded(
+        child: Text(
+          _currentProduct.name, 
+          style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 24, fontWeight: FontWeight.w700, letterSpacing: 0.3),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis, // Prevents text overflow if the name is long
+        ),
+      ),
+      if (_currentProduct.totalReviews > 0 || _currentProduct.rating > 0.0 || _reviews.isNotEmpty) ...[
+        const SizedBox(width: 12), // Gap between name and rating
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), 
+          decoration: BoxDecoration(
+            color: isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.05), 
+            borderRadius: BorderRadius.circular(12), 
+            border: Border.all(color: isDark ? Colors.white10 : Colors.black12)
+          ), 
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.star_rounded, color: Colors.amber, size: 14), 
+              const SizedBox(width: 6), 
+              Text('${_currentProduct.rating > 0 ? _currentProduct.rating : "—"} (${_reviews.length > _currentProduct.totalReviews ? _reviews.length : _currentProduct.totalReviews})', style: GoogleFonts.outfit(color: isDark ? Colors.white : Colors.black, fontSize: 11, fontWeight: FontWeight.w900))
+            ]
+          )
+        ),
+      ],
+    ],
+  ),
+],
+const SizedBox(height: 10), // Bottom spacing remains uniform
         Row(
           children: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -673,10 +775,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           const SizedBox(height: 16),
           _buildUsageSection(isDark),
         ],
-        if (_currentProduct.tags != null && _currentProduct.tags!.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          _buildTagsArea(),
-        ],
         const SizedBox(height: 16), 
         _buildBarCodeArea(isDark),
         const SizedBox(height: 16), // 👈 increased gap spacer between product specs/identifier card and user feedback
@@ -686,58 +784,48 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   }
 
   Widget _buildNutritionLabelCard(bool isDark) {
-    final info = _currentProduct.nutritionalInfo ?? {};
-    final labelColor = isDark ? Colors.white : Colors.black;
-    final isFood = ['Chocolates', 'Snacks', 'Drinks', 'Instant Meals', 'Biscuits'].contains(_currentProduct.category);
-    
-    // 🛡️ DAILY VALUE REFERENCE (MISSION-CRITICAL ESTIMATES)
-    final Map<String, double> dvMap = {
-      'Calories': 2000, 'Energy': 2000, 'Fat': 65, 'Total Fat': 65, 'Saturated Fat': 20,
-      'Sugar': 50, 'Sugars': 50, 'Carbohydrates': 275, 'Total Carbohydrates': 275, 
-      'Dietary Fiber': 28, 'Fiber': 28, 'Protein': 50, 'Sodium': 2400, 'Cholesterol': 300,
-      'Calcium': 1000, 'Iron': 18, 'Potassium': 3500, 'Magnesium': 400, 'Zinc': 11,
-      'Vitamin A': 900, 'Vitamin C': 90, 'Vitamin D': 20, 'Vitamin E': 15, 'Vitamin B12': 2.4,
-    };
-
-    String getDV(String key, String value) {
-      if (!isFood) return "—";
-      final numValue = double.tryParse(value.replaceAll(RegExp(r'[^0-9.]'), ''));
-      if (numValue == null || !dvMap.containsKey(key)) return "—";
-      final dv = (numValue / dvMap[key]!) * 100;
-      return "${dv.toInt()}%";
+    final info = _currentProduct.nutritionalInfo;
+    if (info == null || info.isEmpty) {
+      return const SizedBox.shrink();
     }
+    final labelColor = isDark ? Colors.white : Colors.black;
+    final isFood = ['Chocolates', 'Snacks', 'Drinks', 'Instant Meals', 'Biscuits', 'Bakery'].contains(_currentProduct.category);
 
     return Container(
       padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: isDark ? Colors.white.withOpacity(0.03) : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: isDark ? Colors.white12 : Colors.black12)),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withOpacity(0.03) : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(isFood ? 'Nutrition Facts' : 'Nutrition Info', style: GoogleFonts.outfit(fontSize: 28, fontWeight: FontWeight.w900, color: labelColor)),
-          const Divider(thickness: 8, color: Colors.black, height: 16),
-          if (isFood) ...[
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text('Serving size', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: labelColor)), Text(_currentProduct.weightMl ?? '1 unit', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: labelColor))]),
-            const Divider(thickness: 4, color: Colors.black, height: 12),
-            Text('Amount per serving', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: labelColor)),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text('Calories', style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w900, color: labelColor)),
-              Text(
-                info['Calories']?.toString() ??
-                info['energy-kcal_100g']?.toString() ??
-                info['Energy']?.toString() ??
-                '?',
-                style: GoogleFonts.outfit(fontSize: 32, fontWeight: FontWeight.w900, color: labelColor),
-              ),
-            ]),
-            const Divider(thickness: 2, color: Colors.black, height: 12),
-            Align(alignment: Alignment.centerRight, child: Text('% Daily Value*', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 10, color: labelColor))),
-          ] else ...[
-            Text('BARCODE / SKU: ${_currentProduct.barcode ?? _currentProduct.skuQr ?? 'N/A'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: labelColor)),
-            const Divider(thickness: 2, color: Colors.black, height: 12),
+          Text(isFood ? 'Nutrition Facts' : 'Product Technical Data', style: GoogleFonts.outfit(fontSize: 24, fontWeight: FontWeight.w900, color: labelColor)),
+          const Divider(thickness: 4, color: Colors.indigoAccent, height: 16),
+          if (isFood && _currentProduct.weightMl != null && _currentProduct.weightMl!.trim().isNotEmpty) ...[
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Serving Size', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: labelColor)),
+                Text(_currentProduct.weightMl!, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: labelColor)),
+              ],
+            ),
+            const Divider(thickness: 2, height: 12),
           ],
-          ...info.entries.where((e) => e.key != 'Calories' && e.key != 'Energy' && e.key != 'energy-kcal_100g').map((e) => Column(children: [const Divider(thickness: 1, color: Colors.black45, height: 8), Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Row(children: [Text(e.key, style: TextStyle(fontWeight: FontWeight.bold, color: labelColor, fontSize: 13)), const SizedBox(width: 4), Text(e.value.toString(), style: TextStyle(color: labelColor, fontSize: 13))]), Text(getDV(e.key, e.value.toString()), style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: labelColor))])])),
+          // Genuine database key-values
+          ...info.entries.map((e) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(e.key.toString(), style: TextStyle(fontWeight: FontWeight.w600, color: labelColor, fontSize: 13)),
+                    Text(e.value.toString(), style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigoAccent, fontSize: 13)),
+                  ],
+                ),
+              )),
           if (_currentProduct.tags != null && _currentProduct.tags!.any((t) => t.toLowerCase().contains('contain') || t.toLowerCase().contains('allergen'))) ...[
-            const Divider(thickness: 2, color: Colors.amberAccent, height: 16),
+            const Divider(thickness: 1, color: Colors.amberAccent, height: 16),
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -758,20 +846,6 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   .toList(),
             ),
           ],
-          const Divider(thickness: 4, color: Colors.black, height: 16),
-          if (_currentProduct.ingredients != null && _currentProduct.ingredients!.isNotEmpty) ...[
-            Text(isFood ? 'INGREDIENTS:' : 'SPECIFICATIONS:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: labelColor, letterSpacing: 1)),
-            const SizedBox(height: 8),
-            Text(_currentProduct.ingredients!, style: TextStyle(fontSize: 12, color: labelColor.withOpacity(0.8), height: 1.5)),
-            const Divider(thickness: 1, color: Colors.black12, height: 24),
-          ],
-          if (_currentProduct.howToUse != null && _currentProduct.howToUse!.isNotEmpty) ...[
-            Text('INSTRUCTIONS:', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, color: labelColor, letterSpacing: 1)),
-            const SizedBox(height: 8),
-            Text(_currentProduct.howToUse!, style: TextStyle(fontSize: 12, color: labelColor.withOpacity(0.8), height: 1.5)),
-            const Divider(thickness: 4, color: Colors.black, height: 16),
-          ],
-          if (isFood) Text('* The % Daily Value (DV) tells you how much a nutrient in a serving of food contributes to a daily diet.', style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: labelColor.withOpacity(0.6))),
         ],
       ),
     );
@@ -791,16 +865,37 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       ),
     );
   }
-
-  Widget _buildUsageSection(bool isDark) {
-    return Container(
-      decoration: BoxDecoration(color: Colors.indigoAccent.withOpacity(0.08), borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.indigoAccent.withOpacity(0.15))),
-      child: ExpansionTile(
-        title: Text('HOW TO USE', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.indigoAccent)),
-        children: [Padding(padding: const EdgeInsets.all(16), child: Row(children: [Expanded(child: Text(_currentProduct.howToUse!, style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13, height: 1.7, fontWeight: FontWeight.bold)))]))],
-      ),
-    );
-  }
+Widget _buildUsageSection(bool isDark) {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.indigoAccent.withOpacity(0.08), 
+      borderRadius: BorderRadius.circular(20), 
+      border: Border.all(color: Colors.indigoAccent.withOpacity(0.15))
+    ),
+    child: ExpansionTile(
+      // FIX: Removes the default top and bottom divider lines when expanded or collapsed
+      shape: const Border(),
+      collapsedShape: const Border(),
+      
+      title: Text('HOW TO USE', style: GoogleFonts.outfit(fontSize: 11, fontWeight: FontWeight.w900, color: Colors.indigoAccent)),
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16), 
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _currentProduct.howToUse!, 
+                  style: TextStyle(color: isDark ? Colors.white70 : Colors.black87, fontSize: 13, height: 1.7, fontWeight: FontWeight.bold)
+                )
+              )
+            ]
+          )
+        )
+      ],
+    ),
+  );
+}
 
   Widget _buildSpecificationsGrid(Color cardColor, Color borderColor, bool isDark) {
     final specs = [
@@ -836,37 +931,63 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         ),
         const SizedBox(height: 16),
 
-        if (_canReview)
-          FadeInDown(
-            child: Container(
-              margin: const EdgeInsets.only(bottom: 24),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Colors.indigoAccent.withOpacity(0.1), Colors.pinkAccent.withOpacity(0.1)]),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: Colors.indigoAccent.withOpacity(0.2)),
-              ),
-              child: Row(
-                children: [
-                   Expanded(
-                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                       Text('ENJOYED THE PRODUCT?', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
-                       const SizedBox(height: 4),
-                       Text('Share your verified review and rating with others.', style: TextStyle(fontSize: 10, color: isDark ? Colors.white54 : Colors.black54)),
-                     ]),
-                   ),
-                   ElevatedButton(
-                     onPressed: () async {
-                       final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => AddProductReviewScreen(product: _currentProduct)));
-                       if (res == true) { _fetchReviews(); setState(() => _canReview = false); }
-                     }, 
-                     style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-                     child: const Text('RATE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 10)),
-                   ),
-                ],
-              ),
-            ),
+        Container(
+          margin: const EdgeInsets.only(bottom: 24),
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: [Colors.indigoAccent.withOpacity(0.12), Colors.pinkAccent.withOpacity(0.08)]),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: Colors.indigoAccent.withOpacity(0.25)),
           ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(
+                    children: [
+                      Text('ENJOYED THE PRODUCT?', style: GoogleFonts.outfit(fontSize: 12, fontWeight: FontWeight.w900, color: isDark ? Colors.white : Colors.black)),
+                      if (_canReview) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.greenAccent.withOpacity(0.2), borderRadius: BorderRadius.circular(4)),
+                          child: const Text('VERIFIED BUYER', style: TextStyle(color: Colors.greenAccent, fontSize: 8, fontWeight: FontWeight.w900)),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text('Share your thoughts, rating, and feedback with campus shoppers.', style: TextStyle(fontSize: 11, color: isDark ? Colors.white60 : Colors.black54)),
+                ]),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton.icon(
+                onPressed: () async {
+                  final user = _supabase.auth.currentUser;
+                  if (user == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please log in to post a review'), backgroundColor: Colors.orange),
+                    );
+                    return;
+                  }
+                  final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => AddProductReviewScreen(product: _currentProduct)));
+                  if (res == true) { 
+                    _fetchReviews();
+                    _checkReviewEligibility();
+                  }
+                }, 
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.indigoAccent,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.rate_review_rounded, size: 14),
+                label: const Text('WRITE REVIEW', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
+              ),
+            ],
+          ),
+        ),
 
         if (_reviews.isEmpty)
           Center(child: Padding(padding: const EdgeInsets.symmetric(vertical: 20), child: Text('NO REVIEWS YET.', style: GoogleFonts.outfit(fontSize: 10, color: Colors.white24, fontWeight: FontWeight.bold))))
@@ -944,51 +1065,57 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('PRODUCT BARCODE & POS DATA', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
-                    const SizedBox(height: 6),
-                    Text(barcodeVal, style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1.5)),
-                    const SizedBox(height: 8),
-                    // Visual 1D Barcode Pattern
-                    _build1DBarcodeGraphic(barcodeVal, isDark),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        if (hsn != null && hsn.isNotEmpty) ...[
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.amberAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                            child: Text('HSN: $hsn', style: const TextStyle(color: Colors.amberAccent, fontSize: 9, fontWeight: FontWeight.bold)),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.greenAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                          child: Text(tax, style: const TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.bold)),
-                        ),
-                        if (_currentProduct.costPrice != null && _currentProduct.costPrice! > 0) ...[
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(color: Colors.indigoAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                            child: Text('COST: ₹${_currentProduct.costPrice!.toStringAsFixed(0)}', style: const TextStyle(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.bold)),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ],
+              Text('PRODUCT BARCODE & POS DATA', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.amber,
+                  foregroundColor: Colors.black,
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                 ),
+                icon: const Icon(Icons.print, size: 14),
+                label: const Text('Print Label', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                onPressed: () => _showPrintLabelDialog(barcodeVal),
               ),
-              const SizedBox(width: 14),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // True 1D Barcode Pattern
+          Center(
+            child: _build1DBarcodeGraphic(barcodeVal, isDark),
+          ),
+          const SizedBox(height: 6),
+          Center(
+            child: Text(
+              barcodeVal,
+              style: TextStyle(color: isDark ? Colors.white : Colors.black87, fontSize: 13, fontWeight: FontWeight.w900, letterSpacing: 2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              if (hsn != null && hsn.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.amberAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                  child: Text('HSN: $hsn', style: const TextStyle(color: Colors.amberAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 6),
+              ],
               Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4)]),
-                child: QrImageView(data: barcodeVal, size: 68, version: QrVersions.auto),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(color: Colors.greenAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                child: Text(tax, style: const TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.bold)),
               ),
+              if (_currentProduct.costPrice != null && _currentProduct.costPrice! > 0) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(color: Colors.indigoAccent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
+                  child: Text('COST: ₹${_currentProduct.costPrice!.toStringAsFixed(0)}', style: const TextStyle(color: Colors.indigoAccent, fontSize: 9, fontWeight: FontWeight.bold)),
+                ),
+              ],
             ],
           ),
         ],
@@ -996,38 +1123,117 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     );
   }
 
-  Widget _build1DBarcodeGraphic(String code, bool isDark) {
-    // Generates a visual 1D barcode strip based on hash/characters of barcode
-    final color = isDark ? Colors.white70 : Colors.black87;
-    final clean = code.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '');
-    final bars = <Widget>[];
-    for (int i = 0; i < (clean.length > 24 ? 24 : clean.length); i++) {
-      final codeUnit = clean.codeUnitAt(i);
-      final width = (codeUnit % 3) + 1.2;
-      bars.add(Container(width: width, height: 26, color: color));
-      bars.add(SizedBox(width: (codeUnit % 2) + 1.0));
-    }
-    // Add start and end guard bars
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white.withValues(alpha: 0.05) : Colors.black.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(4),
+  void _showPrintLabelDialog(String barcodeVal) {
+    int copies = 1;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.local_offer_rounded, color: Colors.amber),
+              const SizedBox(width: 8),
+              Text('Print Barcode Label', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(_currentProduct.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              const SizedBox(height: 4),
+              Text('Code: $barcodeVal | MRP: ₹${_currentProduct.price.toStringAsFixed(2)}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 16),
+              const Text('Number of Copies / Stickers:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: copies > 1 ? () => setDlgState(() => copies--) : null,
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    decoration: BoxDecoration(border: Border.all(color: Colors.amber), borderRadius: BorderRadius.circular(8)),
+                    child: Text('$copies', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: copies < 100 ? () => setDlgState(() => copies++) : null,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Direct ESC/POS to connected Bluetooth/USB printer or system PDF print spooler.',
+                style: TextStyle(fontSize: 10, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+              icon: const Icon(Icons.print, size: 16),
+              label: const Text('Print Now', style: TextStyle(fontWeight: FontWeight.bold)),
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                Navigator.pop(ctx);
+                final success = await PosHardwareService().printProductBarcodeLabel(
+                  name: _currentProduct.name,
+                  barcode: barcodeVal,
+                  price: _currentProduct.price,
+                  brand: _currentProduct.brand,
+                  hsn: _currentProduct.hsnCode,
+                  copies: copies,
+                );
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(success ? 'Barcode label sent to printer / spooler ($copies copies)' : 'Print cancelled or failed'),
+                    backgroundColor: success ? Colors.green : Colors.red,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(width: 2, height: 30, color: color),
-          const SizedBox(width: 2),
-          Container(width: 2, height: 30, color: color),
-          const SizedBox(width: 3),
-          ...bars,
-          const SizedBox(width: 3),
-          Container(width: 2, height: 30, color: color),
-          const SizedBox(width: 2),
-          Container(width: 2, height: 30, color: color),
-        ],
+    );
+  }
+
+  Widget _build1DBarcodeGraphic(String code, bool isDark) {
+    final clean = code.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').trim();
+    if (clean.isEmpty) return const SizedBox.shrink();
+
+    final isNumericEan = clean.length == 13 && RegExp(r'^[0-9]{13}$').hasMatch(clean);
+    final bcType = isNumericEan ? bc.Barcode.ean13() : bc.Barcode.code128();
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
+      ),
+      child: bc.BarcodeWidget(
+        barcode: bcType,
+        data: clean,
+        width: 220,
+        height: 55,
+        drawText: false,
+        color: Colors.black,
+        errorBuilder: (context, error) => Center(
+          child: Text(
+            clean,
+            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 2),
+          ),
+        ),
       ),
     );
   }

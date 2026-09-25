@@ -19,9 +19,13 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
   bool _isLoadingBroadcasts = true;
   String _userRole = 'user';
   String _currentUserId = '';
+  String _currentUserName = '';
   List<Map<String, dynamic>> _userConversations = [];
+  List<Map<String, dynamic>> _filteredConversations = [];
   Map<String, int> _unreadCounts = {};
   Map<String, String> _lastMessages = {};
+  Map<String, bool> _hasMentionInRoom = {};
+  String _chatSearchQuery = '';
 
   @override
   void initState() {
@@ -34,8 +38,9 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
     if (user != null) {
       _currentUserId = user.id;
       try {
-        final prof = await _client.from('profiles').select('role').eq('id', user.id).maybeSingle();
+        final prof = await _client.from('profiles').select('role, full_name').eq('id', user.id).maybeSingle();
         _userRole = prof?['role'] ?? 'user';
+        _currentUserName = prof?['full_name'] ?? '';
       } catch (_) {}
     }
     _fetchBroadcasts();
@@ -44,59 +49,148 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
 
   Future<void> _fetchConversations() async {
     final isAdmin = _userRole == 'admin' || _userRole == 'hostel_manager' || _userRole == 'owner';
+    final isStaff = _userRole == 'staff';
+    final isHostelStudent = _userRole == 'hostel_student';
+    final isMessStudent = _userRole == 'mess_student';
+    final isDelivery = _userRole == 'delivery_partner';
+    final isFarmer = _userRole == 'farmer_seller';
+    final isStoreCustomer = _userRole == 'store_customer';
+
     final List<Map<String, dynamic>> dynamicRooms = [];
 
-    // Group rooms visible to everyone
-    dynamicRooms.addAll([
-      {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'Welcome to the main chat!'},
-      {'id': 'mess_community', 'title': 'Mess Feedback', 'isGroup': true, 'subtitle': 'Discuss meals and menu.'},
-      {'id': 'student_council', 'title': 'Student Council', 'isGroup': true, 'subtitle': 'Official announcements.'},
-    ]);
-
     if (isAdmin) {
-      // Admin sees user-specific conversations with students
+      // Admins see all group channels + DMs with every user
+      dynamicRooms.addAll([
+        {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'General hostel chat'},
+        {'id': 'mess_community', 'title': 'Mess Feedback', 'isGroup': true, 'subtitle': 'Discuss meals and menu'},
+        {'id': 'student_council', 'title': 'Student Council', 'isGroup': true, 'subtitle': 'Official announcements'},
+        {'id': 'staff_channel', 'title': 'Staff Channel', 'isGroup': true, 'subtitle': 'Internal staff communications'},
+        {'id': 'shop_support', 'title': 'Shop Support', 'isGroup': true, 'subtitle': 'Shop & order queries'},
+      ]);
       try {
-        final students = await _client
+        final users = await _client
             .from('profiles')
-            .select('id, full_name, role')
-            .inFilter('role', ['hostel_student', 'mess_student', 'student'])
+            .select('id, full_name, role, avatar_url')
             .order('full_name');
-
-        for (var s in students) {
+        for (var s in users) {
           final sId = s['id'].toString();
-          final sName = s['full_name'] ?? 'Student';
+          if (sId == _currentUserId) continue;
+          final sName = s['full_name'] ?? 'User';
           dynamicRooms.add({
             'id': 'admin_support_$sId',
-            'title': 'Chat: $sName',
+            'title': sName,
             'isGroup': false,
-            'subtitle': 'Private inquiry with $sName',
+            'subtitle': '${s['role'] ?? 'user'} — private chat',
             'targetUserId': sId,
+            'avatarUrl': s['avatar_url'],
           });
         }
       } catch (e) {
-        debugPrint('Error loading student chat threads: $e');
+        debugPrint('Error loading user chat threads: $e');
       }
+    } else if (isStaff) {
+      // Staff see staff channel + admin DM
+      dynamicRooms.addAll([
+        {'id': 'staff_channel', 'title': 'Staff Channel', 'isGroup': true, 'subtitle': 'Coordinate with teammates'},
+        {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'General campus chat'},
+        {
+          'id': 'admin_support_$_currentUserId',
+          'title': 'Admin Support',
+          'isGroup': false,
+          'subtitle': 'Private line to hostel management',
+          'targetUserId': _currentUserId,
+        },
+      ]);
+    } else if (isHostelStudent) {
+      // Hostel students see general, mess, council, admin DM, shop DM
+      dynamicRooms.addAll([
+        {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'General hostel chat'},
+        {'id': 'mess_community', 'title': 'Mess Feedback', 'isGroup': true, 'subtitle': 'Discuss meals and menu'},
+        {'id': 'student_council', 'title': 'Student Council', 'isGroup': true, 'subtitle': 'Official announcements'},
+        {
+          'id': 'admin_support_$_currentUserId',
+          'title': 'Admin Support (Private)',
+          'isGroup': false,
+          'subtitle': 'Private communication with administration',
+          'targetUserId': _currentUserId,
+        },
+        {
+          'id': 'shop_manager_$_currentUserId',
+          'title': 'Shop & Mandi Support',
+          'isGroup': false,
+          'subtitle': 'Inquire about orders & deliveries',
+          'targetUserId': _currentUserId,
+        },
+      ]);
+    } else if (isMessStudent) {
+      // Mess students see mess channel, council, admin DM
+      dynamicRooms.addAll([
+        {'id': 'mess_community', 'title': 'Mess Feedback', 'isGroup': true, 'subtitle': 'Discuss meals and menu'},
+        {'id': 'student_council', 'title': 'Student Council', 'isGroup': true, 'subtitle': 'Official announcements'},
+        {
+          'id': 'admin_support_$_currentUserId',
+          'title': 'Admin Support (Private)',
+          'isGroup': false,
+          'subtitle': 'Private communication with administration',
+          'targetUserId': _currentUserId,
+        },
+      ]);
+    } else if (isDelivery) {
+      // Delivery partners see delivery channel + admin DM
+      dynamicRooms.addAll([
+        {'id': 'delivery_channel', 'title': 'Delivery Operations', 'isGroup': true, 'subtitle': 'Coordinate deliveries with the team'},
+        {
+          'id': 'admin_support_$_currentUserId',
+          'title': 'Admin Support',
+          'isGroup': false,
+          'subtitle': 'Contact management for dispatch issues',
+          'targetUserId': _currentUserId,
+        },
+      ]);
+    } else if (isFarmer) {
+      // Farmers see mandi channel + admin DM
+      dynamicRooms.addAll([
+        {'id': 'mandi_channel', 'title': 'Mandi Marketplace', 'isGroup': true, 'subtitle': 'Discuss rates & produce'},
+        {
+          'id': 'admin_support_$_currentUserId',
+          'title': 'Admin Support',
+          'isGroup': false,
+          'subtitle': 'Contact management for listing issues',
+          'targetUserId': _currentUserId,
+        },
+      ]);
+    } else if (isStoreCustomer) {
+      // Store customers see shop support + admin DM
+      dynamicRooms.addAll([
+        {'id': 'shop_support', 'title': 'Shop Support', 'isGroup': true, 'subtitle': 'Ask about products & orders'},
+        {
+          'id': 'shop_manager_$_currentUserId',
+          'title': 'Order Support (Private)',
+          'isGroup': false,
+          'subtitle': 'Track your orders and inquire about returns',
+          'targetUserId': _currentUserId,
+        },
+      ]);
     } else {
-      // Normal student sees only their own dedicated Admin Support channel
-      dynamicRooms.add({
-        'id': 'admin_support_$_currentUserId',
-        'title': 'Admin Support (Private)',
-        'isGroup': false,
-        'subtitle': 'Direct communication with Hostel Administration',
-        'targetUserId': _currentUserId,
-      });
-      dynamicRooms.add({
-        'id': 'shop_manager_$_currentUserId',
-        'title': 'Shop & Mandi Support',
-        'isGroup': false,
-        'subtitle': 'Inquire about products & deliveries',
-        'targetUserId': _currentUserId,
-      });
+      // Default: general + admin DM
+      dynamicRooms.addAll([
+        {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'General campus chat'},
+        {
+          'id': 'admin_support_$_currentUserId',
+          'title': 'Admin Support',
+          'isGroup': false,
+          'subtitle': 'Contact hostel management',
+          'targetUserId': _currentUserId,
+        },
+      ]);
     }
 
-    // Fetch unread messages & preview for each room
+    // Fetch unread counts, last messages, and mention flags for each room
     final unreadMap = <String, int>{};
     final lastMsgMap = <String, String>{};
+    final mentionMap = <String, bool>{};
+    final cleanMyName = _currentUserName.replaceAll(' ', '_').toLowerCase();
+
     for (var r in dynamicRooms) {
       final rId = r['id'].toString();
       try {
@@ -105,14 +199,23 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
             .select('content, sender_id, created_at, is_read')
             .eq('room_id', rId)
             .order('created_at', ascending: false)
-            .limit(1);
+            .limit(10);
 
         if (msgs.isNotEmpty) {
-          final m = msgs.first;
-          lastMsgMap[rId] = m['content']?.toString() ?? '';
+          lastMsgMap[rId] = msgs.first['content']?.toString() ?? '';
+          bool mentioned = false;
+          for (var msg in msgs) {
+            final content = (msg['content'] ?? '').toString().toLowerCase();
+            if (cleanMyName.isNotEmpty &&
+                (content.contains('@$cleanMyName') ||
+                    content.contains('@${_currentUserName.toLowerCase()}'))) {
+              mentioned = true;
+              break;
+            }
+          }
+          mentionMap[rId] = mentioned;
         }
 
-        // Count unread: messages not sent by current user and is_read == false
         final countRes = await _client
             .from('messages')
             .select('id')
@@ -128,7 +231,24 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
         _userConversations = dynamicRooms;
         _unreadCounts = unreadMap;
         _lastMessages = lastMsgMap;
+        _hasMentionInRoom = mentionMap;
+        _applyChatFilter();
       });
+    }
+  }
+
+
+  void _applyChatFilter() {
+    if (_chatSearchQuery.trim().isEmpty) {
+      _filteredConversations = List.from(_userConversations);
+    } else {
+      final q = _chatSearchQuery.trim().toLowerCase();
+      _filteredConversations = _userConversations.where((r) {
+        final title = (r['title'] ?? '').toString().toLowerCase();
+        final sub = (r['subtitle'] ?? '').toString().toLowerCase();
+        final last = (_lastMessages[r['id']] ?? '').toLowerCase();
+        return title.contains(q) || sub.contains(q) || last.contains(q);
+      }).toList();
     }
   }
 
@@ -138,10 +258,18 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
           .from('global_announcements')
           .select()
           .order('created_at', ascending: false)
-          .limit(10);
+          .limit(20);
+      
+      final list = (res as List).where((b) {
+        final target = (b['target_audience'] ?? b['target_role'] ?? 'all').toString().toLowerCase();
+        if (target == 'all' || target.isEmpty) return true;
+        if (_userRole == 'admin' || _userRole == 'owner' || _userRole == 'hostel_manager') return true;
+        return target == _userRole || (_userRole.contains('student') && target.contains('student'));
+      }).toList();
+
       if (mounted) {
         setState(() {
-          _broadcasts = res as List;
+          _broadcasts = list;
           _isLoadingBroadcasts = false;
         });
       }
@@ -158,13 +286,6 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final textColor = isDark ? Colors.white : Colors.black;
 
-    final rooms = [
-      {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'Welcome to the main chat!'},
-      {'id': 'mess_community', 'title': 'Mess Feedback', 'isGroup': true, 'subtitle': 'Discuss meals and menu.'},
-      {'id': 'student_council', 'title': 'Student Council', 'isGroup': true, 'subtitle': 'Official announcements.'},
-      {'id': 'admin_support', 'title': 'Admin Support', 'isGroup': false, 'subtitle': 'Private chat with admin.'},
-      {'id': 'shop_manager', 'title': 'Shop Manager', 'isGroup': false, 'subtitle': 'Inquire about products.'},
-    ];
 
     final bodyContent = RefreshIndicator(
       onRefresh: _fetchBroadcasts,
@@ -264,19 +385,64 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
               const SizedBox(height: 24),
             ],
 
-            Text('Conversations', style: GoogleFonts.outfit(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Conversations', style: GoogleFonts.outfit(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                Text('${_filteredConversations.length} Threads', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+          // Search Bar for Chats
+Container(
+  padding: const EdgeInsets.symmetric(horizontal: 16),
+  decoration: BoxDecoration(
+    color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+    borderRadius: BorderRadius.circular(16),
+    border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+  ),
+  child: TextField(
+    onChanged: (val) {
+      setState(() {
+        _chatSearchQuery = val;
+        _applyChatFilter();
+      });
+    },
+    style: TextStyle(color: textColor, fontSize: 13),
+    decoration: InputDecoration(
+      icon: const Icon(Icons.search, size: 18, color: Colors.indigoAccent),
+      hintText: 'Search chats, students, messages...',
+      hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12),
+      // FIX: Explicitly strip out all possible internal border states
+      border: InputBorder.none,
+      enabledBorder: InputBorder.none,
+      focusedBorder: InputBorder.none,
+      disabledBorder: InputBorder.none,
+    ),
+  ),
+),
+
             const SizedBox(height: 16),
+
             Expanded(
-              child: ListView.builder(
-                itemCount: _userConversations.length,
-                itemBuilder: (context, index) {
-                  final room = _userConversations[index];
-                  return FadeInUp(
-                    delay: Duration(milliseconds: 60 * index),
-                    child: _buildChatRoomTile(context, room, isDark),
-                  );
-                },
-              ),
+              child: _filteredConversations.isEmpty
+                  ? Center(
+                      child: Text(
+                        _chatSearchQuery.isNotEmpty ? 'No conversations matching "$_chatSearchQuery"' : 'No conversations found',
+                        style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12),
+                      ),
+                    )
+                  : ListView.builder(
+                      itemCount: _filteredConversations.length,
+                      itemBuilder: (context, index) {
+                        final room = _filteredConversations[index];
+                        return FadeInUp(
+                          delay: Duration(milliseconds: 40 * index),
+                          child: _buildChatRoomTile(context, room, isDark),
+                        );
+                      },
+                    ),
             ),
           ],
         ),
@@ -359,9 +525,30 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (_hasMentionInRoom[roomId] == true)
+              Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.amberAccent.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.amberAccent.withOpacity(0.5)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(Icons.alternate_email_rounded, size: 10, color: Colors.amber),
+                    SizedBox(width: 2),
+                    Text(
+                      'MENTION',
+                      style: TextStyle(color: Colors.amber, fontSize: 8, fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
             if (unread > 0)
               Container(
-                margin: const EdgeInsets.only(left: 8),
+                margin: const EdgeInsets.only(left: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: Colors.redAccent.withOpacity(0.15),

@@ -202,7 +202,7 @@ class _ShopOrderStatusScreenState extends State<ShopOrderStatusScreen> {
                       child: ElevatedButton.icon(
                         onPressed: () => _authorizeReceipt(o),
                         icon: const Icon(Icons.receipt_long_rounded, color: Colors.white, size: 16),
-                        label: const Text('AUTHORIZE MISSION RECEIPT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1)),
+                        label: const Text('DOWNLOAD', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1)),
                         style: ElevatedButton.styleFrom(backgroundColor: Colors.indigoAccent, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), padding: const EdgeInsets.symmetric(vertical: 16)),
                       ),
                     ),
