@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 import 'dart:io' if (dart.library.html) 'dart:io';
 import '../../services/receipt_service.dart';
 import '../../services/pos_hardware_service.dart';
+import '../../services/organization_settings_service.dart';
 import '../../utils/csv_web_helper.dart';
 import '../../utils/csv_range_dialog.dart';
 
@@ -639,8 +640,8 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
       if (res != null) chargeCtrl.text = res['value'].toString();
 
       final rulesRes = await _client.from('app_settings').select('value').eq('key', 'logistics_rules').maybeSingle();
-      if (rulesRes != null && rulesRes['value'] is List) {
-        rules = List<Map<String, dynamic>>.from(rulesRes['value']);
+      if (rulesRes != null && rulesRes['value'] != null) {
+        rules = OrganizationSettingsService.parseRules(rulesRes['value']);
       }
     } catch (_) {}
 
@@ -764,6 +765,14 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
                                         Text(r['name'] ?? 'Custom Rule', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: textColor)),
                                         Text('${isDiscount ? "Discount" : "Charge"}: ₹${r['amount']} • Applies: ${(r['applies_to'] ?? 'all').toString().toUpperCase()}',
                                             style: TextStyle(color: textColor.withOpacity(0.5), fontSize: 10)),
+                                        if (r['start_date'] != null || r['end_date'] != null)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 2),
+                                            child: Text(
+                                              'Period: ${r['start_date'] != null ? DateFormat('dd MMM').format(DateTime.parse(r['start_date'])) : 'Any'} → ${r['end_date'] != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(r['end_date'])) : 'Ongoing'}',
+                                              style: const TextStyle(color: Colors.amberAccent, fontSize: 9, fontWeight: FontWeight.bold),
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -798,8 +807,14 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
                     onPressed: () async {
                       try {
                         final val = double.tryParse(chargeCtrl.text) ?? 20.0;
-                        await _client.from('app_settings').upsert({'key': 'delivery_charge', 'value': val});
-                        await _client.from('app_settings').upsert({'key': 'logistics_rules', 'value': rules});
+                        try {
+                          await _client.from('app_settings').upsert({'key': 'delivery_charge', 'value': val});
+                          await _client.from('app_settings').upsert({'key': 'logistics_rules', 'value': rules});
+                        } catch (_) {
+                          // Fallback if column 'value' is of type text
+                          await _client.from('app_settings').upsert({'key': 'delivery_charge', 'value': val.toString()});
+                          await _client.from('app_settings').upsert({'key': 'logistics_rules', 'value': jsonEncode(rules)});
+                        }
                         Navigator.pop(ctx);
                         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('LOGISTICS & FESTIVAL RULES UPDATED'), backgroundColor: Colors.greenAccent));
                       } catch (e) {
@@ -823,6 +838,8 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
     final amtCtrl = TextEditingController();
     String ruleType = 'discount'; // or 'charge'
     String appliesTo = 'all'; // 'all', 'delivery_only', 'takeaway_only', 'domestic', 'commercial'
+    DateTime? startDate;
+    DateTime? endDate;
     final textColor = isDark ? Colors.white : Colors.black;
 
     showDialog(
@@ -879,6 +896,49 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
                   ],
                   onChanged: (v) => setDState(() => appliesTo = v ?? 'all'),
                 ),
+                const SizedBox(height: 16),
+                // Offer Period Date Pickers
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.date_range, size: 14),
+                        label: Text(
+                          startDate == null ? 'Start Date' : DateFormat('dd MMM yyyy').format(startDate!),
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: startDate ?? DateTime.now(),
+                            firstDate: DateTime(2024),
+                            lastDate: DateTime(2035),
+                          );
+                          if (picked != null) setDState(() => startDate = picked);
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        icon: const Icon(Icons.event, size: 14),
+                        label: Text(
+                          endDate == null ? 'End Date' : DateFormat('dd MMM yyyy').format(endDate!),
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: () async {
+                          final picked = await showDatePicker(
+                            context: context,
+                            initialDate: endDate ?? (startDate ?? DateTime.now()),
+                            firstDate: startDate ?? DateTime(2024),
+                            lastDate: DateTime(2035),
+                          );
+                          if (picked != null) setDState(() => endDate = picked);
+                        },
+                      ),
+                    ),
+                  ],
+                ),
               ],
             ),
           ),
@@ -893,6 +953,8 @@ class _AdminOrderControlScreenState extends State<AdminOrderControlScreen> with 
                   'amount': amt,
                   'type': ruleType,
                   'applies_to': appliesTo,
+                  'start_date': startDate?.toIso8601String(),
+                  'end_date': endDate?.toIso8601String(),
                   'enabled': true,
                 });
                 Navigator.pop(dCtx);

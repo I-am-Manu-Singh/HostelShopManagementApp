@@ -391,3 +391,131 @@ WITH CHECK (
     OR public.is_finance_manager(auth.uid())
 );
 
+-- 7. App Settings Table & Logistics Rules Storage (Fix Fee & Festival Offers)
+CREATE TABLE IF NOT EXISTS public.app_settings (
+    key TEXT PRIMARY KEY,
+    value TEXT,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure value column is flexible (convert numeric to text if pre-existing as numeric)
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'app_settings' 
+          AND column_name = 'value'
+          AND data_type IN ('numeric', 'double precision', 'integer')
+    ) THEN
+        ALTER TABLE public.app_settings ALTER COLUMN value TYPE TEXT USING value::text;
+    END IF;
+END $$;
+
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "app_settings_read_policy" ON public.app_settings;
+DROP POLICY IF EXISTS "app_settings_write_policy" ON public.app_settings;
+
+CREATE POLICY "app_settings_read_policy" ON public.app_settings
+FOR SELECT USING (true);
+
+CREATE POLICY "app_settings_write_policy" ON public.app_settings
+FOR ALL USING (
+    public.is_finance_manager(auth.uid())
+)
+WITH CHECK (
+    public.is_finance_manager(auth.uid())
+);
+
+-- Store/Company dynamic configuration seeds
+INSERT INTO public.app_settings (key, value)
+VALUES 
+    ('delivery_charge', '20'),
+    ('logistics_rules', '[]'),
+    ('company_name', 'H House'),
+    ('company_phone', '+91 79762 87989'),
+    ('support_email', 'support@campusconnect.com'),
+    ('website', 'https://hostelconnect.edu.in'),
+    ('company_address', 'Campus Central Avenue, Tech Zone Block 4, Mohali – 160071'),
+    ('store_gstin', '03ABCDE1234F1Z8'),
+    ('merchant_name', 'Hostel SuperMart & POS'),
+    ('merchant_upi_vpa', 'campusshop@upi'),
+    ('receipt_footer_note', 'Thank you for shopping with us!\nVisit again.')
+ON CONFLICT (key) DO NOTHING;
+
+-- 8. Fix Outpasses Table & Biometric Gate Scanner Columns (Fix 42703 column outpasses.user_id does not exist)
+CREATE TABLE IF NOT EXISTS public.outpasses (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    student_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE,
+    destination TEXT DEFAULT 'Main Gate',
+    reason TEXT DEFAULT 'Biometric Log',
+    status TEXT DEFAULT 'Approved',
+    time_out TIMESTAMP WITH TIME ZONE,
+    time_in TIMESTAMP WITH TIME ZONE,
+    approved_by UUID REFERENCES public.profiles(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- Ensure user_id column exists if table was pre-existing with only student_id
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'outpasses' 
+          AND column_name = 'user_id'
+    ) THEN
+        ALTER TABLE public.outpasses ADD COLUMN user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'outpasses' 
+          AND column_name = 'student_id'
+    ) THEN
+        ALTER TABLE public.outpasses ADD COLUMN student_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'outpasses' 
+          AND column_name = 'time_in'
+    ) THEN
+        ALTER TABLE public.outpasses ADD COLUMN time_in TIMESTAMP WITH TIME ZONE;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_schema = 'public' 
+          AND table_name = 'outpasses' 
+          AND column_name = 'time_out'
+    ) THEN
+        ALTER TABLE public.outpasses ADD COLUMN time_out TIMESTAMP WITH TIME ZONE;
+    END IF;
+END $$;
+
+-- Synchronize hostel_outpasses if pre-existing
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = 'hostel_outpasses'
+    ) THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_schema = 'public' AND table_name = 'hostel_outpasses' AND column_name = 'user_id'
+        ) THEN
+            ALTER TABLE public.hostel_outpasses ADD COLUMN user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE;
+        END IF;
+    END IF;
+END $$;
+
+ALTER TABLE public.outpasses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "outpasses_access_policy" ON public.outpasses;
+CREATE POLICY "outpasses_access_policy" ON public.outpasses FOR ALL USING (true) WITH CHECK (true);
+
+

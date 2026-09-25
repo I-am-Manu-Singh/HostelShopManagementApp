@@ -37,17 +37,34 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   double _selectedWeightMultiplier = 1.0;
   late String _selectedWeightUnit;
   RealtimeChannel? _productRealtimeSub;
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
     _currentProduct = widget.product;
     _selectedWeightUnit = _currentProduct.unit;
+    _checkUserRole();
     _checkWishlist();
     _fetchReviews();
     _checkReviewEligibility();
     _subscribeToLiveProductUpdates();
   }
+
+  Future<void> _checkUserRole() async {
+    final user = _supabase.auth.currentUser;
+    if (user == null) return;
+    try {
+      final res = await _supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      if (res != null && mounted) {
+        final r = (res['role'] ?? '').toString().toLowerCase();
+        if (r == 'admin' || r == 'owner' || r == 'hostel_manager' || r == 'manager' || r == 'staff') {
+          setState(() => _isAdmin = true);
+        }
+      }
+    } catch (_) {}
+  }
+
 
   void _subscribeToLiveProductUpdates() {
     try {
@@ -1066,18 +1083,19 @@ Widget _buildUsageSection(bool isDark) {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('PRODUCT BARCODE & POS DATA', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1)),
-              ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.amber,
-                  foregroundColor: Colors.black,
-                  visualDensity: VisualDensity.compact,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+              if (_isAdmin)
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.amber,
+                    foregroundColor: Colors.black,
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  icon: const Icon(Icons.print, size: 14),
+                  label: const Text('Print Label', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                  onPressed: () => _showPrintLabelDialog(barcodeVal),
                 ),
-                icon: const Icon(Icons.print, size: 14),
-                label: const Text('Print Label', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                onPressed: () => _showPrintLabelDialog(barcodeVal),
-              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1211,29 +1229,67 @@ Widget _buildUsageSection(bool isDark) {
     final clean = code.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').trim();
     if (clean.isEmpty) return const SizedBox.shrink();
 
-    final isNumericEan = clean.length == 13 && RegExp(r'^[0-9]{13}$').hasMatch(clean);
-    final bcType = isNumericEan ? bc.Barcode.ean13() : bc.Barcode.code128();
+    // Determine appropriate barcode symbology
+    bc.Barcode bcType;
+    try {
+      if (clean.length == 13 && RegExp(r'^[0-9]{13}$').hasMatch(clean)) {
+        bcType = bc.Barcode.ean13();
+      } else if (clean.length == 8 && RegExp(r'^[0-9]{8}$').hasMatch(clean)) {
+        bcType = bc.Barcode.ean8();
+      } else {
+        bcType = bc.Barcode.code128();
+      }
+    } catch (_) {
+      bcType = bc.Barcode.code128();
+    }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      width: 260,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.indigoAccent.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.indigoAccent.withValues(alpha: 0.3)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          )
+        ],
       ),
-      child: bc.BarcodeWidget(
-        barcode: bcType,
-        data: clean,
-        width: 220,
-        height: 55,
-        drawText: false,
-        color: Colors.black,
-        errorBuilder: (context, error) => Center(
-          child: Text(
-            clean,
-            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 2),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          bc.BarcodeWidget(
+            barcode: bcType,
+            data: clean,
+            width: 230,
+            height: 65,
+            drawText: false,
+            color: Colors.black,
+            errorBuilder: (context, error) {
+              // Try code128 fallback before giving up
+              try {
+                return bc.BarcodeWidget(
+                  barcode: bc.Barcode.code128(),
+                  data: clean,
+                  width: 230,
+                  height: 65,
+                  drawText: false,
+                  color: Colors.black,
+                );
+              } catch (_) {
+                return Center(
+                  child: Text(
+                    clean,
+                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold, letterSpacing: 2),
+                  ),
+                );
+              }
+            },
           ),
-        ),
+        ],
       ),
     );
   }

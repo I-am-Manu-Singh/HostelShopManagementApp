@@ -24,13 +24,18 @@ class _PomodoroProtocolScreenState extends State<PomodoroProtocolScreen> with Ti
   @override
   void initState() {
     super.initState();
+    _secondsRemaining = _focusTime;
     _initTts();
+    _music.init();
+    _loadLogs();
   }
 
   void _initTts() async {
-    await _tts.setLanguage("en-US");
-    await _tts.setPitch(1.25);
-    await _tts.setSpeechRate(0.55);
+    try {
+      await _tts.setLanguage("en-US");
+      await _tts.setPitch(1.25);
+      await _tts.setSpeechRate(0.55);
+    } catch (_) {}
   }
   
   int _focusTime = 25 * 60;
@@ -56,7 +61,9 @@ class _PomodoroProtocolScreenState extends State<PomodoroProtocolScreen> with Ti
       if (_isActive) {
         _startTimer();
         _tts.speak(_isBreak ? "Break started. Time to recharge." : "Focus mode on. Let's get to work.");
-        _music.playFocusBeats(trackIndex: _currentTrackIndex);
+        if (!_isMuted) {
+          _music.playFocusBeats(trackIndex: _currentTrackIndex);
+        }
         _db.updateStudyStatus(_isBreak ? 'resting' : 'focusing');
       } else {
         _timer?.cancel();

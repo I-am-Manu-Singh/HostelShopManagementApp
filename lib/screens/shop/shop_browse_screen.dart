@@ -21,6 +21,7 @@ import '../legal/privacy_policy_screen.dart';
 import '../legal/terms_of_service_screen.dart';
 import '../profile/app_info_screen.dart';
 import 'fast_food_screen.dart';
+import '../../services/organization_settings_service.dart';
 enum BrowseMode { shop, mandi, fastFood }
 
 
@@ -146,6 +147,11 @@ class _ShopBrowseScreenState extends State<ShopBrowseScreen> {
 
       final res = await builder;
       final parsed = (res as List).map((i) => ShopItem.fromJson(i)).toList();
+
+      if (mounted) {
+        // Sync logistics rules and festival offers
+        context.read<CartProvider>().fetchLogisticsAndOffers();
+      }
 
       double fee = 20.0;
       try {
@@ -1610,6 +1616,7 @@ Widget build(BuildContext context) {
   }
 
   Widget _footerContact(bool isDark) {
+    final org = OrganizationSettingsService();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1623,7 +1630,7 @@ Widget build(BuildContext context) {
         ),
         const SizedBox(height: 12),
         Text(
-          'support@campusconnect.com',
+          org.supportEmail,
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
             fontSize: 12,
@@ -1631,7 +1638,7 @@ Widget build(BuildContext context) {
         ),
         const SizedBox(height: 6),
         Text(
-          '+91 XXXXX XXXXX',
+          org.companyPhone,
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
             fontSize: 12,
@@ -1639,10 +1646,10 @@ Widget build(BuildContext context) {
         ),
         const SizedBox(height: 6),
         Text(
-          'India',
+          org.companyAddress,
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
-            fontSize: 12,
+            fontSize: 11,
           ),
         ),
       ],

@@ -6,7 +6,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:intl/intl.dart';
 import 'package:print_bluetooth_thermal/print_bluetooth_thermal.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:permission_handler/permission_handler.dart';
+import 'organization_settings_service.dart';
 
 enum ReceiptTemplateStyle {
   retailStandard,   // Standard detailed itemized tax invoice
@@ -134,14 +136,21 @@ class PosHardwareService {
     autoPrint = prefs.getBool(_prefAutoPrintKey) ?? true;
     final styleIndex = prefs.getInt(_prefTemplateStyleKey) ?? 0;
     templateStyle = ReceiptTemplateStyle.values[styleIndex.clamp(0, ReceiptTemplateStyle.values.length - 1)];
-    storeName = prefs.getString(_prefStoreNameKey) ?? "Hostel SuperMart & POS";
-    storeAddress = prefs.getString(_prefStoreAddressKey) ?? "Campus Block B, Ground Floor";
-    storeGstin = prefs.getString(_prefStoreGstinKey) ?? "07AAAAA0000A1Z5";
-    storePhone = prefs.getString(_prefStorePhoneKey) ?? "+91 7976287989";
-    footerNote = prefs.getString(_prefFooterNoteKey) ?? prefs.getString(_prefStoreFooterKey) ?? "Thank you for shopping with us!\nVisit again.";
+
+    // Fetch dynamic store/org info from Supabase
+    final org = OrganizationSettingsService();
+    try {
+      await org.fetchSettings();
+    } catch (_) {}
+
+    storeName = prefs.getString(_prefStoreNameKey) ?? org.merchantName;
+    storeAddress = prefs.getString(_prefStoreAddressKey) ?? org.companyAddress;
+    storeGstin = prefs.getString(_prefStoreGstinKey) ?? org.storeGstin;
+    storePhone = prefs.getString(_prefStorePhoneKey) ?? org.companyPhone;
+    footerNote = prefs.getString(_prefFooterNoteKey) ?? prefs.getString(_prefStoreFooterKey) ?? org.receiptFooterNote;
     printBarcode = prefs.getBool(_prefPrintBarcodeKey) ?? true;
     cashDrawerPulse = prefs.getBool(_prefCashDrawerPulseKey) ?? true;
-    merchantUpiVpa = prefs.getString(_prefMerchantUpiVpaKey) ?? "campusshop@upi";
+    merchantUpiVpa = prefs.getString(_prefMerchantUpiVpaKey) ?? org.merchantUpiVpa;
     merchantName = prefs.getString(_prefMerchantNameKey) ?? storeName;
 
     connectedMacAddress = prefs.getString(_prefConnectedMacKey);
@@ -397,8 +406,10 @@ class PosHardwareService {
         }
       }
 
+      final pageFormat = paperWidthMm == 80 ? PdfPageFormat.roll80 : PdfPageFormat.roll57;
       final doc = await buildReceiptPdfDocument(data);
       return await Printing.layoutPdf(
+        format: pageFormat,
         onLayout: (format) async => doc.save(),
         name: 'POS_${data.invoiceNumber}',
       );
@@ -413,6 +424,12 @@ class PosHardwareService {
     final isKot = data.templateStyle == ReceiptTemplateStyle.kitchenKot;
     final isGst = data.templateStyle == ReceiptTemplateStyle.gstDetailed;
 
+    pw.MemoryImage? logoImage;
+    try {
+      final bytes = await rootBundle.load('assets/images/app_logo.png');
+      logoImage = pw.MemoryImage(bytes.buffer.asUint8List());
+    } catch (_) {}
+
     doc.addPage(
       pw.Page(
         pageFormat: pageFormat,
@@ -421,14 +438,23 @@ class PosHardwareService {
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.center,
             children: [
-              pw.Text(data.storeName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
+              if (logoImage != null) ...[
+                pw.Container(
+                  width: 32,
+                  height: 32,
+                  child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                ),
+                pw.SizedBox(height: 4),
+              ],
+              pw.Text(data.storeName, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13, color: PdfColors.black)),
               if (data.storeAddress.isNotEmpty)
-                pw.Text(data.storeAddress, style: const pw.TextStyle(fontSize: 8), textAlign: pw.TextAlign.center),
+                pw.Text(data.storeAddress, style: const pw.TextStyle(fontSize: 8, color: PdfColors.black), textAlign: pw.TextAlign.center),
               if (data.storePhone != null && data.storePhone!.isNotEmpty)
-                pw.Text("Tel: ${data.storePhone}", style: const pw.TextStyle(fontSize: 8)),
+                pw.Text("Tel: ${data.storePhone}", style: const pw.TextStyle(fontSize: 8, color: PdfColors.black)),
               if (data.storeGstin != null && data.storeGstin!.isNotEmpty)
-                pw.Text("GSTIN: ${data.storeGstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-              pw.Divider(thickness: 1),
+                pw.Text("GSTIN: ${data.storeGstin}", style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold, color: PdfColors.black)),
+              pw.Divider(thickness: 1, color: PdfColors.black),
+
               pw.Text(
                 isKot ? "KITCHEN ORDER TICKET (KOT)" : (isGst ? "TAX INVOICE (GST COMPLIANT)" : "RETAIL SALES RECEIPT"),
                 style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),

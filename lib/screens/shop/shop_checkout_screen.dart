@@ -48,6 +48,11 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
   void initState() {
     super.initState();
     _fetchProfile();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        Provider.of<CartProvider>(context, listen: false).fetchLogisticsAndOffers();
+      }
+    });
   }
 
   Future<void> _fetchProfile() async {
@@ -374,7 +379,9 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
 
   Widget _buildTotalSummary(CartProvider cart, bool isDark) {
     final subTotal = cart.totalAmount;
-    final delivery = _deliveryType == 'Home Delivery' ? _deliveryFee : 0.0;
+    final delivery = _deliveryType == 'Home Delivery' ? cart.baseDeliveryFee : 0.0;
+    final specialAdjustment = cart.calculateAdjustment(deliveryType: _deliveryType, userType: _userType);
+    final finalPayable = (subTotal + delivery + specialAdjustment).clamp(0.0, 9999999.0);
     final textCol = isDark ? Colors.white : Colors.black;
     final subCol = isDark ? Colors.white24 : Colors.black26;
 
@@ -383,13 +390,29 @@ class _ShopCheckoutScreenState extends State<ShopCheckoutScreen> {
       decoration: BoxDecoration(color: (isDark ? Colors.white : Colors.black).withOpacity(0.02), border: Border(top: BorderSide(color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05)))),
       child: Column(children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+          Text('SUBTOTAL', style: TextStyle(color: subCol, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1)),
+          Text('₹${subTotal.toInt()}', style: TextStyle(color: textCol, fontWeight: FontWeight.bold, fontSize: 12)),
+        ]),
+        const SizedBox(height: 8),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('DELIVERY LOGISTICS', style: TextStyle(color: subCol, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1)),
           Text(delivery == 0 ? 'FREE' : '₹${delivery.toInt()}', style: TextStyle(color: delivery == 0 ? Colors.greenAccent : textCol, fontWeight: FontWeight.bold, fontSize: 12)),
         ]),
+        if (specialAdjustment != 0) ...[
+          const SizedBox(height: 8),
+          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
+            Text(specialAdjustment < 0 ? 'FESTIVAL / SPECIAL DISCOUNT' : 'SPECIAL LOGISTICS CHARGE',
+                style: TextStyle(color: specialAdjustment < 0 ? Colors.greenAccent : Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 10, letterSpacing: 1)),
+            Text(
+              '${specialAdjustment < 0 ? "-" : "+"}₹${specialAdjustment.abs().toInt()}',
+              style: TextStyle(color: specialAdjustment < 0 ? Colors.greenAccent : Colors.orangeAccent, fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+          ]),
+        ],
         const SizedBox(height: 16),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           Text('TOTAL PAYABLE', style: TextStyle(color: subCol, fontWeight: FontWeight.w900, fontSize: 11, letterSpacing: 1.5)),
-          Text('₹${(subTotal + delivery).toInt()}', style: GoogleFonts.outfit(color: textCol, fontSize: 34, fontWeight: FontWeight.w900)),
+          Text('₹${finalPayable.toInt()}', style: GoogleFonts.outfit(color: textCol, fontSize: 34, fontWeight: FontWeight.w900)),
         ]),
       ]),
     );

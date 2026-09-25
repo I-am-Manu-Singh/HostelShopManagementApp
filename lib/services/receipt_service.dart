@@ -1,26 +1,45 @@
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart';
+import 'organization_settings_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared constants
+// Dynamic Organization info with robust fallback
 // ─────────────────────────────────────────────────────────────────────────────
-const _kOrgName = 'HOSTEL CONNECT & MANDI';
+String get _kOrgName => OrganizationSettingsService().companyName;
 const _kTagline = 'Smart Campus ERP & Commercial Ecosystem';
-const _kAddress = 'Campus Central Avenue, Tech Zone Block 4, Mohali – 160071';
-const _kPhone = '+91 79762 87989';
-const _kGst = 'GSTIN: 03ABCDE1234F1Z8';
-const _kEmail = 'support@hostelconnect.edu';
-const _kWebsite = 'www.hostelconnect.edu.in';
+String get _kAddress => OrganizationSettingsService().companyAddress;
+String get _kPhone => OrganizationSettingsService().companyPhone;
+String get _kGst => 'GSTIN: ${OrganizationSettingsService().storeGstin}';
+String get _kEmail => OrganizationSettingsService().supportEmail;
+String get _kWebsite => OrganizationSettingsService().website;
+
+// Cached logo image for PDF rendering
+pw.MemoryImage? _cachedPdfLogo;
+
+Future<pw.MemoryImage?> _getPdfLogo() async {
+  if (_cachedPdfLogo != null) return _cachedPdfLogo;
+  try {
+    final bytes = await rootBundle.load('assets/images/app_logo.png');
+    _cachedPdfLogo = pw.MemoryImage(bytes.buffer.asUint8List());
+    return _cachedPdfLogo;
+  } catch (_) {
+    return null;
+  }
+}
+
 
 /// Builds the shared header that appears at the top of every PDF receipt.
 pw.Widget _buildHeader({
   required String documentTitle,
   required String refId,
   String? subtitle,
+  pw.MemoryImage? logoImage,
 }) {
+  final logo = logoImage ?? _cachedPdfLogo;
   return pw.Column(
     crossAxisAlignment: pw.CrossAxisAlignment.start,
     children: [
@@ -44,22 +63,29 @@ pw.Widget _buildHeader({
                 pw.Container(
                   width: 38,
                   height: 38,
-                  decoration: pw.BoxDecoration(
+                  decoration: const pw.BoxDecoration(
                     color: PdfColors.white,
-                    borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                    borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
                   ),
-                  child: pw.Center(
-                    child: pw.Text(
-                      'HC',
-                      style: pw.TextStyle(
-                        color: const PdfColor.fromInt(0xFF4338CA),
-                        fontWeight: pw.FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
+                  child: logo != null
+                      ? pw.ClipRRect(
+                          horizontalRadius: 8,
+                          verticalRadius: 8,
+                          child: pw.Image(logo, fit: pw.BoxFit.contain),
+                        )
+                      : pw.Center(
+                          child: pw.Text(
+                            'HC',
+                            style: pw.TextStyle(
+                              color: const PdfColor.fromInt(0xFF4338CA),
+                              fontWeight: pw.FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
                 ),
                 pw.SizedBox(width: 12),
+
                 pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
@@ -174,6 +200,7 @@ class ReceiptService {
   // ── Shop / Mandi Order Receipt ─────────────────────────────────────────────
   static Future<void> generateAndShareReceipt(dynamic order) async {
     final pdf = pw.Document();
+    final logo = await _getPdfLogo();
     final items = order['items'] as List;
     final date = DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.parse(order['created_at']));
     final orderId = order['id'].toString().substring(0, 8).toUpperCase();
@@ -198,8 +225,8 @@ class ReceiptService {
       return [
         it['name']?.toString().toUpperCase() ?? 'ITEM',
         qtyStr,
-        '₹ ${price.toStringAsFixed(2)}',
-        '₹ ${lineTotal.toStringAsFixed(2)}',
+        'Rs. ${price.toStringAsFixed(2)}',
+        'Rs. ${lineTotal.toStringAsFixed(2)}',
       ];
     }).toList();
 
@@ -220,6 +247,7 @@ class ReceiptService {
               _buildHeader(
                 documentTitle: isMandi ? 'MANDI INVOICE' : 'SHOP RECEIPT',
                 refId: orderId,
+                logoImage: logo,
               ),
 
               // ── Bill To / Order Info grid ─────────────────────────────────
@@ -309,12 +337,12 @@ class ReceiptService {
                     ),
                     child: pw.Column(
                       children: [
-                        _totalRow('Sub-Total', '₹ ${subTotal.toStringAsFixed(2)}'),
-                        if (discount > 0) _totalRow('Discount', '- ₹ ${discount.toStringAsFixed(2)}', isGreen: true),
-                        if (deliveryFee > 0) _totalRow('Delivery Fee', '₹ ${deliveryFee.toStringAsFixed(2)}'),
-                        if (tax > 0) _totalRow('Tax / GST', '₹ ${tax.toStringAsFixed(2)}'),
+                        _totalRow('Sub-Total', 'Rs. ${subTotal.toStringAsFixed(2)}'),
+                        if (discount > 0) _totalRow('Discount', '- Rs. ${discount.toStringAsFixed(2)}', isGreen: true),
+                        if (deliveryFee > 0) _totalRow('Delivery Fee', 'Rs. ${deliveryFee.toStringAsFixed(2)}'),
+                        if (tax > 0) _totalRow('Tax / GST', 'Rs. ${tax.toStringAsFixed(2)}'),
                         pw.Divider(color: PdfColor.fromInt(0xFFDDD6FE), thickness: 0.5),
-                        _totalRow('GRAND TOTAL', '₹ ${grandTotal.toStringAsFixed(2)}', isTotal: true),
+                        _totalRow('GRAND TOTAL', 'Rs. ${grandTotal.toStringAsFixed(2)}', isTotal: true),
                       ],
                     ),
                   ),
@@ -379,7 +407,7 @@ class ReceiptService {
     }
 
     final List<List<String>> tableData = [
-      ['Base Accommodation', roomPlan ?? 'Standard Plan', '₹ ${baseRent.toStringAsFixed(2)}', '₹ 0.00', '₹ ${baseRent.toStringAsFixed(2)}'],
+      ['Base Accommodation', roomPlan ?? 'Standard Plan', 'Rs. ${baseRent.toStringAsFixed(2)}', 'Rs. 0.00', 'Rs. ${baseRent.toStringAsFixed(2)}'],
     ];
 
     if (addOns != null && addOns.isNotEmpty) {
@@ -389,13 +417,14 @@ class ReceiptService {
     }
 
     if (electricityCharges > 0) {
-      tableData.add(['Electricity Surcharge', 'Delta Consumption', '₹ 0.00', '₹ ${electricityCharges.toStringAsFixed(2)}', '₹ ${electricityCharges.toStringAsFixed(2)}']);
+      tableData.add(['Electricity Surcharge', 'Delta Consumption', 'Rs. 0.00', 'Rs. ${electricityCharges.toStringAsFixed(2)}', 'Rs. ${electricityCharges.toStringAsFixed(2)}']);
     }
 
     if (serviceFees > 0) {
-      tableData.add(['Service & Facility Dues', 'Maintenance', '₹ 0.00', '₹ ${serviceFees.toStringAsFixed(2)}', '₹ ${serviceFees.toStringAsFixed(2)}']);
+      tableData.add(['Service & Facility Dues', 'Maintenance', 'Rs. 0.00', 'Rs. ${serviceFees.toStringAsFixed(2)}', 'Rs. ${serviceFees.toStringAsFixed(2)}']);
     }
 
+    final logo = await _getPdfLogo();
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -409,6 +438,7 @@ class ReceiptService {
                 documentTitle: 'ACCOMMODATION RECEIPT',
                 refId: receiptId,
                 subtitle: 'Monthly Room Rent & Utilities Statement',
+                logoImage: logo,
               ),
 
               // ── Resident / Billing info grid ───────────────────────────────
@@ -499,11 +529,11 @@ class ReceiptService {
                     ),
                     child: pw.Column(
                       children: [
-                        _totalRow('Base Rent', '₹ ${baseRent.toStringAsFixed(2)}'),
-                        if (electricityCharges > 0) _totalRow('Electricity', '₹ ${electricityCharges.toStringAsFixed(2)}'),
-                        if (serviceFees > 0) _totalRow('Service Fees', '₹ ${serviceFees.toStringAsFixed(2)}'),
+                        _totalRow('Base Rent', 'Rs. ${baseRent.toStringAsFixed(2)}'),
+                        if (electricityCharges > 0) _totalRow('Electricity', 'Rs. ${electricityCharges.toStringAsFixed(2)}'),
+                        if (serviceFees > 0) _totalRow('Service Fees', 'Rs. ${serviceFees.toStringAsFixed(2)}'),
                         pw.Divider(color: PdfColor.fromInt(0xFFDDD6FE), thickness: 0.5),
-                        _totalRow('TOTAL PAYABLE', '₹ ${totalAmount.toStringAsFixed(2)}', isTotal: true),
+                        _totalRow('TOTAL PAYABLE', 'Rs. ${totalAmount.toStringAsFixed(2)}', isTotal: true),
                       ],
                     ),
                   ),
@@ -546,6 +576,7 @@ class ReceiptService {
   // ── Employee Payslip ───────────────────────────────────────────────────────
   static Future<void> generateSalaryReceipt(dynamic record, String? employeeName) async {
     final pdf = pw.Document();
+    final logo = await _getPdfLogo();
     final date = DateFormat('dd MMM yyyy').format(DateTime.now());
     final slipId = record['id'].toString().substring(0, 8).toUpperCase();
     final month = record['month'] ?? DateFormat('MMMM yyyy').format(DateTime.now());
@@ -572,6 +603,7 @@ class ReceiptService {
                 documentTitle: 'PAYSLIP STATEMENT',
                 refId: slipId,
                 subtitle: 'Official Monthly Salary & Remuneration',
+                logoImage: logo,
               ),
 
               // ── Employee & pay period info ──────────────────────────────────
@@ -641,10 +673,10 @@ class ReceiptService {
                           decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFF3730A3)),
                           child: pw.Text('EARNINGS', style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 8)),
                         ),
-                        _payRow('Base Salary', '₹ ${baseSalary.toStringAsFixed(2)}'),
-                        _payRow('Allowances', '₹ ${allowance.toStringAsFixed(2)}'),
+                        _payRow('Base Salary', 'Rs. ${baseSalary.toStringAsFixed(2)}'),
+                        _payRow('Allowances', 'Rs. ${allowance.toStringAsFixed(2)}'),
                         pw.Divider(color: PdfColor.fromInt(0xFFE5E7EB), thickness: 0.5),
-                        _payRow('Gross Earnings', '₹ ${(baseSalary + allowance).toStringAsFixed(2)}', bold: true),
+                        _payRow('Gross Earnings', 'Rs. ${(baseSalary + allowance).toStringAsFixed(2)}', bold: true),
                       ],
                     ),
                   ),
@@ -659,10 +691,10 @@ class ReceiptService {
                           decoration: const pw.BoxDecoration(color: PdfColor.fromInt(0xFFDC2626)),
                           child: pw.Text('DEDUCTIONS', style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 8)),
                         ),
-                        _payRow('Advance Recovery', '₹ ${advances.toStringAsFixed(2)}'),
-                        _payRow('Unpaid Leave Penalty', '₹ ${unpaidLeaveDeduction.toStringAsFixed(2)}'),
+                        _payRow('Advance Recovery', 'Rs. ${advances.toStringAsFixed(2)}'),
+                        _payRow('Unpaid Leave Penalty', 'Rs. ${unpaidLeaveDeduction.toStringAsFixed(2)}'),
                         pw.Divider(color: PdfColor.fromInt(0xFFE5E7EB), thickness: 0.5),
-                        _payRow('Total Deductions', '₹ ${totalDeductions.toStringAsFixed(2)}', bold: true),
+                        _payRow('Total Deductions', 'Rs. ${totalDeductions.toStringAsFixed(2)}', bold: true),
                       ],
                     ),
                   ),
@@ -674,18 +706,18 @@ class ReceiptService {
               pw.Container(
                 width: double.infinity,
                 padding: const pw.EdgeInsets.all(14),
-                decoration: pw.BoxDecoration(
-                  gradient: const pw.LinearGradient(
+                decoration: const pw.BoxDecoration(
+                  gradient: pw.LinearGradient(
                     colors: [PdfColor.fromInt(0xFF3730A3), PdfColor.fromInt(0xFF6D28D9)],
                   ),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(8)),
+                  borderRadius: pw.BorderRadius.all(pw.Radius.circular(8)),
                 ),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text('NET AMOUNT DISBURSED',
                       style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 11, letterSpacing: 1)),
-                    pw.Text('₹ ${netPaid.toStringAsFixed(2)}',
+                    pw.Text('Rs. ${netPaid.toStringAsFixed(2)}',
                       style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 20)),
                   ],
                 ),

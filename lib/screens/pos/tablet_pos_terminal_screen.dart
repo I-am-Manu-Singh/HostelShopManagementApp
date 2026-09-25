@@ -11,6 +11,7 @@ import 'pos_stock_inward_dialog.dart';
 import 'pos_payment_dialog.dart';
 import 'pos_analytics_report_screen.dart';
 import '../../services/product_lookup_service.dart';
+import '../../services/organization_settings_service.dart';
 
 class TabletPosTerminalScreen extends StatefulWidget {
   const TabletPosTerminalScreen({super.key});
@@ -34,6 +35,7 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
   // Running Cart
   final List<OrderItem> _cart = [];
   double _cartDiscount = 0.0;
+  List<Map<String, dynamic>> _posFestivalRules = [];
   bool _isCameraScannerOpen = false;
   CameraFacing _cameraFacing = CameraFacing.back;
   MobileScannerController? _scannerController;
@@ -53,9 +55,22 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
     PosHardwareService().init();
     _loadCatalog();
     _loadStudents();
+    _loadPosFestivalRules();
     BarcodeWedgeService().addListener(_onHardwareBarcodeScanned);
     _subscribeToCatalogChanges();
   }
+
+  Future<void> _loadPosFestivalRules() async {
+    try {
+      final res = await _client.from('app_settings').select('value').eq('key', 'logistics_rules').maybeSingle();
+      if (res != null && res['value'] != null && mounted) {
+        setState(() {
+          _posFestivalRules = OrganizationSettingsService.parseRules(res['value']);
+        });
+      }
+    } catch (_) {}
+  }
+
 
   void _subscribeToCatalogChanges() {
     try {
@@ -398,49 +413,75 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: isDark ? const Color(0xFF16181D) : Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          "Custom Quantity: ${item.name}",
-          style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text("Enter exact quantity or batch units to add/bill:", style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: qtyCtrl,
-              autofocus: true,
-              keyboardType: TextInputType.number,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
-              decoration: const InputDecoration(
-                labelText: "Quantity (Units)",
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.pin, color: Colors.amber),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDState) => AlertDialog(
+          backgroundColor: isDark ? const Color(0xFF16181D) : Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Row(
+            children: [
+              const Icon(Icons.tune_rounded, color: Colors.amber, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  "Set Quantity: ${item.name}",
+                  style: GoogleFonts.outfit(fontSize: 14, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                ),
               ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text("Choose preset or enter exact quantity / weight units:", style: TextStyle(fontSize: 11, color: isDark ? Colors.white70 : Colors.black87)),
+              const SizedBox(height: 12),
+              // Preset chips like product detail screen
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: [1, 2, 5, 10, 20].map((preset) {
+                  return ActionChip(
+                    backgroundColor: isDark ? Colors.white12 : Colors.grey.shade200,
+                    label: Text("$preset units", style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                    onPressed: () {
+                      qtyCtrl.text = '$preset';
+                      setDState(() {});
+                    },
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: qtyCtrl,
+                autofocus: true,
+                keyboardType: TextInputType.number,
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: isDark ? Colors.white : Colors.black),
+                decoration: const InputDecoration(
+                  labelText: "Custom Quantity (Units)",
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.pin, color: Colors.amber),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
+              onPressed: () {
+                final parsed = int.tryParse(qtyCtrl.text.trim());
+                if (parsed != null && parsed >= 0) {
+                  _setCustomCartQuantity(index, parsed);
+                }
+                Navigator.pop(ctx);
+              },
+              child: const Text("Set Quantity", style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text("Cancel"),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.amber, foregroundColor: Colors.black),
-            onPressed: () {
-              final parsed = int.tryParse(qtyCtrl.text.trim());
-              if (parsed != null && parsed >= 0) {
-                _setCustomCartQuantity(index, parsed);
-              }
-              Navigator.pop(ctx);
-            },
-            child: const Text("Apply", style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }
@@ -480,10 +521,52 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
 
   double get _subtotal => _cart.fold(0.0, (sum, it) => sum + (it.price * it.qty));
 
+  /// Calculates net adjustment for POS from active festival and promotional rules
+  double get _posFestivalAdjustment {
+    if (_subtotal == 0) return 0.0;
+    double adjustment = 0.0;
+    final now = DateTime.now();
+
+    for (var r in _posFestivalRules) {
+      if (r['enabled'] != true) continue;
+
+      // 1. Time Frame Check
+      if (r['start_date'] != null && r['start_date'].toString().trim().isNotEmpty) {
+        final start = DateTime.tryParse(r['start_date'].toString());
+        if (start != null && now.isBefore(start)) continue;
+      }
+      if (r['end_date'] != null && r['end_date'].toString().trim().isNotEmpty) {
+        final end = DateTime.tryParse(r['end_date'].toString());
+        if (end != null && now.isAfter(end)) continue;
+      }
+
+      // 2. Channel check (POS is in-store takeaway/counter, or student profile)
+      final appliesTo = r['applies_to']?.toString() ?? 'all';
+      if (appliesTo == 'delivery_only') continue;
+
+      final amt = (r['amount'] as num? ?? 0.0).toDouble();
+      final type = r['type']?.toString();
+      if (type == 'discount') {
+        adjustment -= amt;
+      } else {
+        adjustment += amt;
+      }
+    }
+    return adjustment;
+  }
+
+  double get _effectiveDiscount {
+    double totalDisc = _cartDiscount;
+    if (_posFestivalAdjustment < 0) {
+      totalDisc += _posFestivalAdjustment.abs();
+    }
+    return totalDisc;
+  }
+
   // Dynamic GST calculation based on item-specific tax rate
   double get _cgst {
     if (_subtotal == 0) return 0.0;
-    final discountRatio = _cartDiscount > 0 ? (1.0 - (_cartDiscount / _subtotal)).clamp(0.0, 1.0) : 1.0;
+    final discountRatio = _effectiveDiscount > 0 ? (1.0 - (_effectiveDiscount / _subtotal)).clamp(0.0, 1.0) : 1.0;
     return _cart.fold(0.0, (sum, it) {
       final rate = it.taxRate > 0 ? it.taxRate : 0.0;
       final lineTotal = it.price * it.qty * discountRatio;
@@ -493,7 +576,7 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
 
   double get _sgst {
     if (_subtotal == 0) return 0.0;
-    final discountRatio = _cartDiscount > 0 ? (1.0 - (_cartDiscount / _subtotal)).clamp(0.0, 1.0) : 1.0;
+    final discountRatio = _effectiveDiscount > 0 ? (1.0 - (_effectiveDiscount / _subtotal)).clamp(0.0, 1.0) : 1.0;
     return _cart.fold(0.0, (sum, it) {
       final rate = it.taxRate > 0 ? it.taxRate : 0.0;
       final lineTotal = it.price * it.qty * discountRatio;
@@ -501,7 +584,11 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
     });
   }
 
-  double get _netTotal => (_subtotal - _cartDiscount).clamp(0.0, 999999.0) + _cgst + _sgst;
+  double get _netTotal {
+    final surcharge = _posFestivalAdjustment > 0 ? _posFestivalAdjustment : 0.0;
+    return (_subtotal - _effectiveDiscount + surcharge).clamp(0.0, 999999.0) + _cgst + _sgst;
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -800,7 +887,23 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
                                     Text("₹ ${item.price.toStringAsFixed(1)}", style: const TextStyle(color: Colors.amber, fontWeight: FontWeight.bold, fontSize: 13)),
-                                    const Icon(Icons.add_circle, color: Colors.amber, size: 18),
+                                    Row(
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.tune_rounded, size: 16, color: Colors.amberAccent),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          tooltip: "Set exact quantity/weight",
+                                          onPressed: () {
+                                            _addToCart(item);
+                                            final idx = _cart.indexWhere((it) => it.id == item.id);
+                                            if (idx >= 0) _showCustomQuantityDialog(idx, isDark);
+                                          },
+                                        ),
+                                        const SizedBox(width: 4),
+                                        const Icon(Icons.add_circle, color: Colors.amber, size: 18),
+                                      ],
+                                    ),
                                   ],
                                 ),
                               ],
@@ -1077,7 +1180,9 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
             child: Column(
               children: [
                 _summaryRow("Subtotal:", "₹ ${_subtotal.toStringAsFixed(2)}", textColor),
-                if (_cartDiscount > 0) _summaryRow("Discount:", "-₹ ${_cartDiscount.toStringAsFixed(2)}", Colors.redAccent),
+                if (_cartDiscount > 0) _summaryRow("Manual Discount:", "-₹ ${_cartDiscount.toStringAsFixed(2)}", Colors.redAccent),
+                if (_posFestivalAdjustment < 0) _summaryRow("Festival Discount:", "-₹ ${_posFestivalAdjustment.abs().toStringAsFixed(2)}", Colors.greenAccent),
+                if (_posFestivalAdjustment > 0) _summaryRow("Special Surcharge:", "+₹ ${_posFestivalAdjustment.toStringAsFixed(2)}", Colors.orangeAccent),
                 _summaryRow("CGST + SGST (5%):", "₹ ${(_cgst + _sgst).toStringAsFixed(2)}", textColor),
                 const Divider(height: 16),
                 Row(
@@ -1107,7 +1212,7 @@ class _TabletPosTerminalScreenState extends State<TabletPosTerminalScreen> {
                               builder: (_) => PosPaymentDialog(
                                 items: _cart,
                                 subtotal: _subtotal,
-                                discount: _cartDiscount,
+                                discount: _effectiveDiscount,
                                 cgst: _cgst,
                                 sgst: _sgst,
                                 total: _netTotal,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/shop.dart';
+import 'organization_settings_service.dart';
 
 class CartProvider with ChangeNotifier {
   final _supabase = Supabase.instance.client;
@@ -13,6 +14,68 @@ class CartProvider with ChangeNotifier {
   Map<String, int> get items => _items;
   Map<String, double> get weightQuantities => _weightQuantities;
   Map<String, String> get weightUnits => _weightUnits;
+
+  // Active Logistics Rules & Festival Offers
+  List<Map<String, dynamic>> _logisticsRules = [];
+  double _baseDeliveryFee = 20.0;
+
+  List<Map<String, dynamic>> get logisticsRules => _logisticsRules;
+  double get baseDeliveryFee => _baseDeliveryFee;
+
+  /// Loads current delivery charge and festival/logistics offers from Supabase
+  Future<void> fetchLogisticsAndOffers() async {
+    try {
+      final res = await _supabase.from('app_settings').select('key, value').inFilter('key', ['delivery_charge', 'logistics_rules']);
+      for (var s in res) {
+        if (s['key'] == 'delivery_charge' && s['value'] != null) {
+          _baseDeliveryFee = double.tryParse(s['value'].toString()) ?? 20.0;
+        } else if (s['key'] == 'logistics_rules' && s['value'] != null) {
+          _logisticsRules = OrganizationSettingsService.parseRules(s['value']);
+        }
+      }
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error fetching logistics rules: $e');
+    }
+  }
+
+  /// Calculates net adjustment from active rules considering date ranges & filters
+  double calculateAdjustment({String deliveryType = 'Home Delivery', String userType = 'domestic'}) {
+    double adjustment = 0.0;
+    final now = DateTime.now();
+
+    for (var r in _logisticsRules) {
+      if (r['enabled'] != true) continue;
+
+      // 1. Time Frame Filter
+      if (r['start_date'] != null && r['start_date'].toString().trim().isNotEmpty) {
+        final start = DateTime.tryParse(r['start_date'].toString());
+        if (start != null && now.isBefore(start)) continue;
+      }
+      if (r['end_date'] != null && r['end_date'].toString().trim().isNotEmpty) {
+        final end = DateTime.tryParse(r['end_date'].toString());
+        if (end != null && now.isAfter(end)) continue;
+      }
+
+      // 2. Target Category / Channel Filter
+      final appliesTo = r['applies_to']?.toString() ?? 'all';
+      final matchesChannel = appliesTo == 'all' || 
+          (appliesTo == 'delivery_only' && deliveryType == 'Home Delivery') ||
+          (appliesTo == 'takeaway_only' && (deliveryType == 'Pickup' || deliveryType == 'Takeaway')) ||
+          (appliesTo == userType);
+
+      if (matchesChannel) {
+        final amt = (r['amount'] as num? ?? 0.0).toDouble();
+        final type = r['type']?.toString();
+        if (type == 'discount') {
+          adjustment -= amt;
+        } else {
+          adjustment += amt;
+        }
+      }
+    }
+    return adjustment;
+  }
   
   double get totalAmount {
     double total = 0;
@@ -109,44 +172,14 @@ class CartProvider with ChangeNotifier {
       if (user == null) return 'USER SESSION EXPIRED';
 
       final subTotal = totalAmount;
-      // Fetch delivery charge and special logistics rules / festival offers
-      double deliveryFeeBase = 20.0;
-      double specialAdjustment = 0.0; // Positive for surcharges, negative for discounts
-      try {
-        final settings = await _supabase.from('app_settings').select('key, value').inFilter('key', ['delivery_charge', 'logistics_rules']);
-        for (var s in settings) {
-          if (s['key'] == 'delivery_charge') {
-            deliveryFeeBase = (s['value'] as num? ?? 20.0).toDouble();
-          } else if (s['key'] == 'logistics_rules' && s['value'] != null) {
-            final rules = s['value'] is List ? s['value'] as List : [];
-            for (var r in rules) {
-              if (r['enabled'] == true) {
-                final appliesTo = r['applies_to']?.toString() ?? 'all';
-                final matchesDelivery = appliesTo == 'all' || 
-                    (appliesTo == 'delivery_only' && deliveryType == 'Home Delivery') ||
-                    (appliesTo == 'takeaway_only' && deliveryType != 'Home Delivery') ||
-                    (appliesTo == userType);
+      // Fetch fresh settings and calculate special logistics rules / festival offers
+      await fetchLogisticsAndOffers();
+      final deliveryFee = deliveryType == 'Home Delivery' ? _baseDeliveryFee : 0.0;
+      final specialAdjustment = calculateAdjustment(deliveryType: deliveryType, userType: userType);
 
-                if (matchesDelivery) {
-                  final type = r['type']?.toString(); // 'discount' or 'charge'
-                  final amount = (r['amount'] as num? ?? 0.0).toDouble();
-                  if (type == 'discount') {
-                    specialAdjustment -= amount;
-                  } else {
-                    specialAdjustment += amount;
-                  }
-                }
-              }
-            }
-          }
-        }
-      } catch (err) {
-        debugPrint('Logistics calculation notice: $err');
-      }
-
-      final deliveryFee = deliveryType == 'Home Delivery' ? deliveryFeeBase : 0.0;
       final calculatedTotal = subTotal + deliveryFee + specialAdjustment;
       final total = calculatedTotal > 0 ? calculatedTotal : 0.0;
+
 
       // 1. Prepare items for PG insertion
       final itemsJson = _items.entries.map((e) => {

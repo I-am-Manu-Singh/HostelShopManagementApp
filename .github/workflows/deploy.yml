@@ -24,8 +24,16 @@ jobs:
       - name: Install Dependencies
         run: flutter pub get
 
+      - name: Create .env file for build
+        run: |
+          touch .env
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL || 'https://kuttseqqxdfqbzekgqll.supabase.co' }}" >> .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY || 'sb_publishable_2x-gJ3yNhM9yooDcEdeuWA_HQ379KgN' }}" >> .env
+          echo "GOOGLE_WEB_CLIENT_ID=${{ secrets.GOOGLE_WEB_CLIENT_ID || '441617106864-usssvc74qg415dg5rdn5qnev5hmfbh3v.apps.googleusercontent.com' }}" >> .env
+
       - name: Build Web
-        run: flutter build web --release --base-href /HostelShopManagementApp/
+        run: flutter build web --release --no-wasm-dry-run --base-href /HostelShopManagementApp/
+
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

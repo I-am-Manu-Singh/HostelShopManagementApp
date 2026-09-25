@@ -84,19 +84,27 @@ class MusicService {
     if (trackIndex >= _focusLibrary.length) return;
     
     final track = _focusLibrary[trackIndex];
+    final path = track['url']!;
     try {
-      await _player.setAudioSource(
-        AudioSource.asset(
-          track['url']!,
-          tag: MediaItem(
-            id: track['id']!,
-            album: "Focus Ecosystem",
-            title: track['title']!,
-            artist: "Hostel Synergy",
+      await _player.setLoopMode(LoopMode.all);
+      try {
+        await _player.setAudioSource(
+          AudioSource.asset(
+            path,
+            tag: MediaItem(
+              id: track['id']!,
+              album: "Focus Ecosystem",
+              title: track['title']!,
+              artist: "Hostel Synergy",
+            ),
           ),
-        ),
-      );
-      _player.play();
+        );
+      } catch (_) {
+        // Fallback to direct setAsset
+        await _player.setAsset(path);
+      }
+      await _player.setVolume(1.0);
+      await _player.play();
     } catch (e) {
       log("Error playing focus beats: $e");
     }

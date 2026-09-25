@@ -5,6 +5,7 @@ import '../screens/legal/privacy_policy_screen.dart';
 import '../screens/legal/terms_of_service_screen.dart';
 import '../screens/legal/refund_policy_screen.dart';
 import '../screens/legal/safety_protocols_screen.dart';
+import '../services/organization_settings_service.dart';
 
 List<String> getRoleLabels(String role, bool isGuest) {
   if (isGuest) {
@@ -330,6 +331,7 @@ class SharedWebFooter extends StatelessWidget {
   }
 
   Widget _footerContact(bool isDark) {
+    final org = OrganizationSettingsService();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -343,7 +345,7 @@ class SharedWebFooter extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          'support@campusconnect.com',
+          org.supportEmail,
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
             fontSize: 12,
@@ -351,7 +353,7 @@ class SharedWebFooter extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          '+91 XXXXX XXXXX',
+          org.companyPhone,
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
             fontSize: 12,
@@ -359,10 +361,10 @@ class SharedWebFooter extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'India',
+          org.companyAddress,
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
-            fontSize: 12,
+            fontSize: 11,
           ),
         ),
       ],

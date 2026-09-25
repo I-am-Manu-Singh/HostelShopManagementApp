@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/database_service.dart';
 
+import 'package:permission_handler/permission_handler.dart';
+
 class HostelSecurityTerminalScreen extends StatefulWidget {
   const HostelSecurityTerminalScreen({super.key});
 
@@ -45,6 +47,11 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
 
   Future<void> _initializeCamera() async {
     try {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        if (mounted) setState(() => _status = 'CAMERA PERMISSION DENIED');
+        return;
+      }
       final cameras = await availableCameras();
       if (cameras.isNotEmpty) {
         final back = cameras.firstWhere((c) => c.lensDirection == CameraLensDirection.back, orElse: () => cameras.first);
@@ -53,7 +60,9 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
         if (mounted) setState(() {});
         _controller!.startImageStream((image) => _processCameraImage(image));
       }
-    } catch (_) {}
+    } catch (e) {
+      if (mounted) setState(() => _status = 'CAMERA INITIALIZATION FAILED');
+    }
   }
 
   Future<void> _processCameraImage(CameraImage image) async {
@@ -101,14 +110,31 @@ class _HostelSecurityTerminalScreenState extends State<HostelSecurityTerminalScr
 
   Future<void> _logSecurityEvent(Map<String, dynamic> user) async {
     final now = DateTime.now();
-    await _client.from('outpasses').insert({
-      'user_id': user['id'],
-      'destination': 'Main Gate Security Check',
-      'reason': 'System Automated Biometric Log',
-      'status': 'Approved',
-      'time_out': _gateMode == 'EXIT' ? now.toIso8601String() : null,
-      'time_in': _gateMode == 'ENTRY' ? now.toIso8601String() : null,
-    });
+    try {
+      await _client.from('outpasses').insert({
+        'user_id': user['id'],
+        'student_id': user['id'],
+        'destination': 'Main Gate Security Check',
+        'reason': 'System Automated Biometric Log',
+        'status': 'Approved',
+        'time_out': _gateMode == 'EXIT' ? now.toIso8601String() : null,
+        'time_in': _gateMode == 'ENTRY' ? now.toIso8601String() : null,
+      });
+    } catch (_) {
+      // Fallback in case table has only student_id or hostel_outpasses is mapped
+      try {
+        await _client.from('hostel_outpasses').insert({
+          'student_id': user['id'],
+          'destination': 'Main Gate Security Check',
+          'reason': 'System Automated Biometric Log',
+          'status': 'Approved',
+          'time_out': now.toIso8601String(),
+          'time_in': now.toIso8601String(),
+        });
+      } catch (err) {
+        debugPrint('Security log error: $err');
+      }
+    }
   }
 
   // Curfew Check & Mark daily misses

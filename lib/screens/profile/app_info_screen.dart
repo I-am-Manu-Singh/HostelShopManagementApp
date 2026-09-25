@@ -7,14 +7,35 @@ import '../legal/terms_of_service_screen.dart';
 import '../legal/refund_policy_screen.dart';
 import '../legal/safety_protocols_screen.dart';
 
-class AppInfoScreen extends StatelessWidget {
+import '../../services/organization_settings_service.dart';
+
+class AppInfoScreen extends StatefulWidget {
   const AppInfoScreen({super.key});
 
-  final String companyName = "H House";
-  final String phoneNumber = "+91 xxxxxxxxxx";
-  final String supportEmail = "[EMAIL_ADDRESS]";
-  final String website = "https://hhouse.com";
+  @override
+  State<AppInfoScreen> createState() => _AppInfoScreenState();
+}
+
+class _AppInfoScreenState extends State<AppInfoScreen> {
+  final _orgSettings = OrganizationSettingsService();
   final String version = "1.0.0-Stable";
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    await _orgSettings.fetchSettings();
+    if (mounted) setState(() {});
+  }
+
+  String get companyName => _orgSettings.companyName;
+  String get phoneNumber => _orgSettings.companyPhone;
+  String get supportEmail => _orgSettings.supportEmail;
+  String get website => _orgSettings.website;
+  String get companyAddress => _orgSettings.companyAddress;
 
   Future<void> _launchUrl(String url) async {
     final Uri uri = Uri.parse(url);
@@ -28,6 +49,7 @@ class AppInfoScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
     final textColor = isDark ? Colors.white : Colors.black;
+
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -86,6 +108,7 @@ class AppInfoScreen extends StatelessWidget {
             const SizedBox(height: 48),
             _buildSectionTitle('CONTACT US', Colors.indigoAccent, isDark),
             const SizedBox(height: 16),
+            _infoTile(Icons.location_on_rounded, 'Campus Location', companyAddress, () {}, Colors.indigoAccent, isDark),
             _infoTile(Icons.phone_enabled_rounded, 'Call Support', phoneNumber, () => _launchUrl('tel:$phoneNumber'), Colors.indigoAccent, isDark),
             _infoTile(Icons.alternate_email_rounded, 'Email Support', supportEmail, () => _launchUrl('mailto:$supportEmail'), Colors.indigoAccent, isDark),
             _infoTile(Icons.language_rounded, 'Visit Website', website, () => _launchUrl(website), Colors.indigoAccent, isDark),
