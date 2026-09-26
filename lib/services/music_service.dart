@@ -24,10 +24,16 @@ class MusicService {
   }
 
   Future<bool> requestPermission() async {
-    if (await Permission.audio.request().isGranted || await Permission.storage.request().isGranted) {
-      return true;
-    }
-    return false;
+    try {
+      // On Android, request audio/storage permission for local music queries
+      if (await Permission.audio.request().isGranted) return true;
+      if (await Permission.storage.request().isGranted) return true;
+      // On iOS, check mediaLibrary
+      if (await Permission.mediaLibrary.isGranted) return true;
+      await Permission.mediaLibrary.request();
+    } catch (_) {}
+    // Always return true — focus beats (assets) work without permission
+    return true;
   }
 
   Future<List<SongModel>> fetchLocalSongs() async {
@@ -46,8 +52,7 @@ class MusicService {
 
   Future<void> playSong(SongModel song) async {
     try {
-      final String? source = song.data ?? song.uri;
-      if (source == null) return;
+      final String source = song.data;
 
       final Uri uri = (source.startsWith('http') || source.startsWith('content'))
           ? Uri.parse(source)

@@ -25,6 +25,7 @@ import '../profile/app_info_screen.dart';
 import '../../widgets/shared_web_components.dart';
 import '../employee/employee_terminal_screen.dart';
 import '../shop/fast_food_screen.dart';
+import '../user/edit_profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isGuest;
@@ -52,6 +53,28 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _loadProfile() async {
     final profile = await DatabaseService().fetchUserProfile();
     if (mounted) {
+      // First-time onboarding: if phone_no is empty, route to profile completion
+      final phone = profile?['phone_no']?.toString() ?? '';
+      final onboardingDone = profile?['onboarding_done'] as bool? ?? false;
+      if (!onboardingDone && phone.isEmpty && !widget.isGuest) {
+        final role = profile?['role']?.toString() ?? 'store_customer';
+        // Don't show onboarding for admin/owner — they are set up differently
+        if (role != 'admin' && role != 'owner' && role != 'hostel_manager') {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              Navigator.of(context).pushReplacement(
+                MaterialPageRoute(
+                  builder: (_) => EditProfileScreen(
+                    isOnboarding: true,
+                    forceRole: role,
+                  ),
+                ),
+              );
+            }
+          });
+          return;
+        }
+      }
       setState(() {
         _userProfile = profile;
         _isLoading = false;

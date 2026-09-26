@@ -541,6 +541,8 @@ class _PerformanceDashboardState extends State<_PerformanceDashboard> with Singl
                       style: TextStyle(color: isDark ? Colors.white30 : Colors.black38, fontSize: 11, fontWeight: FontWeight.bold),
                     ),
                   ),
+                  const SizedBox(height: 12),
+
                 ],
               ),
             );

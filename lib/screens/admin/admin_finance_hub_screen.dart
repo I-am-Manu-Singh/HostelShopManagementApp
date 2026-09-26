@@ -933,22 +933,46 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
           });
         }
       } else if (pType == 'Mess' || pType == 'MessCard' || pType.toLowerCase().contains('mess')) {
-        // Activate mess card for 30 days with schema fallback
-        final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String();
+        // Activate mess card aligned to the student's DOJ billing cycle
+        final now = DateTime.now();
+        DateTime cycleStart = now;
+        DateTime cycleEnd = now.add(const Duration(days: 30));
+        try {
+          final enrollRes = await _client.from('hostel_enrollments').select('created_at').eq('user_id', userId).maybeSingle();
+          final profileRes2 = await _client.from('profiles').select('date_of_joining').eq('id', userId).maybeSingle();
+          final joinDateStr = enrollRes?['created_at'] ?? profileRes2?['date_of_joining'];
+          if (joinDateStr != null) {
+            final joined = DateTime.parse(joinDateStr.toString());
+            final joinDay = joined.day > 28 ? 28 : joined.day;
+            final candidateStart = DateTime(now.year, now.month, joinDay);
+            if (now.isBefore(candidateStart)) {
+              final prevMonth = now.month == 1 ? 12 : now.month - 1;
+              final prevYear  = now.month == 1 ? now.year - 1 : now.year;
+              cycleStart = DateTime(prevYear, prevMonth, joinDay);
+              cycleEnd   = candidateStart;
+            } else {
+              cycleStart = candidateStart;
+              final nextMonth = now.month == 12 ? 1 : now.month + 1;
+              final nextYear  = now.month == 12 ? now.year + 1 : now.year;
+              cycleEnd = DateTime(nextYear, nextMonth, joinDay);
+            }
+          }
+        } catch (_) {}
         try {
           await _client.from('mess_cards').upsert({
-            'user_id': userId, 
-            'expiry_date': expiry, 
-            'card_type': 'Standard', 
+            'user_id': userId,
+            'start_date': cycleStart.toIso8601String(),
+            'expiry_date': cycleEnd.toIso8601String(),
+            'card_type': 'Standard',
             'status': 'Active',
             'card_number': 'MC-${userId.substring(0, 8).toUpperCase()}',
           }, onConflict: 'user_id');
         } catch (_) {
-          // Fallback if card_number is not in schema cache
           await _client.from('mess_cards').upsert({
-            'user_id': userId, 
-            'expiry_date': expiry, 
-            'card_type': 'Standard', 
+            'user_id': userId,
+            'start_date': cycleStart.toIso8601String(),
+            'expiry_date': cycleEnd.toIso8601String(),
+            'card_type': 'Standard',
             'status': 'Active',
           }, onConflict: 'user_id');
         }
@@ -1096,14 +1120,37 @@ class _AdminFinanceHubScreenState extends State<AdminFinanceHubScreen> with Sing
             if (type == 'Rent') {
                await _client.from('fiscal_collections').insert({'user_id': student['id'], 'amount': double.parse(amountCtrl.text), 'collection_type': 'Rent', 'payment_method': 'Cash'});
              } else if (type == 'Mess') {
-                final expiry = DateTime.now().add(const Duration(days: 30)).toIso8601String();
-                await _client.from('mess_cards').upsert({
-                  'user_id': student['id'],
-                  'expiry_date': expiry,
-                  'card_type': 'Standard',
-                  'status': 'Active',
-                  'card_number': 'MC-${student['id'].toString().substring(0, 8).toUpperCase()}',
-                }, onConflict: 'user_id');
+                 // DOJ-aligned billing cycle for cash entries
+                 final now2 = DateTime.now();
+                 DateTime cs = now2; DateTime ce = now2.add(const Duration(days: 30));
+                 try {
+                   final er = await _client.from('hostel_enrollments').select('created_at').eq('user_id', student['id']).maybeSingle();
+                   final pr2 = await _client.from('profiles').select('date_of_joining').eq('id', student['id']).maybeSingle();
+                   final jd = er?['created_at'] ?? pr2?['date_of_joining'];
+                   if (jd != null) {
+                     final j2 = DateTime.parse(jd.toString());
+                     final jday = j2.day > 28 ? 28 : j2.day;
+                     final cand = DateTime(now2.year, now2.month, jday);
+                     if (now2.isBefore(cand)) {
+                       final pm = now2.month == 1 ? 12 : now2.month - 1;
+                       final py = now2.month == 1 ? now2.year - 1 : now2.year;
+                       cs = DateTime(py, pm, jday); ce = cand;
+                     } else {
+                       cs = cand;
+                       final nm = now2.month == 12 ? 1 : now2.month + 1;
+                       final ny = now2.month == 12 ? now2.year + 1 : now2.year;
+                       ce = DateTime(ny, nm, jday);
+                     }
+                   }
+                 } catch (_) {}
+                 await _client.from('mess_cards').upsert({
+                   'user_id': student['id'],
+                   'start_date': cs.toIso8601String(),
+                   'expiry_date': ce.toIso8601String(),
+                   'card_type': 'Standard',
+                   'status': 'Active',
+                   'card_number': 'MC-${student['id'].toString().substring(0, 8).toUpperCase()}',
+                 }, onConflict: 'user_id');
              } else if (type == 'Wallet') {
                // Admin direct top-up logic
                final currentBal = (student['balance'] ?? 0.0) as num;

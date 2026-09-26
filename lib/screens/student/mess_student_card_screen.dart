@@ -25,6 +25,11 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
   int _skippedDays = 0;
   double _messPackagePrice = 0.0;
 
+  // DOJ-based billing cycle (synchronized with StudentPaymentScreen)
+  DateTime? _cycleStart;
+  DateTime? _cycleEnd;
+  int _cycleDays = 30;
+
   Map<String, dynamic>? _todayMenuFromDb;
 
   @override
@@ -78,10 +83,47 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
         }
       } catch (_) {}
 
+      // ── DOJ-based billing cycle (same logic as StudentPaymentScreen) ─────
+      DateTime? cycleStart;
+      DateTime? cycleEnd;
+      int cycleDuration = 30;
+      // Use enrollment.created_at first, then profile.date_of_joining as fallback
+      final joinDateStr = enrollment?['created_at'] ?? profile?['date_of_joining'];
+      if (joinDateStr != null) {
+        try {
+          final joined = DateTime.parse(joinDateStr.toString());
+          final now = DateTime.now();
+          final joinDay = joined.day;
+          final safeDay = joinDay > 28 ? 28 : joinDay;
+          final candidateStart = DateTime(now.year, now.month, safeDay);
+          if (now.isBefore(candidateStart)) {
+            final prevMonth = now.month == 1 ? 12 : now.month - 1;
+            final prevYear = now.month == 1 ? now.year - 1 : now.year;
+            cycleStart = DateTime(prevYear, prevMonth, safeDay);
+            cycleEnd = candidateStart;
+          } else {
+            cycleStart = candidateStart;
+            final nextMonth = now.month == 12 ? 1 : now.month + 1;
+            final nextYear = now.month == 12 ? now.year + 1 : now.year;
+            cycleEnd = DateTime(nextYear, nextMonth, safeDay);
+          }
+          cycleDuration = cycleEnd.difference(cycleStart).inDays;
+        } catch (_) {}
+      }
+
       if (mounted) {
         final now = DateTime.now();
-        final attended = att.length;
-        int skipped = now.day - attended;
+        // Count attendance within the current billing cycle
+        final cycleAtt = cycleStart != null
+            ? att.where((a) {
+                try {
+                  final d = DateTime.parse(a['date'].toString());
+                  return !d.isBefore(cycleStart!) && d.isBefore(cycleEnd ?? now.add(const Duration(days: 1)));
+                } catch (_) { return false; }
+              }).length
+            : att.length;
+        final attended = cycleAtt;
+        int skipped = (cycleStart != null ? now.difference(cycleStart!).inDays : now.day) - attended;
         if (skipped < 0) skipped = 0;
 
         setState(() {
@@ -92,6 +134,9 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
           _skippedDays = skipped;
           _messPackagePrice = messPrice;
           _todayMenuFromDb = liveMenu;
+          _cycleStart = cycleStart;
+          _cycleEnd = cycleEnd;
+          _cycleDays = cycleDuration;
           _isLoading = false;
         });
       }
@@ -196,13 +241,16 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
 
   Widget _buildStatsRow(bool isDark) {
     final cardColor = isDark ? Colors.white.withOpacity(0.03) : Colors.black.withOpacity(0.03);
+    final daysRemaining = _cycleEnd != null
+        ? _cycleEnd!.difference(DateTime.now()).inDays.clamp(0, _cycleDays)
+        : (30 - DateTime.now().day).clamp(0, 30);
     return Row(
       children: [
         _statItem('ATTENDED', '$_attendedDays', Colors.greenAccent, cardColor, isDark),
         const SizedBox(width: 12),
         _statItem('SKIPPED', '$_skippedDays', Colors.redAccent, cardColor, isDark),
         const SizedBox(width: 12),
-        _statItem('REMAINING', '${30 - DateTime.now().day}', Colors.blueAccent, cardColor, isDark),
+        _statItem('REMAINING', '$daysRemaining', Colors.blueAccent, cardColor, isDark),
       ],
     );
   }
@@ -225,17 +273,27 @@ class _MessStudentCardScreenState extends State<MessStudentCardScreen> {
   }
 
   Widget _buildPhysicalCard(bool hasActiveCard, bool isDark) {
-    final startStr = _card != null && _card!['start_date'] != null 
-        ? DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['start_date'])) 
-        : (_card != null ? DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['created_at'])) : 'NOT STARTED');
-    final expiryStr = _card != null && _card!['expiry_date'] != null 
-        ? DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['expiry_date'])) 
-        : 'NO ACTIVE PLAN';
+    // ── Billing cycle: prefer DOJ-based cycle, fall back to card dates ───────
+    String startStr;
+    String expiryStr;
+    if (_cycleStart != null && _cycleEnd != null) {
+      startStr  = DateFormat('dd MMM yyyy').format(_cycleStart!);
+      expiryStr = DateFormat('dd MMM yyyy').format(_cycleEnd!);
+    } else if (_card != null && _card!['start_date'] != null) {
+      startStr  = DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['start_date'].toString()));
+      expiryStr = _card!['expiry_date'] != null
+          ? DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['expiry_date'].toString()))
+          : 'NO ACTIVE PLAN';
+    } else if (_card != null && _card!['created_at'] != null) {
+      startStr  = DateFormat('dd MMM yyyy').format(DateTime.parse(_card!['created_at'].toString()));
+      expiryStr = 'NO ACTIVE PLAN';
+    } else {
+      startStr  = 'NOT STARTED';
+      expiryStr = 'NO ACTIVE PLAN';
+    }
     final planStr = _card != null ? (_card!['card_type'] ?? 'MESS PASS') : 'TRIAL ACCESS';
     final meals = _card?['meal_plan'] ?? 'BLTD';
-    final int customDays = _card?['custom_days'] ?? (_card != null && _card!['expiry_date'] != null && _card!['start_date'] != null 
-        ? DateTime.parse(_card!['expiry_date']).difference(DateTime.parse(_card!['start_date'])).inDays 
-        : 30);
+    final int customDays = _cycleDays > 0 ? _cycleDays : (_card?['custom_days'] ?? 30);
 
     return Container(
       width: double.infinity,

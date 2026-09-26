@@ -26,6 +26,18 @@ void main() async {
   final isDark = await PreferencesService().getTheme();
   themeNotifier.value = isDark ? ThemeMode.dark : ThemeMode.light;
 
+  // JustAudioBackground MUST be initialised before runApp()
+  try {
+    await JustAudioBackground.init(
+      androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
+      androidNotificationChannelName: 'Audio playback',
+      androidNotificationOngoing: true,
+    );
+  } catch (e) {
+    // Ignore on platforms that don't support background audio (web, etc.)
+    print('JustAudioBackground init skipped: $e');
+  }
+
   runApp(
   MultiProvider(
     providers: [
@@ -374,20 +386,11 @@ void initState() {
 Future<void> _initPlugins() async {
   try {
     await Future.delayed(const Duration(milliseconds: 300));
-
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.ryanheise.bg_demo.channel.audio',
-      androidNotificationChannelName: 'Audio playback',
-      androidNotificationOngoing: true,
-    );
-
     await NotificationService.initialize();
-
-    print("Plugins initialized safely");
+    print('Plugins initialized safely');
   } catch (e) {
-    print("Init error: $e");
+    print('Init error: $e');
   }
-
   if (mounted) setState(() => _initialized = true);
 }
 

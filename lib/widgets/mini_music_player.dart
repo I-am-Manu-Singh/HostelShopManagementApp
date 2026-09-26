@@ -15,22 +15,18 @@ class MiniMusicPlayer extends StatefulWidget {
 
 class _MiniMusicPlayerState extends State<MiniMusicPlayer> {
   final _musicService = MusicService();
-  bool _isPlayerVisible = false;
 
   @override
   void initState() {
     super.initState();
-    _checkPermissions();
-  }
-
-  Future<void> _checkPermissions() async {
-    final hasPermission = await _musicService.requestPermission();
-    if (mounted) setState(() => _isPlayerVisible = hasPermission);
+    // Request permission in background (only needed for local music tab)
+    _musicService.requestPermission();
+    // Ensure music service is initialized
+    _musicService.init();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_isPlayerVisible) return const SizedBox.shrink();
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardColor = isDark ? const Color(0xFF16181A) : Colors.white;

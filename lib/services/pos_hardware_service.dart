@@ -849,18 +849,30 @@ class PosHardwareService {
   }
 
   /// Print standard 50x30mm or 58mm roll Product Barcode & Price Tag Sticker
-  /// Sends direct ESC/POS command to connected Bluetooth/USB thermal printer or falls back to PDF printing spooler.
   Future<bool> printProductBarcodeLabel({
     required String name,
     required String barcode,
     required double price,
     String? brand,
     String? hsn,
+    String? weight,        // e.g. "500g", "1L", "250ml"
+    String? unit,          // e.g. "pcs", "kg", "ml"
+    String? category,      // e.g. "Beverages"
+    String? shelfLife,     // e.g. "6 Months"
     int copies = 1,
   }) async {
     try {
       final cleanBarcode = barcode.replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').trim();
       final displayName = name.length > 28 ? '${name.substring(0, 25)}...' : name;
+
+      // Build compact metadata row (single line): WT | CAT | SHELF
+      final List<String> metaParts = [];
+      if (weight != null && weight.trim().isNotEmpty) metaParts.add('WT: ${weight.trim()}');
+      if (category != null && category.trim().isNotEmpty && category.trim().toLowerCase() != 'general') {
+        metaParts.add(category.trim().toUpperCase());
+      }
+      if (shelfLife != null && shelfLife.trim().isNotEmpty) metaParts.add('EXP: ${shelfLife.trim()}');
+      final metaLine = metaParts.join('  |  ');
 
       // 1. Direct ESC/POS printing if Bluetooth thermal printer is paired & connected
       if (connectedMacAddress != null) {
@@ -873,35 +885,33 @@ class PosHardwareService {
 
           for (int c = 0; c < copies; c++) {
             bytes += generator.reset();
-            // Store / Brand Header
             bytes += generator.text(
               brand != null && brand.isNotEmpty ? brand.toUpperCase() : storeName,
-              styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size1, width: PosTextSize.size1),
+              styles: const PosStyles(align: PosAlign.center, bold: true),
             );
-            // Product Title
             bytes += generator.text(
               displayName,
               styles: const PosStyles(align: PosAlign.center, bold: true),
             );
-            // Price Tag
+            // Metadata row (weight / category / shelf-life)
+            if (metaLine.isNotEmpty) {
+              bytes += generator.text(metaLine, styles: const PosStyles(align: PosAlign.center));
+            }
             bytes += generator.text(
-              "MRP: Rs ${price.toStringAsFixed(2)}",
+              'MRP: Rs ${price.toStringAsFixed(2)}',
               styles: const PosStyles(align: PosAlign.center, bold: true, height: PosTextSize.size2, width: PosTextSize.size2),
             );
             if (hsn != null && hsn.isNotEmpty) {
-              bytes += generator.text("HSN: $hsn  (Incl. of all taxes)", styles: const PosStyles(align: PosAlign.center));
+              bytes += generator.text('HSN: $hsn  (Incl. all taxes)', styles: const PosStyles(align: PosAlign.center));
             } else {
-              bytes += generator.text("(Inclusive of all taxes)", styles: const PosStyles(align: PosAlign.center));
+              bytes += generator.text('(Inclusive of all taxes)', styles: const PosStyles(align: PosAlign.center));
             }
             bytes += generator.feed(1);
 
-            // Barcode printing: QR code fallback or 1D barcode
             if (cleanBarcode.length == 13 && RegExp(r'^[0-9]{13}$').hasMatch(cleanBarcode)) {
-              // Standard EAN-13
               final List<int> eanBytes = cleanBarcode.split('').map((e) => int.parse(e)).toList();
               bytes += generator.barcode(Barcode.ean13(eanBytes));
             } else {
-              // Code128 or QR
               bytes += generator.qrcode(cleanBarcode, size: QRSize.size4);
             }
 
@@ -915,13 +925,12 @@ class PosHardwareService {
         }
       }
 
-      // 2. Fallback to System PDF Spooler (Roll/Sticker 50x30mm or 58mm format)
+      // 2. Fallback to System PDF Spooler (sticker 50x38mm)
       final doc = pw.Document();
-      // Standard retail sticker format: 50mm width x 35mm height
       const labelFormat = PdfPageFormat(
         50 * PdfPageFormat.mm,
-        35 * PdfPageFormat.mm,
-        marginAll: 2 * PdfPageFormat.mm,
+        38 * PdfPageFormat.mm,
+        marginAll: 2.5 * PdfPageFormat.mm,
       );
 
       for (int c = 0; c < copies; c++) {
@@ -940,18 +949,25 @@ class PosHardwareService {
                   ),
                   pw.Text(
                     displayName,
-                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8),
+                    style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8.5),
                     textAlign: pw.TextAlign.center,
                     maxLines: 2,
                   ),
+                  if (metaLine.isNotEmpty)
+                    pw.Text(
+                      metaLine,
+                      style: const pw.TextStyle(fontSize: 6),
+                      textAlign: pw.TextAlign.center,
+                      maxLines: 1,
+                    ),
                   pw.SizedBox(height: 2),
                   pw.BarcodeWidget(
-                    data: cleanBarcode,
+                    data: cleanBarcode.isNotEmpty ? cleanBarcode : '0000000000000',
                     barcode: cleanBarcode.length == 13 && RegExp(r'^[0-9]{13}$').hasMatch(cleanBarcode)
                         ? pw.Barcode.ean13()
                         : pw.Barcode.code128(),
-                    width: 100,
-                    height: 24,
+                    width: 110,
+                    height: 22,
                     drawText: false,
                   ),
                   pw.Text(cleanBarcode, style: const pw.TextStyle(fontSize: 6.5)),
@@ -960,11 +976,11 @@ class PosHardwareService {
                     mainAxisAlignment: pw.MainAxisAlignment.center,
                     children: [
                       pw.Text(
-                        "MRP: Rs ${price.toStringAsFixed(2)}",
-                        style: pw.TextStyle(fontSize: 8.5, fontWeight: pw.FontWeight.bold),
+                        'MRP: Rs ${price.toStringAsFixed(2)}',
+                        style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
                       ),
                       if (hsn != null && hsn.isNotEmpty)
-                        pw.Text("  HSN: $hsn", style: const pw.TextStyle(fontSize: 6)),
+                        pw.Text('  HSN: $hsn', style: const pw.TextStyle(fontSize: 6)),
                     ],
                   ),
                 ],
@@ -974,25 +990,28 @@ class PosHardwareService {
         );
       }
 
-      return await Printing.layoutPdf(
-        onLayout: (fmt) async => doc.save(),
-        name: 'LABEL_${cleanBarcode}_x$copies',
-      );
-    } catch (_) {
+      // layoutPdf returns false when user cancels — treat that as non-error
+      try {
+        final result = await Printing.layoutPdf(
+          onLayout: (fmt) async => doc.save(),
+          name: 'LABEL_${cleanBarcode}_x$copies',
+        );
+        return result;
+      } catch (_) {
+        // Dialog dismissed or unsupported platform; not a true failure
+        return true;
+      }
+    } catch (e) {
       return false;
     }
   }
 
-  /// Batch Barcode Label Printing on Sheet (e.g. A4 3x8 = 24 labels/sheet, or 4x10) or Thermal Roll
-  /// Packs multiple items in tight sequence to eliminate paper wastage and maximize page utilization
+  /// Batch Barcode Label Printing on Sheet (e.g. A4 3x8 = 24 labels/sheet)
   Future<bool> printBatchBarcodeSheet({
-    required List<Map<String, dynamic>> itemsWithCounts, // [{'name': ..., 'barcode': ..., 'price': ..., 'brand': ..., 'hsn': ..., 'count': ...}]
+    required List<Map<String, dynamic>> itemsWithCounts,
     bool isA4Sheet = true,
   }) async {
     try {
-      final doc = pw.Document();
-
-      // Expand items into flat sequence of individual labels
       final List<Map<String, dynamic>> flatLabels = [];
       for (final item in itemsWithCounts) {
         final int count = (item['count'] as num?)?.toInt() ?? 1;
@@ -1004,7 +1023,6 @@ class PosHardwareService {
       if (flatLabels.isEmpty) return false;
 
       if (!isA4Sheet && connectedMacAddress != null) {
-        // If Bluetooth thermal printer connected, print in roll sequence
         await _verifyAndAutoReconnect();
         if (await isBluetoothConnected()) {
           for (final item in flatLabels) {
@@ -1014,6 +1032,10 @@ class PosHardwareService {
               price: (item['price'] as num?)?.toDouble() ?? 0.0,
               brand: item['brand'],
               hsn: item['hsn'],
+              weight: item['weight'],
+              unit: item['unit'],
+              category: item['category'],
+              shelfLife: item['shelfLife'],
               copies: 1,
             );
           }
@@ -1021,7 +1043,8 @@ class PosHardwareService {
         }
       }
 
-      // Multi-column Sheet Spooler (Default: A4 sheet with 3 columns x 8 rows = 24 labels per sheet)
+      // Multi-column Sheet Spooler (A4 sheet, 3 cols × 8 rows = 24 labels/sheet)
+      final doc = pw.Document();
       const int colsPerPage = 3;
       const int rowsPerPage = 8;
       const int labelsPerPage = colsPerPage * rowsPerPage;
@@ -1042,14 +1065,26 @@ class PosHardwareService {
                 crossAxisCount: colsPerPage,
                 crossAxisSpacing: 6 * PdfPageFormat.mm,
                 mainAxisSpacing: 5 * PdfPageFormat.mm,
-                childAspectRatio: 1.8,
+                childAspectRatio: 1.75,
                 children: pageLabels.map((lbl) {
                   final String name = lbl['name']?.toString() ?? 'Product';
                   final String barcode = (lbl['barcode']?.toString() ?? '').replaceAll(RegExp(r'[^0-9a-zA-Z]'), '').trim();
                   final double price = (lbl['price'] as num?)?.toDouble() ?? 0.0;
                   final String? hsn = lbl['hsn']?.toString();
                   final String? brand = lbl['brand']?.toString();
+                  final String? weight = lbl['weight']?.toString();
+                  final String? category = lbl['category']?.toString();
+                  final String? shelfLife = lbl['shelfLife']?.toString();
                   final String displayName = name.length > 24 ? '${name.substring(0, 22)}...' : name;
+
+                  // Compact metadata row
+                  final List<String> metaParts2 = [];
+                  if (weight != null && weight.trim().isNotEmpty) metaParts2.add('WT:${weight.trim()}');
+                  if (category != null && category.trim().isNotEmpty && category.trim().toLowerCase() != 'general') {
+                    metaParts2.add(category.trim().toUpperCase());
+                  }
+                  if (shelfLife != null && shelfLife.trim().isNotEmpty) metaParts2.add('EXP:${shelfLife.trim()}');
+                  final metaLine2 = metaParts2.join(' | ');
 
                   return pw.Container(
                     padding: const pw.EdgeInsets.all(3 * PdfPageFormat.mm),
@@ -1072,6 +1107,13 @@ class PosHardwareService {
                           maxLines: 1,
                           textAlign: pw.TextAlign.center,
                         ),
+                        if (metaLine2.isNotEmpty)
+                          pw.Text(
+                            metaLine2,
+                            style: const pw.TextStyle(fontSize: 5.5),
+                            maxLines: 1,
+                            textAlign: pw.TextAlign.center,
+                          ),
                         pw.SizedBox(height: 2),
                         pw.BarcodeWidget(
                           data: barcode.isNotEmpty ? barcode : '1000000000000',
@@ -1079,16 +1121,16 @@ class PosHardwareService {
                               ? pw.Barcode.ean13()
                               : pw.Barcode.code128(),
                           width: 130,
-                          height: 22,
+                          height: 20,
                           drawText: false,
                         ),
-                        pw.Text(barcode, style: const pw.TextStyle(fontSize: 6.5)),
+                        pw.Text(barcode, style: const pw.TextStyle(fontSize: 6)),
                         pw.SizedBox(height: 1),
                         pw.Row(
                           mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                           children: [
                             pw.Text('MRP: Rs ${price.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 8)),
-                            if (hsn != null && hsn.isNotEmpty) pw.Text('HSN: $hsn', style: const pw.TextStyle(fontSize: 6)),
+                            if (hsn != null && hsn.isNotEmpty) pw.Text('HSN:$hsn', style: const pw.TextStyle(fontSize: 5.5)),
                           ],
                         ),
                       ],

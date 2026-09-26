@@ -1067,7 +1067,7 @@ Widget _buildUsageSection(bool isDark) {
   }
 
   Widget _buildBarCodeArea(bool isDark) {
-    final barcodeVal = _currentProduct.barcode?.trim() ?? _currentProduct.skuQr?.trim();
+    final barcodeVal = _currentProduct.barcode?.trim();
     if (barcodeVal == null || barcodeVal.isEmpty) return const SizedBox.shrink();
 
     final hsn = _currentProduct.hsnCode?.trim();
