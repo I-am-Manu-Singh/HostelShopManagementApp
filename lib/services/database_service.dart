@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/hostel.dart';
 import '../models/shop.dart';
 import 'supabase_service.dart';
+import 'preferences_service.dart';
 
 class DatabaseService {
   final _client = SupabaseService().client;
@@ -16,6 +16,7 @@ class DatabaseService {
       
       final profile = await _client.from('profiles').select().eq('id', user.id).maybeSingle();
       if (profile != null) {
+        PreferencesService().saveCachedProfile(profile);
         return profile;
       }
 
@@ -37,9 +38,14 @@ class DatabaseService {
       };
 
       await _client.from('profiles').insert(newProfile);
-      return await _client.from('profiles').select().eq('id', user.id).maybeSingle() ?? newProfile;
+      final inserted = await _client.from('profiles').select().eq('id', user.id).maybeSingle() ?? newProfile;
+      PreferencesService().saveCachedProfile(inserted);
+      return inserted;
     } catch (e) {
       debugPrint('Error fetching profile: $e');
+      // Offline fallback: load from cached profile to avoid indefinite loading
+      final cached = await PreferencesService().getCachedProfile();
+      if (cached != null) return cached;
       return null;
     }
   }

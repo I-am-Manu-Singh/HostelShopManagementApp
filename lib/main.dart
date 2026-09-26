@@ -17,6 +17,7 @@ import 'services/cart_service.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'screens/home/web_landing_screen.dart';
+import 'services/network_connectivity_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -387,6 +388,7 @@ Future<void> _initPlugins() async {
   try {
     await Future.delayed(const Duration(milliseconds: 300));
     await NotificationService.initialize();
+    NetworkConnectivityService().startMonitoring();
     print('Plugins initialized safely');
   } catch (e) {
     print('Init error: $e');

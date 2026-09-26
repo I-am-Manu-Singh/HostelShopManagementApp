@@ -11,6 +11,7 @@ import '../../services/placeholder_service.dart';
 import 'package:intl/intl.dart';
 import '../../services/pos_hardware_service.dart';
 import '../admin/admin_edit_product_screen.dart';
+import '../pos/pos_hardware_settings_dialog.dart';
 import 'add_product_review_screen.dart';
 import 'shop_checkout_screen.dart';
 
@@ -1152,7 +1153,19 @@ Widget _buildUsageSection(bool isDark) {
             children: [
               const Icon(Icons.local_offer_rounded, color: Colors.amber),
               const SizedBox(width: 8),
-              Text('Print Barcode Label', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
+              Expanded(
+                child: Text('Print Barcode Label', style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              IconButton(
+                tooltip: 'Printer Hardware Settings',
+                icon: const Icon(Icons.settings_outlined, size: 20),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => const PosHardwareSettingsDialog(),
+                  );
+                },
+              ),
             ],
           ),
           content: Column(
@@ -1203,20 +1216,35 @@ Widget _buildUsageSection(bool isDark) {
               onPressed: () async {
                 final messenger = ScaffoldMessenger.of(context);
                 Navigator.pop(ctx);
-                final success = await PosHardwareService().printProductBarcodeLabel(
-                  name: _currentProduct.name,
-                  barcode: barcodeVal,
-                  price: _currentProduct.price,
-                  brand: _currentProduct.brand,
-                  hsn: _currentProduct.hsnCode,
-                  copies: copies,
-                );
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(success ? 'Barcode label sent to printer / spooler ($copies copies)' : 'Print cancelled or failed'),
-                    backgroundColor: success ? Colors.green : Colors.red,
-                  ),
-                );
+                try {
+                  final success = await PosHardwareService().printProductBarcodeLabel(
+                    name: _currentProduct.name,
+                    barcode: barcodeVal,
+                    price: _currentProduct.price,
+                    brand: _currentProduct.brand,
+                    hsn: _currentProduct.hsnCode,
+                    weight: _currentProduct.weightMl,
+                    category: _currentProduct.category,
+                    shelfLife: _currentProduct.shelfLife,
+                    copies: copies,
+                  );
+                  if (success) {
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Barcode label sent to printer / spooler ($copies copies)'),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                } catch (e) {
+                  messenger.showSnackBar(
+                    SnackBar(
+                      content: Text('Print error: $e'),
+                      backgroundColor: Colors.orangeAccent,
+                    ),
+                  );
+                }
               },
             ),
           ],

@@ -79,4 +79,35 @@ class PreferencesService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('location_sharing_enabled') ?? false;
   }
+
+  // --- Offline & Resume Profile Cache ---
+  Future<void> saveCachedProfile(Map<String, dynamic> profile) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final encoded = Uri.encodeComponent(
+        profile.entries.map((e) => '${e.key}=${e.value}').join('&'),
+      );
+      await prefs.setString('cached_user_profile_raw', encoded);
+    } catch (_) {}
+  }
+
+  Future<Map<String, dynamic>?> getCachedProfile() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('cached_user_profile_raw');
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = Uri.decodeComponent(raw);
+      final Map<String, dynamic> map = {};
+      for (final pair in decoded.split('&')) {
+        final idx = pair.indexOf('=');
+        if (idx != -1) {
+          map[pair.substring(0, idx)] = pair.substring(idx + 1);
+        }
+      }
+      return map.isNotEmpty ? map : null;
+    } catch (_) {
+      return null;
+    }
+  }
 }
+
