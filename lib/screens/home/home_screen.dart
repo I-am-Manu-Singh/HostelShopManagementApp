@@ -1,32 +1,18 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:animate_do/animate_do.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../services/database_service.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import '../../services/supabase_service.dart';
 import '../auth/login_screen.dart';
 import '../shop/shop_browse_screen.dart';
 import '../profile/profile_screen.dart';
 import '../student/student_terminal_screen.dart';
-import '../admin/admin_panel_screen.dart';
-import '../admin/admin_order_control_screen.dart';
 import '../student/mess_student_card_screen.dart';
-import '../productivity/productivity_suite_hub.dart';
 import '../employee/staff_task_hub_screen.dart';
 import '../social/chat_room_list_screen.dart';
-import '../admin/admin_finance_hub_screen.dart';
 import '../mandi/mandi_seller_screen.dart';
 import '../mandi/mandi_delivery_screen.dart';
-import '../legal/privacy_policy_screen.dart';
-import '../legal/terms_of_service_screen.dart';
-import '../profile/app_info_screen.dart';
 import '../../widgets/shared_web_components.dart';
 import '../employee/employee_terminal_screen.dart';
-import '../shop/fast_food_screen.dart';
 import '../user/edit_profile_screen.dart';
-
 import '../../services/preferences_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -137,7 +123,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } else if (role == 'delivery_partner') {
       return [
         const MandiDeliveryScreen(),
-        const FastFoodScreen(),
         CampusChatListScreen(),
         const ProfileScreen(),
       ];
@@ -204,7 +189,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final labels = getRoleLabels(role, widget.isGuest);
 
     if (kIsWeb) {
-      final isDesktop = MediaQuery.of(context).size.width > 800;
       return Scaffold(
         backgroundColor: bgColor,
         body: Column(

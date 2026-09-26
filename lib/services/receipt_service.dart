@@ -727,7 +727,7 @@ class ReceiptService {
               pw.SizedBox(height: 8),
               pw.Center(
                 child: pw.Text(
-                  'AUTHORIZED DIGITAL PAYSLIP — CAMPUS CONNECT PERSONNEL MANAGEMENT',
+                  'AUTHORIZED DIGITAL PAYSLIP — H House PERSONNEL MANAGEMENT',
                   style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold, color: PdfColor.fromInt(0xFF6366F1), letterSpacing: 1.2),
                 ),
               ),

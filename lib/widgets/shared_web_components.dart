@@ -9,22 +9,24 @@ import '../services/organization_settings_service.dart';
 
 List<String> getRoleLabels(String role, bool isGuest) {
   if (isGuest) {
-    return ['CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'LOGIN'];
+    return ['SHOP', 'LOGIN'];
   }
   if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
-    return ['CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'FINANCES', 'CHATS', 'PROFILE'];
+    return ['SHOP', 'CHATS', 'PROFILE'];
   } else if (role == 'staff') {
-    return ['EMPLOYEE TERMINAL', 'WORKPLACE', 'FAST FOOD', 'TASKS', 'CHATS', 'PROFILE'];
+    return ['TERMINAL', 'TASKS', 'CHATS', 'PROFILE'];
   } else if (role == 'hostel_student') {
-    return ['TERMINAL', 'CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'SUITE', 'CHATS', 'PROFILE'];
+    return ['CAMPUS HUB', 'SHOP', 'CHATS', 'PROFILE'];
   } else if (role == 'mess_student') {
-    return ['CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'MESS CARD', 'CHATS', 'PROFILE'];
+    return ['SHOP', 'MESS CARD', 'CHATS', 'PROFILE'];
   } else if (role == 'delivery_partner') {
-    return ['LOGISTICS', 'FAST FOOD', 'CHATS', 'PROFILE'];
+    return ['DELIVERY', 'CHATS', 'PROFILE'];
   } else if (role == 'farmer_seller') {
-    return ['MARKET', 'FAST FOOD', 'CHATS', 'PROFILE'];
+    return ['MANDI', 'CHATS', 'PROFILE'];
+  } else if (role == 'store_customer') {
+    return ['SHOP', 'CHATS', 'PROFILE'];
   }
-  return ['CAMPUS SHOP', 'MANDI MARKET', 'FAST FOOD', 'PROFILE'];
+  return ['SHOP', 'CHATS', 'PROFILE'];
 }
 
 class WebHeader extends StatelessWidget {
@@ -48,15 +50,17 @@ class WebHeader extends StatelessWidget {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      height: 48,
+      height: 52,
       padding: const EdgeInsets.symmetric(horizontal: 24),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF08090A) : Colors.white,
-        border: Border(
-          bottom: BorderSide(
-            color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+        color: Colors.blueAccent,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDark ? 0.3 : 0.08),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
           ),
-        ),
+        ],
       ),
       child: Row(
         children: [
@@ -69,17 +73,22 @@ class WebHeader extends StatelessWidget {
                 final bool active = currentIndex == index;
 
                 return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: TextButton(
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      backgroundColor: active ? Colors.white.withOpacity(0.2) : Colors.transparent,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                    ),
                     onPressed: () => onTabSelected(index),
                     child: Text(
                       labels[index],
-                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: active
-                                ? Colors.indigoAccent
-                                : (isDark ? Colors.white70 : Colors.black87),
-                          ),
+                      style: GoogleFonts.outfit(
+                        fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                        fontSize: 13,
+                        color: active ? Colors.white : Colors.white.withOpacity(0.75),
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ),
                 );
@@ -99,24 +108,25 @@ class WebHeader extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: Image.asset(
             'assets/images/app_logo.png',
-            width: 36,
-            height: 36,
+            width: 32,
+            height: 32,
             fit: BoxFit.cover,
             errorBuilder: (_, __, ___) => const Icon(
               Icons.hub_rounded,
-              color: Colors.indigoAccent,
-              size: 28,
+              color: Colors.white,
+              size: 26,
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 10),
         Text(
-          'CAMPUS CONNECT',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1,
-                color: isDark ? Colors.white : Colors.black,
-              ),
+          'H House',
+          style: GoogleFonts.outfit(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1,
+            fontSize: 17,
+            color: Colors.white,
+          ),
         ),
       ],
     );
@@ -129,22 +139,24 @@ class WebHeader extends StatelessWidget {
         if (!isGuest) ...[
           Text(
             profileName.toString().toUpperCase(),
-            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                  color: isDark ? Colors.white70 : Colors.black87,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.5,
-                ),
+            style: GoogleFonts.outfit(
+              color: Colors.white.withOpacity(0.9),
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+              letterSpacing: 0.5,
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
         ],
         IconButton(
           onPressed: () {},
-          icon: Icon(
+          icon: const Icon(
             Icons.notifications_none_rounded,
-            color: isDark ? Colors.white70 : Colors.black87,
+            color: Colors.white,
+            size: 20,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         GestureDetector(
           onTap: () {
             final int profileIndex = labels.indexOf(
@@ -159,9 +171,14 @@ class WebHeader extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               border: Border.all(
-                color: Colors.indigoAccent,
+                color: Colors.white,
                 width: 1.5,
               ),
+            ),
+            child: CircleAvatar(
+              radius: 14,
+              backgroundColor: Colors.white.withOpacity(0.2),
+              child: const Icon(Icons.person, color: Colors.white, size: 16),
             ),
           ),
         ),
@@ -245,7 +262,7 @@ class SharedWebFooter extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'CAMPUS CONNECT',
+          'H House',
           style: TextStyle(
             color: isDark ? Colors.white : Colors.black,
             fontSize: 18,
@@ -255,7 +272,7 @@ class SharedWebFooter extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          "Campus Connect is India's next-generation Hostel & Campus Super App designed for students, wardens, administrators, stores, mess facilities, farmers, and delivery partners. From room allocation and digital mess cards to campus shopping, mandi marketplace, inventory management, order tracking, and room delivery, everything works together in one intelligent platform.",
+          "H House is India's next-generation Hostel & Campus Super App designed for students, wardens, administrators, stores, mess facilities, farmers, and delivery partners. From room allocation and digital mess cards to campus shopping, mandi marketplace, inventory management, order tracking, and room delivery, everything works together in one intelligent platform.",
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
             fontSize: 13,
@@ -264,7 +281,7 @@ class SharedWebFooter extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          '© ${DateTime.now().year} Campus Connect Operations Platform.',
+          '© ${DateTime.now().year} H House Operations Platform.',
           style: TextStyle(
             color: isDark ? Colors.white38 : Colors.black45,
             fontSize: 11,

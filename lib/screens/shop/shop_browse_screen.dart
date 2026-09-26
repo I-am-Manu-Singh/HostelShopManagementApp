@@ -1530,7 +1530,7 @@ Widget build(BuildContext context) {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'CAMPUS CONNECT',
+          'H House',
           style: TextStyle(
             color: isDark ? Colors.white : Colors.black,
             fontSize: 18,
@@ -1540,7 +1540,7 @@ Widget build(BuildContext context) {
         ),
         const SizedBox(height: 12),
         Text(
-          "Campus Connect is India's next-generation Hostel & Campus Super App designed for students, wardens, administrators, stores, mess facilities, farmers, and delivery partners.",
+          "H House is India's next-generation Hostel & Campus Super App designed for students, wardens, administrators, stores, mess facilities, farmers, and delivery partners.",
           style: TextStyle(
             color: isDark ? Colors.white60 : Colors.black54,
             fontSize: 13,
@@ -1549,7 +1549,7 @@ Widget build(BuildContext context) {
         ),
         const SizedBox(height: 12),
         Text(
-          '© ${DateTime.now().year} Campus Connect Operations Platform.',
+          '© ${DateTime.now().year} H House Operations Platform.',
           style: TextStyle(
             color: isDark ? Colors.white38 : Colors.black45,
             fontSize: 11,

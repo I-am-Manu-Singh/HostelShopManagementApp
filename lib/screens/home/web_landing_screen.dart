@@ -208,7 +208,7 @@ class WebLandingScreen extends StatelessWidget {
               const Icon(Icons.hub_rounded, color: Colors.indigoAccent, size: 28),
               const SizedBox(width: 12),
               Text(
-                'CAMPUS CONNECT',
+                'H House',
                 style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900, letterSpacing: 1.5, color: isDark ? Colors.white : Colors.black),
               ),
             ],

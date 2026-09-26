@@ -63,7 +63,7 @@ class HostelShopMgmtApp extends StatelessWidget {
       builder: (_, mode, __) {
         return OverlaySupport.global(
           child: MaterialApp(
-            title: 'Campus Connect',
+            title: 'H House',
             debugShowCheckedModeBanner: false,
             themeMode: mode,
             theme: ThemeData(
