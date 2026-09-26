@@ -24,7 +24,10 @@ if [ ! -f ".env" ]; then
   echo "GOOGLE_WEB_CLIENT_ID=${GOOGLE_WEB_CLIENT_ID:-441617106864-usssvc74qg415dg5rdn5qnev5hmfbh3v.apps.googleusercontent.com}" >> .env
 fi
 
-# 5. Generate Web Distribution
+# 5. Optimize Dart compiler memory for Vercel container
+export DART_VM_OPTIONS="--old_gen_heap_size=2048"
+
+# 6. Generate Web Distribution
 echo "🚀 Building Web Terminal..."
-flutter build web --release --no-wasm-dry-run
+flutter build web --release --no-wasm-dry-run --pwa-strategy=none
 
