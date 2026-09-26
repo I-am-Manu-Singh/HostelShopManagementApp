@@ -29,5 +29,6 @@ export DART_VM_OPTIONS="--old_gen_heap_size=2048"
 
 # 6. Generate Web Distribution
 echo "🚀 Building Web Terminal..."
-flutter build web --release --no-wasm-dry-run --pwa-strategy=none
+flutter build web --release --no-wasm-dry-run --no-source-maps -v
+
 
