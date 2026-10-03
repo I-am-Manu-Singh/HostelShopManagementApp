@@ -4,7 +4,8 @@ import 'package:http/http.dart' as http;
 import 'package:overlay_support/overlay_support.dart';
 
 class NetworkConnectivityService {
-  static final NetworkConnectivityService _instance = NetworkConnectivityService._internal();
+  static final NetworkConnectivityService _instance =
+      NetworkConnectivityService._internal();
   factory NetworkConnectivityService() => _instance;
   NetworkConnectivityService._internal();
 
@@ -18,7 +19,6 @@ class NetworkConnectivityService {
   void startMonitoring() {
     _checkConnectivity();
     _pollingTimer?.cancel();
-    // Poll every 5 seconds for robust cross-platform connectivity detection
     _pollingTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       _checkConnectivity();
     });
@@ -52,7 +52,7 @@ class NetworkConnectivityService {
     if (_isOnline && !reachable) {
       _isOnline = false;
       _showOfflineBanner();
-    } 
+    }
     // Transition from Offline to Online
     else if (!_isOnline && reachable) {
       _isOnline = true;
@@ -65,33 +65,55 @@ class NetworkConnectivityService {
     _currentBanner = showOverlayNotification(
       (context) => SafeArea(
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFFEF4444),
-            borderRadius: BorderRadius.circular(12),
+            // Professional charcoal/slate background
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.wifi_off_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 10),
-              Expanded(
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.wifi_off_rounded,
+                  color: Color(0xFFF87171),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
                 child: Text(
-                  'No Internet Connection. Cached data is in effect.',
-                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  'No internet connection. Cached data is in effect.',
+                  style: TextStyle(
+                    color: Color(0xFFF1F5F9),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.1,
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
+      position: NotificationPosition.bottom,
       duration: const Duration(seconds: 5),
     );
   }
@@ -101,33 +123,55 @@ class NetworkConnectivityService {
     _currentBanner = showOverlayNotification(
       (context) => SafeArea(
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF10B981),
-            borderRadius: BorderRadius.circular(12),
+            // Professional slate/charcoal background
+            color: const Color(0xFF1E293B),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: const Color(0xFF10B981).withValues(alpha: 0.35),
+              width: 1,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.2),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.wifi_rounded, color: Colors.white, size: 20),
-              SizedBox(width: 10),
-              Expanded(
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.wifi_rounded,
+                  color: Color(0xFF34D399),
+                  size: 18,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
                 child: Text(
-                  'Internet Connection Restored. Live sync active.',
-                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  'Connection restored. Live sync active.',
+                  style: TextStyle(
+                    color: Color(0xFFF1F5F9),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: -0.1,
+                  ),
                 ),
               ),
             ],
           ),
         ),
       ),
+      position: NotificationPosition.bottom,
       duration: const Duration(seconds: 3),
     );
   }

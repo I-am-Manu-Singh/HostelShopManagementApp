@@ -203,7 +203,6 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
       
       if (result == null) return;
 
-      // Web uses bytes; native uses path
       List<String> lines;
       if (kIsWeb) {
         final bytes = result.files.single.bytes;
@@ -218,7 +217,6 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         throw 'File is empty or missing content rows';
       }
       
-      // Parse header to map columns
       final headers = lines.first.split(',').map((h) => h.trim().toLowerCase()).toList();
       
       int successCount = 0;
@@ -226,7 +224,6 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         final line = lines[i].trim();
         if (line.isEmpty) continue;
         
-        // Simple CSV cell parsing matching double quotes
         final List<String> cells = [];
         bool inQuotes = false;
         StringBuffer currentCell = StringBuffer();
@@ -246,9 +243,7 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         
         if (cells.length < 4) continue;
         
-        // Build payload row
         final Map<String, dynamic> payload = {};
-        
         String? itemId;
         
         for (int cellIdx = 0; cellIdx < cells.length; cellIdx++) {
@@ -305,7 +300,6 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         
         if (payload['name'] == null) continue;
 
-        // Enforce active category import separation
         final cat = (payload['category']?.toString() ?? '').toLowerCase();
         final name = (payload['name']?.toString() ?? '').toLowerCase();
         bool matchesType = true;
@@ -323,10 +317,8 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
         if (!matchesType) continue;
         
         if (itemId != null) {
-          // Update item
           await _client.from('shop_items').update(payload).eq('id', itemId);
         } else {
-          // Insert item
           await _client.from('shop_items').insert(payload);
         }
         successCount++;
@@ -357,6 +349,65 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
       }
     } catch (e) {
       if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _confirmDeleteItem(ShopItem item) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).cardColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_forever_rounded, color: Colors.redAccent),
+            const SizedBox(width: 8),
+            Text('DELETE ITEM', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 14)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to delete "${item.name}" from inventory? This action cannot be undone.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('DELETE', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await _client.from('shop_items').delete().eq('id', item.id);
+        if (mounted) {
+          setState(() {
+            _allItems.removeWhere((i) => i.id == item.id);
+            _selectedItemsForPrint.remove(item.id);
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Deleted "${item.name}" successfully'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to delete: $e'),
+              backgroundColor: Colors.redAccent,
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -419,14 +470,12 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
               if (result != null) {
                 if (!mounted) return;
                 if (result is int && result > 0) {
-                  // Batch mode completed and saved products directly
                   _fetchInventory();
                   return;
                 }
                 
                 if (result is String && result.trim().isNotEmpty) {
                   final cleanResult = result.trim().toLowerCase();
-                  // Try finding item by barcode or sku_qr
                   final item = _allItems.cast<ShopItem?>().firstWhere(
                     (i) => (i?.barcode?.trim().toLowerCase() == cleanResult) ||
                            (i?.skuQr?.trim().toLowerCase() == cleanResult) ||
@@ -439,7 +488,6 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
                       if (mounted) _fetchInventory();
                     });
                   } else {
-                    // Not found, open Add screen with SKU pre-filled (auto-resolves from online registries, allows manual edits & saving)
                     Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(scannedSku: result.trim()))).then((_) {
                       if (mounted) _fetchInventory();
                     });
@@ -470,7 +518,6 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
               LayoutBuilder(
                 builder: (context, constraints) {
                   if (constraints.maxWidth > 800) {
-                    // Desktop/Wide View: 2-column sidebar tab structure
                     return Row(
                       children: [
                         Expanded(
@@ -512,7 +559,6 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
                     );
                   }
 
-                  // Mobile View: Single column layout list
                   return Column(
                     children: [
                       _buildSearchBar(isDark),
@@ -633,18 +679,15 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
       final cat = i.category.toLowerCase();
       final name = i.name.toLowerCase();
       if (type == 'SHOP') {
-        // Items NOT in other categories
         return !cat.contains('kitchen') && !cat.contains('raw') && !cat.contains('grocery') && 
                !cat.contains('beverage') && !cat.contains('snack') && !cat.contains('meal') && 
                !cat.contains('ready');
       }
       if (type == 'MESS') {
-        // Raw materials and bulk kitchen supplies
         return cat.contains('kitchen') || cat.contains('raw') || cat.contains('grocery') || 
                cat.contains('bulk') || name.contains('rice') || name.contains('dal') || name.contains('oil');
       }
       if (type == 'CANTEEN') {
-        // Ready to eat, snacks, beverages
         return cat.contains('beverage') || cat.contains('snack') || cat.contains('ready') || 
                cat.contains('canteen') || cat.contains('fast food') || name.contains('coke') || name.contains('chips');
       }
@@ -786,22 +829,26 @@ class _AdminInventoryManagementScreenState extends State<AdminInventoryManagemen
                     ),
                   ],
                 )
-              : Row(mainAxisSize: MainAxisSize.min, children: [
-                  _actionIcon(Icons.print_rounded, Colors.amber, () async {
-                    final barcode = item.barcode?.trim() ?? item.skuQr?.trim() ?? item.id;
-                    await PosHardwareService().printProductBarcodeLabel(
-                      name: item.name,
-                      barcode: barcode,
-                      price: item.price,
-                      brand: item.brand,
-                      copies: 1,
-                    );
-                  }),
-                  _actionIcon(Icons.edit_rounded, Colors.blueAccent, () async {
-                    final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item)));
-                    if (res == true) _fetchInventory();
-                  }),
-                ]),
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _actionIcon(Icons.print_rounded, Colors.amber, () async {
+                      final barcode = item.barcode?.trim() ?? item.skuQr?.trim() ?? item.id;
+                      await PosHardwareService().printProductBarcodeLabel(
+                        name: item.name,
+                        barcode: barcode,
+                        price: item.price,
+                        brand: item.brand,
+                        copies: 1,
+                      );
+                    }),
+                    _actionIcon(Icons.edit_rounded, Colors.blueAccent, () async {
+                      final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: item)));
+                      if (res == true) _fetchInventory();
+                    }),
+                    _actionIcon(Icons.delete_outline_rounded, Colors.redAccent, () => _confirmDeleteItem(item)),
+                  ],
+                ),
         ),
       ),
     );
