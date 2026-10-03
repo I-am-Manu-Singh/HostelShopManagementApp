@@ -47,6 +47,8 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
     _fetchConversations();
   }
 
+  bool _isLoadingConversations = true;
+
   Future<void> _fetchConversations() async {
     final isAdmin = _userRole == 'admin' || _userRole == 'hostel_manager' || _userRole == 'owner';
     final isStaff = _userRole == 'staff';
@@ -56,187 +58,223 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
     final isFarmer = _userRole == 'farmer_seller';
     final isStoreCustomer = _userRole == 'store_customer';
 
-    final List<Map<String, dynamic>> dynamicRooms = [];
+    final List<Map<String, dynamic>> defaultChannels = [];
 
+    // Core community group channels
     if (isAdmin) {
-      // Admins see all group channels + DMs with every user
-      dynamicRooms.addAll([
+      defaultChannels.addAll([
         {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'General hostel chat'},
         {'id': 'mess_community', 'title': 'Mess Feedback', 'isGroup': true, 'subtitle': 'Discuss meals and menu'},
         {'id': 'student_council', 'title': 'Student Council', 'isGroup': true, 'subtitle': 'Official announcements'},
         {'id': 'staff_channel', 'title': 'Staff Channel', 'isGroup': true, 'subtitle': 'Internal staff communications'},
         {'id': 'shop_support', 'title': 'Shop Support', 'isGroup': true, 'subtitle': 'Shop & order queries'},
       ]);
-      try {
-        final users = await _client
-            .from('profiles')
-            .select('id, full_name, role, avatar_url')
-            .order('full_name');
-        for (var s in users) {
-          final sId = s['id'].toString();
-          if (sId == _currentUserId) continue;
-          final sName = s['full_name'] ?? 'User';
-          dynamicRooms.add({
-            'id': 'admin_support_$sId',
-            'title': sName,
-            'isGroup': false,
-            'subtitle': '${s['role'] ?? 'user'} — private chat',
-            'targetUserId': sId,
-            'avatarUrl': s['avatar_url'],
-          });
-        }
-      } catch (e) {
-        debugPrint('Error loading user chat threads: $e');
-      }
     } else if (isStaff) {
-      // Staff see staff channel + admin DM
-      dynamicRooms.addAll([
+      defaultChannels.addAll([
         {'id': 'staff_channel', 'title': 'Staff Channel', 'isGroup': true, 'subtitle': 'Coordinate with teammates'},
         {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'General campus chat'},
-        {
-          'id': 'admin_support_$_currentUserId',
-          'title': 'Admin Support',
-          'isGroup': false,
-          'subtitle': 'Private line to hostel management',
-          'targetUserId': _currentUserId,
-        },
+        {'id': 'admin_support_$_currentUserId', 'title': 'Admin Support', 'isGroup': false, 'subtitle': 'Private line to hostel management', 'targetUserId': _currentUserId},
       ]);
     } else if (isHostelStudent) {
-      // Hostel students see general, mess, council, admin DM, shop DM
-      dynamicRooms.addAll([
+      defaultChannels.addAll([
         {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'General hostel chat'},
         {'id': 'mess_community', 'title': 'Mess Feedback', 'isGroup': true, 'subtitle': 'Discuss meals and menu'},
         {'id': 'student_council', 'title': 'Student Council', 'isGroup': true, 'subtitle': 'Official announcements'},
-        {
-          'id': 'admin_support_$_currentUserId',
-          'title': 'Admin Support (Private)',
-          'isGroup': false,
-          'subtitle': 'Private communication with administration',
-          'targetUserId': _currentUserId,
-        },
-        {
-          'id': 'shop_manager_$_currentUserId',
-          'title': 'Shop & Mandi Support',
-          'isGroup': false,
-          'subtitle': 'Inquire about orders & deliveries',
-          'targetUserId': _currentUserId,
-        },
+        {'id': 'admin_support_$_currentUserId', 'title': 'Admin Support (Private)', 'isGroup': false, 'subtitle': 'Private communication with administration', 'targetUserId': _currentUserId},
+        {'id': 'shop_support_$_currentUserId', 'title': 'Shop & Mandi Support', 'isGroup': false, 'subtitle': 'Inquire about orders & deliveries', 'targetUserId': _currentUserId},
       ]);
     } else if (isMessStudent) {
-      // Mess students see mess channel, council, admin DM
-      dynamicRooms.addAll([
+      defaultChannels.addAll([
         {'id': 'mess_community', 'title': 'Mess Feedback', 'isGroup': true, 'subtitle': 'Discuss meals and menu'},
         {'id': 'student_council', 'title': 'Student Council', 'isGroup': true, 'subtitle': 'Official announcements'},
-        {
-          'id': 'admin_support_$_currentUserId',
-          'title': 'Admin Support (Private)',
-          'isGroup': false,
-          'subtitle': 'Private communication with administration',
-          'targetUserId': _currentUserId,
-        },
+        {'id': 'admin_support_$_currentUserId', 'title': 'Admin Support (Private)', 'isGroup': false, 'subtitle': 'Private communication with administration', 'targetUserId': _currentUserId},
       ]);
     } else if (isDelivery) {
-      // Delivery partners see delivery channel + admin DM
-      dynamicRooms.addAll([
+      defaultChannels.addAll([
         {'id': 'delivery_channel', 'title': 'Delivery Operations', 'isGroup': true, 'subtitle': 'Coordinate deliveries with the team'},
-        {
-          'id': 'admin_support_$_currentUserId',
-          'title': 'Admin Support',
-          'isGroup': false,
-          'subtitle': 'Contact management for dispatch issues',
-          'targetUserId': _currentUserId,
-        },
+        {'id': 'admin_support_$_currentUserId', 'title': 'Admin Support', 'isGroup': false, 'subtitle': 'Contact management for dispatch issues', 'targetUserId': _currentUserId},
       ]);
     } else if (isFarmer) {
-      // Farmers see mandi channel + admin DM
-      dynamicRooms.addAll([
+      defaultChannels.addAll([
         {'id': 'mandi_channel', 'title': 'Mandi Marketplace', 'isGroup': true, 'subtitle': 'Discuss rates & produce'},
-        {
-          'id': 'admin_support_$_currentUserId',
-          'title': 'Admin Support',
-          'isGroup': false,
-          'subtitle': 'Contact management for listing issues',
-          'targetUserId': _currentUserId,
-        },
+        {'id': 'admin_support_$_currentUserId', 'title': 'Admin Support', 'isGroup': false, 'subtitle': 'Contact management for listing issues', 'targetUserId': _currentUserId},
       ]);
     } else if (isStoreCustomer) {
-      // Store customers see shop support + admin DM
-      dynamicRooms.addAll([
+      defaultChannels.addAll([
         {'id': 'shop_support', 'title': 'Shop Support', 'isGroup': true, 'subtitle': 'Ask about products & orders'},
-        {
-          'id': 'shop_manager_$_currentUserId',
-          'title': 'Order Support (Private)',
-          'isGroup': false,
-          'subtitle': 'Track your orders and inquire about returns',
-          'targetUserId': _currentUserId,
-        },
+        {'id': 'shop_support_$_currentUserId', 'title': 'Order Support (Private)', 'isGroup': false, 'subtitle': 'Track your orders and inquire about returns', 'targetUserId': _currentUserId},
       ]);
     } else {
-      // Default: general + admin DM
-      dynamicRooms.addAll([
+      defaultChannels.addAll([
         {'id': 'hostel_gen', 'title': 'Hostel Community', 'isGroup': true, 'subtitle': 'General campus chat'},
-        {
-          'id': 'admin_support_$_currentUserId',
-          'title': 'Admin Support',
-          'isGroup': false,
-          'subtitle': 'Contact hostel management',
-          'targetUserId': _currentUserId,
-        },
+        {'id': 'admin_support_$_currentUserId', 'title': 'Admin Support', 'isGroup': false, 'subtitle': 'Contact hostel management', 'targetUserId': _currentUserId},
       ]);
     }
 
-    // Fetch unread counts, last messages, and mention flags for each room
-    final unreadMap = <String, int>{};
-    final lastMsgMap = <String, String>{};
-    final mentionMap = <String, bool>{};
-    final cleanMyName = _currentUserName.replaceAll(' ', '_').toLowerCase();
+    try {
+      // ⚡ FAST BATCH QUERY: Fetch recent messages to find all rooms with actual message history
+      final recentMsgsRes = await _client
+          .from('messages')
+          .select('room_id, content, sender_id, created_at, is_read')
+          .order('created_at', ascending: false)
+          .limit(1000);
 
-    for (var r in dynamicRooms) {
-      final rId = r['id'].toString();
-      try {
-        final msgs = await _client
-            .from('messages')
-            .select('content, sender_id, created_at, is_read')
-            .eq('room_id', rId)
-            .order('created_at', ascending: false)
-            .limit(10);
+      final unreadMap = <String, int>{};
+      final lastMsgMap = <String, String>{};
+      final lastMsgDateMap = <String, DateTime>{};
+      final mentionMap = <String, bool>{};
+      final activeRoomIds = <String>{};
+      final cleanMyName = _currentUserName.replaceAll(' ', '_').toLowerCase();
 
-        if (msgs.isNotEmpty) {
-          lastMsgMap[rId] = msgs.first['content']?.toString() ?? '';
-          bool mentioned = false;
-          for (var msg in msgs) {
-            final content = (msg['content'] ?? '').toString().toLowerCase();
-            if (cleanMyName.isNotEmpty &&
-                (content.contains('@$cleanMyName') ||
-                    content.contains('@${_currentUserName.toLowerCase()}'))) {
-              mentioned = true;
-              break;
-            }
+      final allMsgs = List<Map<String, dynamic>>.from(recentMsgsRes);
+      for (final m in allMsgs) {
+        final rId = m['room_id']?.toString() ?? '';
+        if (rId.isEmpty) continue;
+        activeRoomIds.add(rId);
+
+        // Store latest message
+        if (!lastMsgMap.containsKey(rId)) {
+          lastMsgMap[rId] = m['content']?.toString() ?? '';
+          if (m['created_at'] != null) {
+            try {
+              lastMsgDateMap[rId] = DateTime.parse(m['created_at']).toLocal();
+            } catch (_) {}
           }
-          mentionMap[rId] = mentioned;
         }
 
-        final countRes = await _client
-            .from('messages')
-            .select('id')
-            .eq('room_id', rId)
-            .neq('sender_id', _currentUserId)
-            .eq('is_read', false);
-        unreadMap[rId] = (countRes as List).length;
-      } catch (_) {}
-    }
+        // Check mentions
+        if (!(mentionMap[rId] ?? false)) {
+          final content = (m['content'] ?? '').toString().toLowerCase();
+          if (cleanMyName.isNotEmpty &&
+              (content.contains('@$cleanMyName') ||
+               content.contains('@${_currentUserName.toLowerCase()}'))) {
+            mentionMap[rId] = true;
+          }
+        }
 
-    if (mounted) {
-      setState(() {
-        _userConversations = dynamicRooms;
-        _unreadCounts = unreadMap;
-        _lastMessages = lastMsgMap;
-        _hasMentionInRoom = mentionMap;
-        _applyChatFilter();
+        // Count unreads for me
+        final senderId = m['sender_id']?.toString() ?? '';
+        final isRead = m['is_read'] as bool? ?? false;
+        if (senderId != _currentUserId && !isRead) {
+          unreadMap[rId] = (unreadMap[rId] ?? 0) + 1;
+        }
+      }
+
+      // Collect rooms to display
+      final List<Map<String, dynamic>> resolvedRooms = [];
+
+      // 1. Add default group channels (and user's own direct support channels)
+      for (final def in defaultChannels) {
+        final defId = def['id'].toString();
+        // For groups, always show. For user support DM, show always for student/customer.
+        if (def['isGroup'] == true || !isAdmin) {
+          resolvedRooms.add(Map<String, dynamic>.from(def));
+        }
+      }
+
+      // 2. Discover all direct messaging rooms that have active messages
+      // This includes: admin_support_XXX, shop_support_XXX, shop_manager_XXX (legacy support)
+      final dmUserIdsToFetch = <String>{};
+      final roomToUserId = <String, String>{};
+      final roomToType = <String, String>{};
+
+      for (final rId in activeRoomIds) {
+        if (resolvedRooms.any((r) => r['id'] == rId)) continue;
+
+        String? targetId;
+        String type = 'user';
+        if (rId.startsWith('admin_support_')) {
+          targetId = rId.substring('admin_support_'.length);
+          type = 'Admin Support';
+        } else if (rId.startsWith('shop_support_')) {
+          targetId = rId.substring('shop_support_'.length);
+          type = 'Shop Customer';
+        } else if (rId.startsWith('shop_manager_')) {
+          targetId = rId.substring('shop_manager_'.length);
+          type = 'Shop Customer';
+        }
+
+        if (targetId != null && targetId.isNotEmpty) {
+          // If non-admin, only show if targetId == _currentUserId
+          if (isAdmin || targetId == _currentUserId) {
+            dmUserIdsToFetch.add(targetId);
+            roomToUserId[rId] = targetId;
+            roomToType[rId] = type;
+          }
+        }
+      }
+
+      // Batch fetch profiles for all active DM rooms in a single query
+      if (dmUserIdsToFetch.isNotEmpty) {
+        try {
+          final profilesRes = await _client
+              .from('profiles')
+              .select('id, full_name, role, avatar_url, room_number')
+              .filter('id', 'in', dmUserIdsToFetch.toList());
+
+          final profileMap = <String, Map<String, dynamic>>{};
+          for (final p in profilesRes) {
+            profileMap[p['id'].toString()] = Map<String, dynamic>.from(p);
+          }
+
+          for (final entry in roomToUserId.entries) {
+            final rId = entry.key;
+            final uId = entry.value;
+            final p = profileMap[uId];
+            final name = p?['full_name'] ?? 'User';
+            final role = p?['role'] ?? 'resident';
+            final roomNum = p?['room_number'] != null ? ' (Room ${p!['room_number']})' : '';
+            final typeLabel = roomToType[rId] ?? 'Private Chat';
+
+            resolvedRooms.add({
+              'id': rId,
+              'title': isAdmin ? '$name$roomNum' : typeLabel,
+              'isGroup': false,
+              'subtitle': isAdmin ? '$role — $typeLabel' : 'Direct message thread',
+              'targetUserId': uId,
+              'targetUserRole': role,
+              'avatarUrl': p?['avatar_url'],
+            });
+          }
+        } catch (e) {
+          debugPrint('Error batch-resolving DM profiles: $e');
+        }
+      }
+
+      // Sort rooms: Unread first, then by last message timestamp
+      resolvedRooms.sort((a, b) {
+        final aId = a['id'].toString();
+        final bId = b['id'].toString();
+        final aUnread = unreadMap[aId] ?? 0;
+        final bUnread = unreadMap[bId] ?? 0;
+        if (aUnread != bUnread) return bUnread.compareTo(aUnread);
+
+        final aDate = lastMsgDateMap[aId] ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = lastMsgDateMap[bId] ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
       });
+
+      if (mounted) {
+        setState(() {
+          _userConversations = resolvedRooms;
+          _unreadCounts = unreadMap;
+          _lastMessages = lastMsgMap;
+          _hasMentionInRoom = mentionMap;
+          _isLoadingConversations = false;
+          _applyChatFilter();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading conversations: $e');
+      if (mounted) {
+        setState(() {
+          _userConversations = defaultChannels;
+          _isLoadingConversations = false;
+          _applyChatFilter();
+        });
+      }
     }
   }
-
 
   void _applyChatFilter() {
     if (_chatSearchQuery.trim().isEmpty) {
@@ -388,61 +426,105 @@ class _CampusChatListScreenState extends State<CampusChatListScreen> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Conversations', style: GoogleFonts.outfit(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
-                Text('${_filteredConversations.length} Threads', style: TextStyle(color: isDark ? Colors.white38 : Colors.black38, fontSize: 11, fontWeight: FontWeight.bold)),
+                Row(
+                  children: [
+                    Text('Conversations', style: GoogleFonts.outfit(color: textColor, fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.indigoAccent.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${_filteredConversations.length}',
+                        style: const TextStyle(color: Colors.indigoAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+                TextButton.icon(
+                  onPressed: () => _openNewChatSheet(context, isDark),
+                  icon: const Icon(Icons.add_comment_rounded, size: 16, color: Colors.indigoAccent),
+                  label: Text('START CHAT', style: GoogleFonts.outfit(color: Colors.indigoAccent, fontSize: 11, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                  style: TextButton.styleFrom(
+                    backgroundColor: Colors.indigoAccent.withOpacity(0.1),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 12),
 
           // Search Bar for Chats
-Container(
-  padding: const EdgeInsets.symmetric(horizontal: 16),
-  decoration: BoxDecoration(
-    color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
-    borderRadius: BorderRadius.circular(16),
-    border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
-  ),
-  child: TextField(
-    onChanged: (val) {
-      setState(() {
-        _chatSearchQuery = val;
-        _applyChatFilter();
-      });
-    },
-    style: TextStyle(color: textColor, fontSize: 13),
-    decoration: InputDecoration(
-      icon: const Icon(Icons.search, size: 18, color: Colors.indigoAccent),
-      hintText: 'Search chats, students, messages...',
-      hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12),
-      // FIX: Explicitly strip out all possible internal border states
-      border: InputBorder.none,
-      enabledBorder: InputBorder.none,
-      focusedBorder: InputBorder.none,
-      disabledBorder: InputBorder.none,
-    ),
-  ),
-),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: isDark ? Colors.white10 : Colors.black12),
+            ),
+            child: TextField(
+              onChanged: (val) {
+                setState(() {
+                  _chatSearchQuery = val;
+                  _applyChatFilter();
+                });
+              },
+              style: TextStyle(color: textColor, fontSize: 13),
+              decoration: InputDecoration(
+                icon: const Icon(Icons.search, size: 18, color: Colors.indigoAccent),
+                hintText: 'Search chats, students, messages...',
+                hintStyle: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+              ),
+            ),
+          ),
 
             const SizedBox(height: 16),
 
             Expanded(
-              child: _filteredConversations.isEmpty
-                  ? Center(
-                      child: Text(
-                        _chatSearchQuery.isNotEmpty ? 'No conversations matching "$_chatSearchQuery"' : 'No conversations found',
-                        style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12),
-                      ),
-                    )
-                  : ListView.builder(
-                      itemCount: _filteredConversations.length,
-                      itemBuilder: (context, index) {
-                        final room = _filteredConversations[index];
-                        return FadeInUp(
-                          delay: Duration(milliseconds: 40 * index),
-                          child: _buildChatRoomTile(context, room, isDark),
-                        );
-                      },
-                    ),
+              child: _isLoadingConversations
+                  ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+                  : _filteredConversations.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.forum_outlined, size: 40, color: isDark ? Colors.white24 : Colors.black26),
+                              const SizedBox(height: 8),
+                              Text(
+                                _chatSearchQuery.isNotEmpty ? 'No conversations matching "$_chatSearchQuery"' : 'No active conversations yet',
+                                style: TextStyle(color: isDark ? Colors.white24 : Colors.black26, fontSize: 12),
+                              ),
+                              const SizedBox(height: 12),
+                              ElevatedButton.icon(
+                                onPressed: () => _openNewChatSheet(context, isDark),
+                                icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
+                                label: const Text('Start New Conversation'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.indigoAccent,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: _filteredConversations.length,
+                          itemBuilder: (context, index) {
+                            final room = _filteredConversations[index];
+                            return FadeInUp(
+                              delay: Duration(milliseconds: 30 * index),
+                              child: _buildChatRoomTile(context, room, isDark),
+                            );
+                          },
+                        ),
             ),
           ],
         ),
@@ -578,11 +660,299 @@ Container(
               builder: (_) => CampusChatScreen(
                 roomId: roomId,
                 title: room['title']?.toString() ?? '',
+                targetUserId: room['targetUserId']?.toString(),
+                targetUserRole: room['targetUserRole']?.toString(),
               ),
             ),
           );
           _fetchConversations();
         },
+      ),
+    );
+  }
+
+  void _openNewChatSheet(BuildContext context, bool isDark) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _NewConversationBottomSheet(
+        currentUserId: _currentUserId,
+        userRole: _userRole,
+        isDark: isDark,
+        onConversationSelected: (roomId, title, targetUserId, targetRole) async {
+          Navigator.pop(ctx);
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => CampusChatScreen(
+                roomId: roomId,
+                title: title,
+                targetUserId: targetUserId,
+                targetUserRole: targetRole,
+              ),
+            ),
+          );
+          _fetchConversations();
+        },
+      ),
+    );
+  }
+}
+
+class _NewConversationBottomSheet extends StatefulWidget {
+  final String currentUserId;
+  final String userRole;
+  final bool isDark;
+  final Function(String roomId, String title, String targetUserId, String targetRole) onConversationSelected;
+
+  const _NewConversationBottomSheet({
+    required this.currentUserId,
+    required this.userRole,
+    required this.isDark,
+    required this.onConversationSelected,
+  });
+
+  @override
+  State<_NewConversationBottomSheet> createState() => _NewConversationBottomSheetState();
+}
+
+class _NewConversationBottomSheetState extends State<_NewConversationBottomSheet> {
+  final _client = Supabase.instance.client;
+  final _searchCtrl = TextEditingController();
+  List<Map<String, dynamic>> _allUsers = [];
+  List<Map<String, dynamic>> _filteredUsers = [];
+  bool _isLoading = true;
+  String _selectedRoleFilter = 'ALL';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsers();
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final res = await _client
+          .from('profiles')
+          .select('id, full_name, role, room_number, phone_no, avatar_url')
+          .neq('id', widget.currentUserId)
+          .order('full_name')
+          .limit(150);
+
+      if (mounted) {
+        setState(() {
+          _allUsers = List<Map<String, dynamic>>.from(res);
+          _applyFilters();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading directory: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _applyFilters() {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    setState(() {
+      _filteredUsers = _allUsers.where((u) {
+        final name = (u['full_name'] ?? '').toString().toLowerCase();
+        final role = (u['role'] ?? '').toString().toLowerCase();
+        final room = (u['room_number'] ?? '').toString().toLowerCase();
+        final phone = (u['phone_no'] ?? '').toString().toLowerCase();
+
+        final matchesQuery = query.isEmpty ||
+            name.contains(query) ||
+            role.contains(query) ||
+            room.contains(query) ||
+            phone.contains(query);
+
+        if (!matchesQuery) return false;
+
+        if (_selectedRoleFilter == 'STUDENTS') {
+          return role.contains('student');
+        } else if (_selectedRoleFilter == 'STAFF') {
+          return role == 'staff' || role == 'admin' || role == 'hostel_manager';
+        } else if (_selectedRoleFilter == 'CUSTOMERS') {
+          return role == 'store_customer';
+        }
+        return true;
+      }).toList();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = widget.isDark ? const Color(0xFF161A22) : Colors.white;
+    final textColor = widget.isDark ? Colors.white : Colors.black;
+
+    return Container(
+      height: MediaQuery.of(context).size.height * 0.75,
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 20, offset: const Offset(0, -4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: widget.isDark ? Colors.white24 : Colors.black12,
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'START CONVERSATION',
+                style: GoogleFonts.outfit(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  letterSpacing: 1.5,
+                  color: textColor,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, size: 20),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Search Field
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: widget.isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (_) => _applyFilters(),
+              style: TextStyle(color: textColor, fontSize: 13),
+              decoration: InputDecoration(
+                icon: const Icon(Icons.search, size: 18, color: Colors.indigoAccent),
+                hintText: 'Search by name, role, room number, or phone...',
+                hintStyle: TextStyle(color: widget.isDark ? Colors.white24 : Colors.black26, fontSize: 12),
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Role Chips
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: ['ALL', 'STUDENTS', 'STAFF', 'CUSTOMERS'].map((cat) {
+                final isSel = _selectedRoleFilter == cat;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(cat, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isSel ? Colors.white : textColor)),
+                    selected: isSel,
+                    selectedColor: Colors.indigoAccent,
+                    backgroundColor: widget.isDark ? Colors.white.withOpacity(0.04) : Colors.black.withOpacity(0.04),
+                    onSelected: (val) {
+                      if (val) {
+                        setState(() {
+                          _selectedRoleFilter = cat;
+                          _applyFilters();
+                        });
+                      }
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: Colors.indigoAccent))
+                : _filteredUsers.isEmpty
+                    ? Center(
+                        child: Text(
+                          'No directory contacts found',
+                          style: TextStyle(color: widget.isDark ? Colors.white38 : Colors.black38, fontSize: 12),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _filteredUsers.length,
+                        itemBuilder: (context, idx) {
+                          final u = _filteredUsers[idx];
+                          final uId = u['id'].toString();
+                          final name = u['full_name'] ?? 'User';
+                          final role = u['role'] ?? 'resident';
+                          final room = u['room_number'] != null ? 'Room ${u['room_number']}' : '';
+                          final avatar = u['avatar_url'];
+
+                          final isCustomer = role == 'store_customer';
+                          final roomId = isCustomer
+                              ? 'shop_support_$uId'
+                              : 'admin_support_$uId';
+
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            leading: CircleAvatar(
+                              backgroundColor: Colors.indigoAccent.withOpacity(0.15),
+                              backgroundImage: (avatar != null && avatar.toString().isNotEmpty)
+                                  ? NetworkImage(avatar)
+                                  : null,
+                              child: (avatar == null || avatar.toString().isEmpty)
+                                  ? Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : 'U',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigoAccent),
+                                    )
+                                  : null,
+                            ),
+                            title: Text(
+                              name,
+                              style: GoogleFonts.outfit(fontWeight: FontWeight.bold, fontSize: 13, color: textColor),
+                            ),
+                            subtitle: Text(
+                              [role.toUpperCase(), room].where((s) => s.isNotEmpty).join(' • '),
+                              style: TextStyle(fontSize: 11, color: widget.isDark ? Colors.white54 : Colors.black54),
+                            ),
+                            trailing: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.indigoAccent.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(Icons.chat_bubble_outline_rounded, size: 16, color: Colors.indigoAccent),
+                            ),
+                            onTap: () {
+                              widget.onConversationSelected(
+                                roomId,
+                                name,
+                                uId,
+                                role,
+                              );
+                            },
+                          );
+                        },
+                      ),
+          ),
+        ],
       ),
     );
   }

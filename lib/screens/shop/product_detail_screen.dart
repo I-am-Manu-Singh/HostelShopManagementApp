@@ -178,7 +178,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     } catch (e) {}
   }
 
-  @override
+@override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final tintColor = PlaceholderService.getProductColor(_currentProduct.id);
@@ -196,13 +196,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
           LayoutBuilder(
             builder: (context, constraints) {
               if (constraints.maxWidth > 800) {
-                // Desktop/Wide View: 2-column split layout
+                // Desktop/Wide View: 2-column split layout taking full available height
                 return Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch, // Fill entire height
                   children: [
                     Expanded(
                       flex: 5,
-                      child: SingleChildScrollView(
+                      child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 24),
                         child: Column(
                           children: [
@@ -210,50 +210,82 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                               padding: const EdgeInsets.symmetric(horizontal: 24),
                               child: Row(
                                 children: [
-                                  _glassCircleBtn(icon: Icons.arrow_back_ios_new_rounded, onTap: () => Navigator.pop(context), isDark: isDark),
+                                  _glassCircleBtn(
+                                    icon: Icons.arrow_back_ios_new_rounded,
+                                    onTap: () => Navigator.pop(context),
+                                    isDark: isDark,
+                                  ),
                                   const Spacer(),
-                                  _glassCircleBtn(icon: Icons.edit_note_rounded, onTap: () async {
-                                    final updated = await Navigator.push(context, MaterialPageRoute(builder: (_) => AdminEditProductScreen(product: _currentProduct)));
-                                    if (updated is ShopItem) {
-                                      setState(() => _currentProduct = updated);
-                                    } else if (updated == true) {
-                                      _fetchFreshProduct();
-                                    }
-                                  }, isDark: isDark),
+                                  _glassCircleBtn(
+                                    icon: Icons.edit_note_rounded,
+                                    onTap: () async {
+                                      final updated = await Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => AdminEditProductScreen(product: _currentProduct),
+                                        ),
+                                      );
+                                      if (updated is ShopItem) {
+                                        setState(() => _currentProduct = updated);
+                                      } else if (updated == true) {
+                                        _fetchFreshProduct();
+                                      }
+                                    },
+                                    isDark: isDark,
+                                  ),
                                   const SizedBox(width: 12),
-                                  _glassCircleBtn(icon: _isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded, onTap: _toggleWishlist, isDark: isDark, active: _isWishlisted),
+                                  _glassCircleBtn(
+                                    icon: _isWishlisted ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                                    onTap: _toggleWishlist,
+                                    isDark: isDark,
+                                    active: _isWishlisted,
+                                  ),
                                 ],
                               ),
                             ),
                             const SizedBox(height: 24),
-                            Container(
-                              height: 340,
-                              margin: const EdgeInsets.symmetric(horizontal: 24),
-                              decoration: BoxDecoration(
-                                color: PlaceholderService.getProductColor(_currentProduct.id).withOpacity(isDark ? 0.05 : 0.08),
-                                borderRadius: BorderRadius.circular(24),
-                              ),
-                              child: Builder(
-                                builder: (context) {
-                                  final images = _productImages;
-                                  final count = images.isEmpty ? 1 : images.length;
-                                  return PageView.builder(
-                                    onPageChanged: (v) => setState(() => _currentImageIndex = v),
-                                    itemCount: count,
-                                    itemBuilder: (context, i) {
-                                      final img = images.isNotEmpty ? images[i] : null;
-                                      return Hero(
-                                        tag: i == 0 ? 'prod_${_currentProduct.id}' : 'prod_slide_${_currentProduct.id}_$i',
-                                        child: Padding(
-                                          padding: const EdgeInsets.all(24),
-                                          child: img != null
-                                              ? CachedNetworkImage(imageUrl: img, fit: BoxFit.contain, errorWidget: (c, e, s) => PlaceholderService.buildPlaceholder(_currentProduct.category, _currentProduct.id, isDark: isDark))
-                                              : PlaceholderService.buildPlaceholder(_currentProduct.category, _currentProduct.id, isDark: isDark),
-                                        ),
-                                      );
-                                    },
-                                  );
-                                },
+                            // Expanded replaces fixed height (340) to consume the full available height
+                            Expanded(
+                              child: Container(
+                                margin: const EdgeInsets.symmetric(horizontal: 24),
+                                decoration: BoxDecoration(
+                                  color: PlaceholderService.getProductColor(_currentProduct.id).withOpacity(isDark ? 0.05 : 0.08),
+                                  borderRadius: BorderRadius.circular(24),
+                                ),
+                                child: Builder(
+                                  builder: (context) {
+                                    final images = _productImages;
+                                    final count = images.isEmpty ? 1 : images.length;
+                                    return PageView.builder(
+                                      onPageChanged: (v) => setState(() => _currentImageIndex = v),
+                                      itemCount: count,
+                                      itemBuilder: (context, i) {
+                                        final img = images.isNotEmpty ? images[i] : null;
+                                        return Hero(
+                                          tag: i == 0 ? 'prod_${_currentProduct.id}' : 'prod_slide_${_currentProduct.id}_$i',
+                                          child: Padding(
+                                            padding: const EdgeInsets.all(24),
+                                            child: img != null
+                                                ? CachedNetworkImage(
+                                                    imageUrl: img,
+                                                    fit: BoxFit.contain,
+                                                    errorWidget: (c, e, s) => PlaceholderService.buildPlaceholder(
+                                                      _currentProduct.category,
+                                                      _currentProduct.id,
+                                                      isDark: isDark,
+                                                    ),
+                                                  )
+                                                : PlaceholderService.buildPlaceholder(
+                                                    _currentProduct.category,
+                                                    _currentProduct.id,
+                                                    isDark: isDark,
+                                                  ),
+                                          ),
+                                        );
+                                      },
+                                    );
+                                  },
+                                ),
                               ),
                             ),
                           ],

@@ -59,6 +59,7 @@ dependencies:
   esc_pos_utils_plus: ^2.0.4
   print_bluetooth_thermal: ^1.2.1
   barcode_widget: ^2.0.4
+  purchases_flutter: ^8.5.0
 
 dev_dependencies:
   flutter_test:

@@ -1,10 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:animate_do/animate_do.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../services/preferences_service.dart';
 import '../../main.dart';
 import 'edit_profile_screen.dart';
+import '../../widgets/app_info_dialog.dart';
+import '../../widgets/subscription_tiers_dialog.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -86,7 +87,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   );
                 },
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
+              _buildSectionHeader('ABOUT & LEGAL'),
+              const SizedBox(height: 16),
+              _buildSettinsCard(
+                title: 'Membership & Tiers',
+                subtitle: 'Unlock Pro POS billing, Cloud Sync & Campus fleet tools',
+                icon: Icons.workspace_premium_rounded,
+                color: const Color(0xFF6366F1),
+                onTap: () => SubscriptionTiersDialog.show(context),
+              ),
+              const SizedBox(height: 12),
+              _buildSettinsCard(
+                title: 'App Info & Architecture',
+                subtitle: 'Creative Bliss Labs • System & Release Intel',
+                icon: Icons.info_outline_rounded,
+                color: const Color(0xFFEAB308),
+                onTap: () => AppInfoDialog.show(context),
+              ),
+              const SizedBox(height: 32),
               Center(child: Text('VER_1.8.5_BETA // STABLE_CHANNEL', style: GoogleFonts.outfit(color: isDark ? Colors.white10 : Colors.black12, fontSize: 8, fontWeight: FontWeight.w900, letterSpacing: 2))),
             ],
           ),

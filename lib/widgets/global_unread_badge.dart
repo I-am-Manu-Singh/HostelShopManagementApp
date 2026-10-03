@@ -55,15 +55,20 @@ class _GlobalUnreadBadgeState extends State<GlobalUnreadBadge> {
       // Communication channels based on CampusChatListScreen
       List<String> roomIds = ['hostel_gen', 'mess_community', 'student_council'];
 
-      if (role == 'admin' || role == 'hostel_manager' || role == 'owner') {
-        // Find all student threads
+      if (role == 'admin' || role == 'hostel_manager' || role == 'owner' || role == 'shop_owner' || role == 'staff') {
+        // Find all student & customer direct support threads
         try {
-          final activeThreads = await _client.from('messages').select('room_id').like('room_id', 'admin_support_%');
-          final threadIds = (activeThreads as List).map((t) => t['room_id']?.toString() ?? '').where((id) => id.isNotEmpty).toSet();
+          final activeAdminThreads = await _client.from('messages').select('room_id').like('room_id', 'admin_support_%');
+          final activeShopThreads = await _client.from('messages').select('room_id').like('room_id', 'shop_support_%');
+          final threadIds = [
+            ...(activeAdminThreads as List).map((t) => t['room_id']?.toString() ?? ''),
+            ...(activeShopThreads as List).map((t) => t['room_id']?.toString() ?? ''),
+          ].where((id) => id.isNotEmpty).toSet();
           roomIds.addAll(threadIds);
         } catch (_) {}
       } else {
         roomIds.add('admin_support_${user.id}');
+        roomIds.add('shop_support_${user.id}');
         roomIds.add('shop_manager_${user.id}');
       }
 
