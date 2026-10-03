@@ -209,20 +209,119 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: pages,
-      ),
-      bottomNavigationBar: _buildBottomBar(icons, isDark),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isWideOrLandscape = MediaQuery.of(context).orientation == Orientation.landscape || constraints.maxWidth >= 600;
+
+        if (isWideOrLandscape) {
+          return Scaffold(
+            backgroundColor: bgColor,
+            body: Row(
+              children: [
+                _buildSideRail(icons, labels, isDark),
+                const VerticalDivider(width: 1, thickness: 1),
+                Expanded(
+                  child: IndexedStack(
+                    index: _currentIndex,
+                    children: pages,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Scaffold(
+          backgroundColor: bgColor,
+          body: IndexedStack(
+            index: _currentIndex,
+            children: pages,
+          ),
+          bottomNavigationBar: _buildBottomBar(icons, isDark),
+        );
+      },
     );
   }
 
+  Widget _buildSideRail(List<IconData> icons, List<String> labels, bool isDark) {
+    return Container(
+      width: 76,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF16181A) : Colors.white,
+        border: Border(
+          right: BorderSide(
+            color: isDark ? Colors.white10 : Colors.black.withOpacity(0.05),
+          ),
+        ),
+      ),
+      child: SafeArea(
+        right: false,
+        child: Column(
+          children: [
+            const SizedBox(height: 16),
+            Image.asset(
+              'assets/images/app_logo.png',
+              width: 38,
+              height: 38,
+              errorBuilder: (_, __, ___) => const Icon(Icons.apartment_rounded, color: Colors.indigoAccent, size: 30),
+            ),
+            const SizedBox(height: 24),
+            Expanded(
+              child: ListView.separated(
+                itemCount: icons.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, i) {
+                  final isActive = _currentIndex == i;
+                  return Tooltip(
+                    message: i < labels.length ? labels[i] : '',
+                    child: InkWell(
+                      onTap: () => setState(() => _currentIndex = i),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 10),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? Colors.indigoAccent.withOpacity(0.12)
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              icons[i],
+                              color: isActive
+                                  ? Colors.indigoAccent
+                                  : (isDark ? Colors.white38 : Colors.black38),
+                              size: 24,
+                            ),
+                            if (isActive)
+                              Container(
+                                margin: const EdgeInsets.only(top: 6),
+                                width: 5,
+                                height: 5,
+                                decoration: const BoxDecoration(
+                                  color: Colors.indigoAccent,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+        ),
+      ),
+    );
+  }
 
-
-
-Widget _buildBottomBar(List<IconData> icons, bool isDark) {
+  Widget _buildBottomBar(List<IconData> icons, bool isDark) {
     return Container(
       height: 70, 
       decoration: BoxDecoration(

@@ -456,7 +456,6 @@ Container(
         title: Text('MESSAGES', style: GoogleFonts.outfit(fontWeight: FontWeight.w900, fontSize: 13, letterSpacing: 2, color: textColor)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 18), onPressed: () => Navigator.pop(context)),
       ),
       body: bodyContent,
     );
