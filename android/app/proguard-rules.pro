@@ -53,3 +53,29 @@
 -keep class com.google.android.play.core.integrity.** { *; }
 -dontwarn com.google.android.play.core.integrity.**
 
+# Flutter and Flutter plugins keep rules
+-keep class io.flutter.** { *; }
+-keep class io.flutter.app.** { *; }
+-keep class io.flutter.plugin.**  { *; }
+-keep class io.flutter.util.**  { *; }
+-keep class io.flutter.view.**  { *; }
+-keep class io.flutter.embedding.**  { *; }
+
+# Google ML Kit and Camera
+-keep class com.google.mlkit.** { *; }
+-dontwarn com.google.mlkit.**
+
+# Local Auth / Biometrics
+-keep class androidx.biometric.** { *; }
+
+# Just Audio Background
+-keep class com.ryanheise.audioservice.** { *; }
+-dontwarn com.ryanheise.audioservice.**
+-keep class com.ryanheise.just_audio.** { *; }
+-dontwarn com.ryanheise.just_audio.**
+
+# ESC POS and Bluetooth Printer
+-dontwarn com.journeyapps.barcodescanner.**
+-dontwarn com.google.zxing.**
+
+

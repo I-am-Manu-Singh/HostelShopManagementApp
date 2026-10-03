@@ -1,5 +1,5 @@
 name: hostel_shop_mgmt_app
-description: "A new Flutter project."
+description: "H House — Comprehensive hostel living, campus shop commerce, mess attendance, and resident management system."
 publish_to: 'none'
 
 version: 1.0.0+1
@@ -82,6 +82,7 @@ flutter:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
+  remove_alpha_ios: true
   image_path: "assets/images/app_logo.png"
   min_sdk_android: 21
   web:

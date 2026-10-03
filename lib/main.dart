@@ -15,7 +15,7 @@ import 'screens/student/attendance_screen.dart';
 import 'screens/user/complaint_screen.dart';
 import 'services/cart_service.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
 import 'screens/home/web_landing_screen.dart';
 import 'services/network_connectivity_service.dart';
 
@@ -36,7 +36,9 @@ void main() async {
     );
   } catch (e) {
     // Ignore on platforms that don't support background audio (web, etc.)
-    print('JustAudioBackground init skipped: $e');
+    if (kDebugMode) {
+      print('JustAudioBackground init skipped: $e');
+    }
   }
 
   runApp(
@@ -389,9 +391,13 @@ Future<void> _initPlugins() async {
     await Future.delayed(const Duration(milliseconds: 300));
     await NotificationService.initialize();
     NetworkConnectivityService().startMonitoring();
-    print('Plugins initialized safely');
+    if (kDebugMode) {
+      print('Plugins initialized safely');
+    }
   } catch (e) {
-    print('Init error: $e');
+    if (kDebugMode) {
+      print('Init error: $e');
+    }
   }
   if (mounted) setState(() => _initialized = true);
 }
